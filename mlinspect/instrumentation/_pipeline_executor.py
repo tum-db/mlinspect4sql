@@ -8,6 +8,7 @@ import gorilla
 import nbformat
 import networkx
 from astmonkey.transformers import ParentChildNodeTransformer
+from astmonkey import visitors
 from nbconvert import PythonExporter
 
 from .. import monkeypatching
@@ -76,6 +77,7 @@ class PipelineExecutor:
         self.custom_monkey_patching = custom_monkey_patching
         self.to_sql = to_sql
 
+        # Here the modified code is created and run:
         self.run_inspections(notebook_path, python_code, python_path)
         check_to_results = dict((check, check.evaluate(self.inspection_results)) for check in checks)
         return InspectorResult(self.inspection_results.dag, self.inspection_results.dag_node_to_inspection_results,
@@ -91,7 +93,7 @@ class PipelineExecutor:
 
         parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references, self.to_sql)
 
-        exec(compile(parsed_modified_ast, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
+        exec(compile(visitors.to_source(parsed_modified_ast), filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
 
     def get_next_op_id(self):
         """

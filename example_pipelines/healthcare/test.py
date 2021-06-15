@@ -6,6 +6,7 @@ from mlinspect.inspections import HistogramForColumns, RowLineage, MaterializeFi
 from mlinspect.checks import NoBiasIntroducedFor, NoIllegalFeatures
 from demo.feature_overview.no_missing_embeddings import NoMissingEmbeddings
 from inspect import cleandoc
+from example_pipelines.healthcare import custom_monkeypatching
 
 
 def example_one():
@@ -13,6 +14,7 @@ def example_one():
 
     inspector_result = PipelineInspector \
         .on_pipeline_from_py_file(HEALTHCARE_FILE_PY) \
+        .add_custom_monkey_patching_module(custom_monkeypatching) \
         .add_check(NoBiasIntroducedFor(["age_group", "race"])) \
         .add_check(NoIllegalFeatures()) \
         .add_check(NoMissingEmbeddings()) \
@@ -47,6 +49,14 @@ def example_two():
     inspection_results = inspector_result.inspection_to_annotations
     check_results = inspector_result.check_to_check_results
     print(check_results)
+
+
+# def test():
+#     patients = pd.read_csv(os.path.join(
+#         str(get_project_root(**set_code_reference_call(20, 40, 20, 58)), **set_code_reference_call(20, 36, 20, 59)),
+#         'example_pipelines', 'healthcare',
+#         'patients.csv', **set_code_reference_call(20, 23, 21, 51)),
+#         **set_code_reference_call(20, 11, 21, 67, na_values='?'))
 
 
 if __name__ == "__main__":
