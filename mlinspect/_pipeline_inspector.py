@@ -77,7 +77,7 @@ class PipelineInspectorBuilder:
         self.monkey_patching_modules.append(module)
         return self
 
-    def execute(self) -> InspectorResult:
+    def execute(self, to_sql) -> InspectorResult:
         """
         Instrument and execute the pipeline
         """
@@ -86,7 +86,8 @@ class PipelineInspectorBuilder:
                              python_code=self.python_code,
                              inspections=self.inspections,
                              checks=self.checks,
-                             custom_monkey_patching=self.monkey_patching_modules)
+                             custom_monkey_patching=self.monkey_patching_modules,
+                             to_sql=to_sql)
 
 
 class PipelineInspector:

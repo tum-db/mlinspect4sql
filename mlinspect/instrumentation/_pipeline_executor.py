@@ -38,6 +38,7 @@ class PipelineExecutor:
     inspection_results = InspectionResult(networkx.DiGraph(), dict())
     inspections = []
     custom_monkey_patching = []
+    to_sql = False
 
     def run(self, *,
             notebook_path: str or None = None,
@@ -47,7 +48,8 @@ class PipelineExecutor:
             checks: Iterable[Check] or None = None,
             reset_state: bool = True,
             track_code_references: bool = True,
-            custom_monkey_patching: List[any] = None
+            custom_monkey_patching: List[any] = None,
+            to_sql: bool = False
             ) -> InspectorResult:
         """
         Instrument and execute the pipeline and evaluate all checks
@@ -72,6 +74,7 @@ class PipelineExecutor:
         self.inspections = all_inspections
         self.track_code_references = track_code_references
         self.custom_monkey_patching = custom_monkey_patching
+        self.to_sql = to_sql
 
         self.run_inspections(notebook_path, python_code, python_path)
         check_to_results = dict((check, check.evaluate(self.inspection_results)) for check in checks)
@@ -85,7 +88,9 @@ class PipelineExecutor:
         # pylint: disable=no-self-use, too-many-locals
         self.source_code, self.source_code_path = self.load_source_code(notebook_path, python_path, python_code)
         parsed_ast = ast.parse(self.source_code)
-        parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references)
+
+        parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references, self.to_sql)
+
         exec(compile(parsed_modified_ast, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
 
     def get_next_op_id(self):
@@ -124,7 +129,7 @@ class PipelineExecutor:
         self.custom_monkey_patching = []
 
     @staticmethod
-    def instrument_pipeline(parsed_ast, track_code_references):
+    def instrument_pipeline(parsed_ast, track_code_references, to_sql):
         """
         Instrument the pipeline AST to instrument function calls
         """
