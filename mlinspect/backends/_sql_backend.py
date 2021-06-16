@@ -1,3 +1,105 @@
+import pandas as pd
+from tableschema import Table
+import sqlalchemy
+from sqlalchemy.types import Integer, Text, BOOLEAN
+import pathlib
+from mlinspect.utils import get_project_root
+
+ROOT_DIR = get_project_root()
+
 
 class SQLBackend:
     pass
+
+
+class CreateTablesFromCSVs:
+    """Infer a table schema from a CSV."""
+
+    def __init__(self, file):
+        file = pathlib.Path(file)
+        if file.is_file():
+            self.file = str(file)
+        elif (ROOT_DIR / file).is_file():
+            self.file = str(ROOT_DIR / file)
+        else:
+            raise FileNotFoundError
+
+    def _get_data(self):
+        """Load data from CSV"""
+        return pd.read_csv(self.file, header=0, encoding='utf-8')
+
+    def _get_schema_from_csv(self, types_as_string=False):
+        """Infers schema from CSV."""
+        table = Table(self.file)
+        table.infer(limit=500, confidence=0.55)
+        schema = table.schema.descriptor
+
+        if schema["missingValues"][0] != "":
+            raise ValueError(f"Unfortunately not all columns could be parsed -> {schema['missingValues'][0]}")
+
+        col_names = []
+        for i, dic in enumerate(schema['fields']):
+            col_names.append(dic['name'])
+
+        if types_as_string:  # return types as str -> except 'string' is replaced by varchar(100) to comply with umbra
+            return col_names, [("varchar(100)" if i['type'] == "string" else i['type']) for i in schema['fields']]
+        types = []
+        for i, value in enumerate(schema['fields']):
+            if value['type'] == 'integer':
+                types.append(Integer)
+            elif value['type'] == 'string':
+                types.append(Text)
+            elif value['type'] == 'boolean':
+                types.append(BOOLEAN)
+            else:
+                raise NotImplementedError
+
+        return col_names, types
+
+    @staticmethod
+    def _get_table_def(col_names, types, table_name):
+        """Create new sqlalchemy table from CSV and generated schema."""
+        meta = sqlalchemy.MetaData()
+        columns = []
+        for name, data_t in zip(col_names, types):
+            columns.append(sqlalchemy.Column(name, data_t))
+        return sqlalchemy.Table(table_name, meta, *columns)
+
+    def add_to_database(self, engine, table_name):
+        """
+        Notes:
+           - For a big table see: https://stackoverflow.com/a/34523707/9621080 -> To make if fast!
+        """
+        names, data_types = self._get_schema_from_csv()
+        table_definition = self._get_table_def(names, data_types, table_name)
+
+        # drop the table if it exists:
+        engine.execute(f"DROP TABLE IF EXISTS {table_definition.fullname};")
+
+        # create the table, with the passed code
+        table_definition.create(engine)
+
+        table_name = str(table_definition.fullname)
+        table_columns = ", ".join([str(i.name) for i in list(table_definition.columns)])
+        conn = engine.raw_connection()
+        cursor = conn.cursor()
+        cmd = f"COPY {table_name}({table_columns}) FROM STDIN WITH (DELIMITER ',', NULL '?', FORMAT CSV, HEADER TRUE)"
+        with open(self.file) as csv:
+            cursor.copy_expert(cmd, csv)
+        conn.commit()
+
+    def get_sql_code(self, table_name, null_symbol="?", delimiter=",", header=True, drop_old=False):
+        names, data_types = self._get_schema_from_csv(types_as_string=True)
+
+        drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
+
+        create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
+            [i + " " + j for i, j in zip(names, data_types)]) + "\n)"
+
+        add_data = f"COPY {table_name}({', '.join([i for i in list(names)])}) " \
+                   f"FROM '{self.file}' WITH (" \
+                   f"DELIMITER '{delimiter}', NULL '{null_symbol}', FORMAT CSV, HEADER {'TRUE' if header else 'FALSE'})"
+
+        if drop_old:
+            return f"{drop_old_table};\n\n{create_table};\n\n{add_data};"
+        return f"{create_table};\n\n{add_data};"

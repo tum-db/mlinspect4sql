@@ -6,14 +6,50 @@ import os
 
 import gorilla
 import pandas
+import pandas as pd
+import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
+from mlinspect.backends._sql_backend import SQLBackend, CreateTablesFromCSVs
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
     get_dag_node_for_id, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
+
+
+class DfToStringMapping:
+    """
+    Simple data structure to track the mappings of pandas.Dataframes to SQL table names.
+    """
+    mapping = []
+
+    def add(self, name: str, df: pd.DataFrame) -> None:
+        self.mapping.append((name, df))
+
+    def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
+        index = self.mapping.index(old_entry)
+        self.mapping[index] = new_entry
+
+    def update_name_at_df(self, df, new_name):
+        old_name = self.get_name(df)
+        index = self.mapping.index((old_name, df))
+        self.mapping[index] = (new_name, df)
+
+    def get_df(self, name_to_find: str) -> pd.DataFrame:
+        return next(df for (n, df) in self.mapping if n == name_to_find)
+
+    def get_name(self, df_to_find: pd.DataFrame) -> str:
+        return next(n for (n, df) in self.mapping if df is df_to_find)
+
+
+# This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
+mapping = DfToStringMapping()
+
+
+def _abs_hash(x):
+    return abs(hash(x))
 
 
 @gorilla.patches(pandas)
@@ -35,7 +71,46 @@ class PandasPatchingSQL:
 
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
             input_infos = PandasBackend.before_call(operator_context, [])
+
+            # Add the restriction to only load 10 rows of the csv and add the Dataframe to the wrapper.
+            kwargs["nrows"] = 10
             result = original(*args, **kwargs)
+
+            sep = ","
+            na_values = "?"
+            header = 1
+            path_to_csv = ""
+
+            # Check relevant kwargs:
+            if "filepath_or_buffer" in kwargs:  # could be: str, (path object or file-like object)
+                path_to_csv = kwargs["filepath_or_buffer"]
+            elif "sep" in kwargs:
+                sep = kwargs["sep"]
+            elif "na_values" in kwargs:
+                na_values = kwargs["na_values"]
+            elif "header" in kwargs:  # int that states the how many rows resemble the columns header
+                header = kwargs["header"]
+                if not isinstance(header, int):
+                    raise NotImplementedError
+
+            # Check args that weren't set by kwargs:
+            if path_to_csv == "" and len(args) >= 1:  # Just evaluate the first arg to get the csv.
+                path_to_csv = args[0]
+            if len(args) >= 2:
+                sep = args[1]
+            if len(args) >= 3:
+                raise NotImplementedError
+
+            table_name = pathlib.Path(path_to_csv).stem + "_" + str(_abs_hash(optional_code_reference))
+
+            sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
+                                                                      delimiter=sep,
+                                                                      header=(1 == header))
+
+            print(sql_code + "\n")
+
+            mapping.add(table_name, result)
+
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
                                                       result)
@@ -297,6 +372,7 @@ class DataFramePatchingSQL:
 @gorilla.patches(pandas.core.groupby.generic.DataFrameGroupBy)
 class DataFrameGroupByPatchingSQL:
     """ Patches for 'pandas.core.groupby.generic' """
+
     # pylint: disable=too-few-public-methods
 
     @gorilla.name('agg')

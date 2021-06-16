@@ -97,6 +97,8 @@ class PipelineExecutor:
 
         modified_code = visitors.to_source(parsed_modified_ast)
 
+        if self.to_sql:
+            print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n")
         # Do the monkey patching and the inspection:
         exec(compile(modified_code, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
         return

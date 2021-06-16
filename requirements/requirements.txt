@@ -13,3 +13,7 @@ pygraphviz==1.7
 testfixtures==6.17.1
 matplotlib==3.4.2
 gorilla==0.4.0
+
+# For SQL related:
+tableschema==1.20.2
+sqlalchemy==1.4.18
