@@ -11,6 +11,7 @@ from astmonkey.transformers import ParentChildNodeTransformer
 from astmonkey import visitors
 from nbconvert import PythonExporter
 
+from .. import monkeypatchingSQL
 from .. import monkeypatching
 from ._call_capture_transformer import CallCaptureTransformer
 from .._inspector_result import InspectorResult
@@ -56,6 +57,7 @@ class PipelineExecutor:
         Instrument and execute the pipeline and evaluate all checks
         """
         # pylint: disable=too-many-arguments
+
         if reset_state:
             # reset_state=False should only be used internally for performance experiments etc!
             # It does not ensure the same inspections are still used as args etc.
@@ -93,7 +95,11 @@ class PipelineExecutor:
 
         parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references, self.to_sql)
 
-        exec(compile(visitors.to_source(parsed_modified_ast), filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
+        modified_code = visitors.to_source(parsed_modified_ast)
+
+        # Do the monkey patching and the inspection:
+        exec(compile(modified_code, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
+        return
 
     def get_next_op_id(self):
         """
@@ -192,8 +198,6 @@ class PipelineExecutor:
         return source_code, source_code_path
 
 
-# How we instrument the calls
-
 # This instance works as our singleton: we avoid to pass the class instance to the instrumented
 # pipeline. This keeps the DAG nodes to be inserted very simple.
 singleton = PipelineExecutor()
@@ -248,5 +252,7 @@ def get_monkey_patching_patch_sources():
     Get monkey patches provided by mlinspect and custom patches provided by the user
     """
     patch_sources = [monkeypatching]
+    if singleton.to_sql:
+        patch_sources = [monkeypatchingSQL]
     patch_sources.extend(singleton.custom_monkey_patching)
     return patch_sources
