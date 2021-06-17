@@ -23,8 +23,7 @@ histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines
                                      "histories.csv"), na_values='?')
 
 data = patients.merge(histories, on=['ssn'])
-complications = data.groupby('age_group') \
-    .agg(mean_complications=('complications', 'mean'))
+complications = data.groupby('age_group').agg(mean_complications=('complications', 'mean'))
 data = data.merge(complications, on=['age_group'])
 data['label'] = data['complications'] > 1.2 * data['mean_complications']
 data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]

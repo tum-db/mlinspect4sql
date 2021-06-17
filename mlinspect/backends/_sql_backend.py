@@ -9,7 +9,20 @@ ROOT_DIR = get_project_root()
 
 
 class SQLBackend:
-    pass
+    first_with = True
+
+    def wrap_in_with(self, sql_code, code_reference):
+        with_block_name = f"with_{self.hash(code_reference)}"
+        sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
+        sql_code = f"{with_block_name} AS (\n\t{sql_code}\n),"
+        if self.first_with:
+            sql_code = "WITH " + sql_code
+            self.first_with = False
+        return with_block_name, sql_code
+
+    @staticmethod
+    def hash(x):
+        return abs(hash(x))
 
 
 class CreateTablesFromCSVs:

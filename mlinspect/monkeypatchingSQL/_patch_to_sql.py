@@ -46,10 +46,7 @@ class DfToStringMapping:
 
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
-
-
-def _abs_hash(x):
-    return abs(hash(x))
+sql_backend = SQLBackend()
 
 
 @gorilla.patches(pandas)
@@ -76,6 +73,8 @@ class PandasPatchingSQL:
             kwargs["nrows"] = 10
             result = original(*args, **kwargs)
 
+            # PRINT SQL: ###############################################################################################
+
             sep = ","
             na_values = "?"
             header = 1
@@ -101,7 +100,7 @@ class PandasPatchingSQL:
             if len(args) >= 3:
                 raise NotImplementedError
 
-            table_name = pathlib.Path(path_to_csv).stem + "_" + str(_abs_hash(optional_code_reference))
+            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.hash(optional_code_reference))
 
             sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
                                                                       delimiter=sep,
@@ -110,6 +109,7 @@ class PandasPatchingSQL:
             print(sql_code + "\n")
 
             mapping.add(table_name, result)
+            # PRINT SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
@@ -332,10 +332,41 @@ class DataFramePatchingSQL:
                                                                        input_info_b.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, input_infos[1].result_data, *args[1:], **kwargs)
+
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
                                                       result)
             result = backend_result.annotated_dfobject.result_data
+
+            # PRINT SQL: ###############################################################################################
+            tb1 = input_info_a.annotated_dfobject.result_data
+            tb2 = input_info_b.annotated_dfobject.result_data
+
+            merge_type = "inner"  # default
+            merge_column = ""  # default: cross-product
+
+            if "how" in kwargs:
+                merge_type = kwargs["how"]
+            elif len(args) >= 2:
+                merge_type = args[1]
+            if "on" in kwargs:
+                merge_column = kwargs["on"]
+            elif len(args) >= 3:
+                merge_column = args[2]
+
+            if merge_column == "":  # Cross product:
+                sql_code = f"SELECT * \n" \
+                           f"FROM {mapping.get_name(tb1)}, {mapping.get_name(tb2)}"
+            else:
+                sql_code = f"SELECT * \n" \
+                           f"FROM {mapping.get_name(tb1)} tb1 \n" \
+                           f"{merge_type.upper()} JOIN {mapping.get_name(tb2)} tb2" \
+                           f" ON tb1.{merge_column} = tb2.{merge_column}"
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+            # PRINT SQL DONE! ##########################################################################################
+
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -362,6 +393,10 @@ class DataFramePatchingSQL:
             input_info = get_input_info(self, caller_filename, lineno, function_info, optional_code_reference,
                                         optional_source_code)
             result = original(self, *args, **kwargs)
+            # PRINT SQL: ###############################################################################################
+            # Here we don't need to do anything, as the groupby alone, is irrelevent. Only together with the applied
+            # operation, we need to act.
+            # PRINT SQL DONE! ##########################################################################################
             result._mlinspect_dag_node = input_info.dag_node.node_id  # pylint: disable=protected-access
 
             return result
@@ -380,6 +415,8 @@ class DataFrameGroupByPatchingSQL:
     def patched_agg(self, *args, **kwargs):
         """ Patch for ('pandas.core.groupby.generic', 'agg') """
         original = gorilla.get_original_attribute(pandas.core.groupby.generic.DataFrameGroupBy, 'agg')
+        groupby_columns_outer_scope = self.grouper.names  # gets the columns on which thr groupby was applied
+        tb1_outer_scope = self.obj  # gets the pandas.DataFrame on which the groupby was called upon
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
@@ -392,6 +429,38 @@ class DataFrameGroupByPatchingSQL:
 
             input_infos = PandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
+            # PRINT SQL: ###############################################################################################
+            tb1 = tb1_outer_scope
+            groupby_columns = groupby_columns_outer_scope  # could be: mapping, function, label, or list of labels
+            agg_params = [x[0] for x in kwargs.values()]
+            new_col_names = list(kwargs.keys())  # The name of the new column containing the aggregation
+            agg_funcs = [x[1] for x in kwargs.values()]
+
+            if not groupby_columns:  # if groupby_columns is empty we are dealing with a mapping or function.
+                raise NotImplementedError
+
+            # map pandas aggregation function to SQL (the the ones that differ):
+            for i, f in enumerate(agg_funcs):
+                if f == "mean":
+                    agg_funcs[i] = "avg"
+                elif f == "std":
+                    agg_funcs[i] = "stddev"
+                elif f == "var":
+                    agg_funcs[i] = "variance"
+
+            selection_string = []
+            for p, n, f in zip(agg_params, new_col_names, agg_funcs):
+                selection_string.append(f"{f.upper()}({p}) AS {n}")
+
+            sql_code = f"SELECT {', '.join(selection_string)} \n" \
+                       f"FROM {mapping.get_name(tb1)} \n" \
+                       f"GROUP BY {', '.join(groupby_columns)}"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+            # PRINT SQL DONE! ##########################################################################################
+
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
                                                       result)
