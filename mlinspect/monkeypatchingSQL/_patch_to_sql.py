@@ -23,7 +23,7 @@ class DfToStringMapping:
     """
     Simple data structure to track the mappings of pandas.Dataframes to SQL table names.
     """
-    mapping = []
+    mapping = [] # contains tuples of form: (*Name*, *DataFrame*)
 
     def add(self, name: str, df: pd.DataFrame) -> None:
         self.mapping.append((name, df))
@@ -42,6 +42,12 @@ class DfToStringMapping:
 
     def get_name(self, df_to_find: pd.DataFrame) -> str:
         return next(n for (n, df) in self.mapping if df is df_to_find)
+
+    def contains(self, df_to_find):
+        for m in self.mapping:
+            if m[1] is df_to_find:
+                return True
+        return False
 
 
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
@@ -236,6 +242,19 @@ class DataFramePatchingSQL:
                                                       input_infos,
                                                       result)
             result = backend_result.annotated_dfobject.result_data
+            # PRINT SQL: ###############################################################################################
+            if not mapping.contains(result): # Only create SQL-Table if it doesn't already exist.
+                tb1 = input_info.annotated_dfobject.result_data
+                select_attributes = list(args)
+
+                sql_code = f"SELECT {', '.join(select_attributes)}\n " \
+                           f"FROM ({mapping.get_name(tb1)})"
+
+                sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+
+                mapping.add(sql_table_name, result)
+                print(sql_code + "\n")
+            # PRINT SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
             return result
@@ -268,6 +287,12 @@ class DataFramePatchingSQL:
                 description = "modifies {}".format([args[0]])
             else:
                 raise NotImplementedError("TODO: Handling __setitem__ for key type {}".format(type(args[0])))
+            # PRINT SQL: ###############################################################################################
+            # There are two options to handle this kind of arithmetic operations of pandas.DataFrames / pandas.Searies:
+            # we can catch the entire operations and create one with statement, or create one with for each operation
+            # and put these with together.
+            print()
+            # PRINT SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
                                operator_context,
@@ -569,3 +594,71 @@ class SeriesPatchingSQL:
             add_dag_node(dag_node, [], backend_result)
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__mul__')
+    @gorilla.settings(allow_hit=True)
+    def patched__mul__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__mul__') """
+        original = gorilla.get_original_attribute(pandas.DataFrame, '__mul__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            function_info = FunctionInfo('pandas.core.series', '')
+            return 2
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__rmul__')
+    @gorilla.settings(allow_hit=True, store_hit=True)
+    def patched__mul__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__mul__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__rmul__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            multiplier = args[0]
+            result = (self * multiplier)
+
+            operator = "*"
+            multiplicand = self
+            affected_columns = self.name
+            if not isinstance(affected_columns, list):
+                affected_columns = [affected_columns]
+
+            sql_code = f"SELECT {f' {operator} {multiplier} , '.join(affected_columns)} {operator} {multiplier} \n" \
+                       f"FROM {mapping.get_name(multiplicand)}"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+            print(sql_table_name)
+            return result
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__gt__')
+    @gorilla.settings(allow_hit=True, store_hit=True)
+    def patched__mul__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__gt__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__gt__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            assert(len(args) == 1)
+            left = self
+            right = args[0]
+            result = left.gt(right)
+
+            operator = ">"
+
+            # sql_code = f"SELECT tb1.{left.name} {operator} tb2.{right.name} \n" \
+            #            f"FROM {mapping.get_name(left)} AS tb1,  {mapping.get_name(right)} AS tb2"
+            sql_code = "test"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+
+            return result
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
