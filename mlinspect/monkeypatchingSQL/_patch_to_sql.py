@@ -23,7 +23,7 @@ class DfToStringMapping:
     """
     Simple data structure to track the mappings of pandas.Dataframes to SQL table names.
     """
-    mapping = [] # contains tuples of form: (*Name*, *DataFrame*)
+    mapping = []  # contains tuples of form: (*Name*, *DataFrame*)
 
     def add(self, name: str, df: pd.DataFrame) -> None:
         self.mapping.append((name, df))
@@ -106,7 +106,7 @@ class PandasPatchingSQL:
             if len(args) >= 3:
                 raise NotImplementedError
 
-            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.hash(optional_code_reference))
+            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.get_unique_id())
 
             sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
                                                                       delimiter=sep,
@@ -243,14 +243,17 @@ class DataFramePatchingSQL:
                                                       result)
             result = backend_result.annotated_dfobject.result_data
             # PRINT SQL: ###############################################################################################
-            if not mapping.contains(result): # Only create SQL-Table if it doesn't already exist.
+            if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
                 tb1 = input_info.annotated_dfobject.result_data
-                select_attributes = list(args)
 
-                sql_code = f"SELECT {', '.join(select_attributes)}\n " \
-                           f"FROM ({mapping.get_name(tb1)})"
+                select_attributes = args[0]
+                if not isinstance(select_attributes, list):
+                    select_attributes = [select_attributes]
 
-                sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+                sql_code = f"SELECT {', '.join(select_attributes)} \n" \
+                           f"FROM {mapping.get_name(tb1)}"
+
+                sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
 
                 mapping.add(sql_table_name, result)
                 print(sql_code + "\n")
@@ -288,10 +291,29 @@ class DataFramePatchingSQL:
             else:
                 raise NotImplementedError("TODO: Handling __setitem__ for key type {}".format(type(args[0])))
             # PRINT SQL: ###############################################################################################
-            # There are two options to handle this kind of arithmetic operations of pandas.DataFrames / pandas.Searies:
-            # we can catch the entire operations and create one with statement, or create one with for each operation
-            # and put these with together.
-            print()
+            # There are two options to handle this kind of arithmetic operations of pandas.DataFrames / pandas.series:
+            # we can catch the entire operations here and create one with a single "with_statement", or create one with
+            # for each operation and put these with together. The second option is preferred as is its only downside is,
+            # that it is more verbose, but on the other side its simpler, more elegant and dosn't require to go over
+            # the statements twice.
+            tb1 = self
+            new_name = args[0]
+            tb2 = args[1]
+
+            if len(args) != 2:
+                raise NotImplementedError
+
+            new_col = tb2.name
+            old_cols = tb1.columns.values
+
+            sql_code = f"SELECT tb1.{', tb1.'.join([x for x in old_cols if x != new_name])}, " \
+                       f"tb2.{new_col} AS {new_name} \n" \
+                       f"FROM {mapping.get_name(tb1)} AS tb1,  {mapping.get_name(tb2)} AS tb2"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+
             # PRINT SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -387,7 +409,7 @@ class DataFramePatchingSQL:
                            f"FROM {mapping.get_name(tb1)} tb1 \n" \
                            f"{merge_type.upper()} JOIN {mapping.get_name(tb2)} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             # PRINT SQL DONE! ##########################################################################################
@@ -481,7 +503,7 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {mapping.get_name(tb1)} \n" \
                        f"GROUP BY {', '.join(groupby_columns)}"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             # PRINT SQL DONE! ##########################################################################################
@@ -595,70 +617,191 @@ class SeriesPatchingSQL:
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
+    ################
+    # ARITHMETIC:
+    ################
+
     @gorilla.name('__mul__')
     @gorilla.settings(allow_hit=True)
     def patched__mul__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__mul__') """
-        original = gorilla.get_original_attribute(pandas.DataFrame, '__mul__')
+        original = gorilla.get_original_attribute(pandas.Series, '__mul__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
-            function_info = FunctionInfo('pandas.core.series', '')
-            return 2
+            result = (self * args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("*", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__rmul__')
-    @gorilla.settings(allow_hit=True, store_hit=True)
-    def patched__mul__(self, *args, **kwargs):
-        """ Patch for ('pandas.core.series', '__mul__') """
+    @gorilla.settings(allow_hit=True)
+    def patched__rmul__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__rmul__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rmul__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
-            multiplier = args[0]
-            result = (self * multiplier)
+            result = (self * args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("*", mapping, result, left=self, right=args[0], lineno=lineno)
 
-            operator = "*"
-            multiplicand = self
-            affected_columns = self.name
-            if not isinstance(affected_columns, list):
-                affected_columns = [affected_columns]
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
-            sql_code = f"SELECT {f' {operator} {multiplier} , '.join(affected_columns)} {operator} {multiplier} \n" \
-                       f"FROM {mapping.get_name(multiplicand)}"
+    @gorilla.name('__sum__')
+    @gorilla.settings(allow_hit=True)
+    def patched__sum__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__sum__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__sum__')
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
-            mapping.add(sql_table_name, result)
-            print(sql_code + "\n")
-            print(sql_table_name)
-            return result
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self + args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("+", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__rsum__')
+    @gorilla.settings(allow_hit=True)
+    def patched__rsum__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__rsum__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__rsum__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self + args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("+", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__sub__')
+    @gorilla.settings(allow_hit=True)
+    def patched__sub__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__sub__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__sub__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self - args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("-", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__rsub__')
+    @gorilla.settings(allow_hit=True)
+    def patched__rsub__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__rsub__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__rsub__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self - args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("-", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__div__')
+    @gorilla.settings(allow_hit=True)
+    def patched__div__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__div__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__div__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self / args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("/", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__rdiv__')
+    @gorilla.settings(allow_hit=True)
+    def patched__rdiv__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__rdiv__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__rdiv__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            result = (self / args[0])
+            assert (len(args) == 1)
+            return sql_backend.handle_operation_series("/", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    ################
+    # COMPARISONS:
+    ################
+    @gorilla.name('__eq__')
+    @gorilla.settings(allow_hit=True)
+    def patched__eq__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__eq__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__eq__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            assert (len(args) == 1)
+            result = self.eq(args[0])
+            return sql_backend.handle_operation_series("=", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__gt__')
-    @gorilla.settings(allow_hit=True, store_hit=True)
-    def patched__mul__(self, *args, **kwargs):
+    @gorilla.settings(allow_hit=True)
+    def patched__gt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__gt__') """
         original = gorilla.get_original_attribute(pandas.Series, '__gt__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
-            assert(len(args) == 1)
-            left = self
-            right = args[0]
-            result = left.gt(right)
+            assert (len(args) == 1)
+            result = self.gt(args[0])
+            return sql_backend.handle_operation_series(">", mapping, result, left=self, right=args[0], lineno=lineno)
 
-            operator = ">"
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
-            # sql_code = f"SELECT tb1.{left.name} {operator} tb2.{right.name} \n" \
-            #            f"FROM {mapping.get_name(left)} AS tb1,  {mapping.get_name(right)} AS tb2"
-            sql_code = "test"
+    @gorilla.name('__lt__')
+    @gorilla.settings(allow_hit=True)
+    def patched__lt__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__lt__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__lt__')
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, optional_code_reference)
-            mapping.add(sql_table_name, result)
-            print(sql_code + "\n")
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            assert (len(args) == 1)
+            result = self.lt(args[0])
+            return sql_backend.handle_operation_series("<", mapping, result, left=self, right=args[0], lineno=lineno)
 
-            return result
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__le__')
+    @gorilla.settings(allow_hit=True)
+    def patched__le__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__le__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__le__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            assert (len(args) == 1)
+            result = self.le(args[0])
+            return sql_backend.handle_operation_series("<=", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__ge__')
+    @gorilla.settings(allow_hit=True)
+    def patched__ge__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__ge__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__ge__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            assert (len(args) == 1)
+            result = self.ge(args[0])
+            return sql_backend.handle_operation_series(">=", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)

@@ -1,3 +1,4 @@
+import pandas
 import pandas as pd
 from tableschema import Table
 import sqlalchemy
@@ -10,9 +11,10 @@ ROOT_DIR = get_project_root()
 
 class SQLBackend:
     first_with = True
+    id = 1
 
-    def wrap_in_with(self, sql_code, code_reference):
-        with_block_name = f"with_{self.hash(code_reference)}"
+    def wrap_in_with(self, sql_code, lineno):
+        with_block_name = f"with_{lineno}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         sql_code = f"{with_block_name} AS (\n\t{sql_code}\n),"
         if self.first_with:
@@ -20,9 +22,53 @@ class SQLBackend:
             self.first_with = False
         return with_block_name, sql_code
 
-    @staticmethod
-    def hash(x):
-        return abs(hash(x))
+    def get_unique_id(self):
+        self.id += 1
+        return self.id - 1
+
+    def handle_operation_series(self, operator, mapping, result, left, right, lineno):
+        left_column = left
+        right_column = right
+        left_origin = ""
+        right_origin = ""
+        if isinstance(left, pandas.Series):
+            left_column = "l." + left_column.name
+            left_origin = f"{mapping.get_name(left)} AS l, "
+        if isinstance(right, pandas.Series):
+            right_column = "r." + right_column.name
+            right_origin = f"{mapping.get_name(right)} AS r"
+        assert left_origin + right_origin != ""  # at least one needs to be set!
+
+        rename = ""
+        if operator in [">", "<", ">=", "=", "<="]:  # a rename gets necessary, as otherwise the name will be "None"
+            rename = f"AS compare_{self.get_unique_id()}"
+            result.name = rename.split(" ")[1]
+
+        sql_code = f"SELECT {left_column} {operator} {right_column} {rename}\n" \
+                   f"FROM {left_origin}{right_origin}"
+
+        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
+        mapping.add(sql_table_name, result)
+        print(sql_code + "\n")
+        return result
+
+    def handle_operation_dataframe(self, operator, mapping, result, left, right, lineno):
+
+        # TODO: handle operations over pandas.DataFrames
+        operator = "*"
+        multiplicand = left
+        multiplier = right
+        affected_columns = self.name
+        if not isinstance(affected_columns, list):
+            affected_columns = [affected_columns]
+
+        sql_code = f"SELECT {f' {operator} {multiplier} , '.join(affected_columns)} {operator} {multiplier} \n" \
+                   f"FROM {mapping.get_name(multiplicand)}"
+
+        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
+        mapping.add(sql_table_name, result)
+        print(sql_code + "\n")
+        return result
 
 
 class CreateTablesFromCSVs:
