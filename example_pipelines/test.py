@@ -7,7 +7,7 @@ from mlinspect.checks import NoBiasIntroducedFor, NoIllegalFeatures
 from demo.feature_overview.no_missing_embeddings import NoMissingEmbeddings
 from inspect import cleandoc
 from example_pipelines.healthcare import custom_monkeypatching
-
+import time
 
 def example_one():
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
@@ -20,6 +20,7 @@ def example_one():
     #     .add_required_inspection(RowLineage(5)) \
     #     .add_required_inspection(MaterializeFirstOutputRows(5)) \
     #     .execute(to_sql=True)
+    t0 = time.time()
     inspector_result = PipelineInspector \
         .on_pipeline_from_py_file(HEALTHCARE_FILE_PY) \
         .add_custom_monkey_patching_module(custom_monkeypatching) \
@@ -29,15 +30,17 @@ def example_one():
         .add_required_inspection(RowLineage(5)) \
         .add_required_inspection(MaterializeFirstOutputRows(5)) \
         .execute(to_sql=True)
+    t1 = time.time()
 
+    print(t1-t0)
     # extracted_dag = inspector_result.dag
     # inspection_results = inspector_result.inspection_to_annotations
     # check_results = inspector_result.check_to_check_results
-    extracted_dag = inspector_result.dag
-    dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
-    check_results = inspector_result.check_to_check_results
-
-    print(check_results)
+    # extracted_dag = inspector_result.dag
+    # dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
+    # check_results = inspector_result.check_to_check_results
+    #
+    # print(check_results)
 
 
 def example_two():

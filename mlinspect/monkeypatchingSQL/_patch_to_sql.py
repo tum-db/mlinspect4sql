@@ -53,7 +53,7 @@ class DfToStringMapping:
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
 sql_backend = SQLBackend()
-
+continue_sql_transpile = True
 
 @gorilla.patches(pandas)
 class PandasPatchingSQL:
@@ -244,14 +244,21 @@ class DataFramePatchingSQL:
             result = backend_result.annotated_dfobject.result_data
             # PRINT SQL: ###############################################################################################
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
-                tb1 = input_info.annotated_dfobject.result_data
+                tb1 = self
+                tb1_name = mapping.get_name(tb1)
+                source = args[0]
+                if isinstance(source, pandas.Series):
+                    sql_code = f"SELECT tb1.* \n" \
+                               f"FROM {tb1_name} as tb1,  {mapping.get_name(source)} as tb2\n" \
+                               f"WHERE tb2.{source.name} "
 
-                select_attributes = args[0]
-                if not isinstance(select_attributes, list):
-                    select_attributes = [select_attributes]
 
-                sql_code = f"SELECT {', '.join(select_attributes)} \n" \
-                           f"FROM {mapping.get_name(tb1)}"
+                else:
+                    if not isinstance(source, list):
+                        source = [source]
+
+                    sql_code = f"SELECT {', '.join(source)} \n" \
+                               f"FROM {tb1_name}"
 
                 sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
 
@@ -616,6 +623,37 @@ class SeriesPatchingSQL:
             add_dag_node(dag_node, [], backend_result)
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('isin')
+    @gorilla.settings(allow_hit=True)
+    def patched_isin(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', 'isin') """
+        original = gorilla.get_original_attribute(pandas.Series, 'isin')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            values = args[0]
+            if not isinstance(values, list):
+                raise NotImplementedError
+
+            result = self.isin(values)
+            if isinstance(values[0], str):
+                where_in_block = "\'" + "\', \'".join(values) + "\'"
+            else:
+                where_in_block = ", ".join(values)
+
+            column = self.name
+            sql_code = f"SELECT {column} \n" \
+                       f"FROM {mapping.get_name(self)} \n" \
+                       f"WHERE {column} IN ({where_in_block})"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
+
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+            return result
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
     ################
     # ARITHMETIC:
