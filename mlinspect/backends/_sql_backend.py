@@ -32,19 +32,25 @@ class SQLBackend:
         left_origin = ""
         right_origin = ""
         if isinstance(left, pandas.Series):
+            rename = f"AS {left_column.name}"
+            result.name = rename.split(" ")[1]
             left_column = "l." + left_column.name
-            left_origin = f"{mapping.get_name(left)} AS l, "
+            left_origin = f"{mapping.get_name(left)} AS l"
         if isinstance(right, pandas.Series):
+            rename = f"AS {right_column.name}"
+            result.name = rename.split(" ")[1]
             right_column = "r." + right_column.name
-            right_origin = f"{mapping.get_name(right)} AS r"
+            right_origin = f", {mapping.get_name(right)} AS r"
         assert left_origin + right_origin != ""  # at least one needs to be set!
 
-        rename = ""
         if operator in [">", "<", ">=", "=", "<="]:  # a rename gets necessary, as otherwise the name will be "None"
             rename = f"AS compare_{self.get_unique_id()}"
             result.name = rename.split(" ")[1]
+        if rename == "":
+            rename = f"AS arithmetic_{self.get_unique_id()}"
+            result.name = rename.split(" ")[1]
 
-        sql_code = f"SELECT {left_column} {operator} {right_column} {rename}\n" \
+        sql_code = f"SELECT ({left_column} {operator} {right_column}) {rename}\n" \
                    f"FROM {left_origin}{right_origin}"
 
         sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
@@ -96,23 +102,27 @@ class CreateTablesFromCSVs:
         if schema["missingValues"][0] != "":
             raise ValueError(f"Unfortunately not all columns could be parsed -> {schema['missingValues'][0]}")
 
-        col_names = []
-        for i, dic in enumerate(schema['fields']):
-            col_names.append(dic['name'])
+        col_names = [x["name"] for x in schema["fields"]]
 
-        if types_as_string:  # return types as str -> except 'string' is replaced by varchar(100) to comply with umbra
-            return col_names, [("varchar(100)" if i['type'] == "string" else i['type']) for i in schema['fields']]
+        # return types as str -> except 'string' is replaced by varchar(100) to comply with umbra
         types = []
         for i, value in enumerate(schema['fields']):
-            if value['type'] == 'integer':
-                types.append(Integer)
-            elif value['type'] == 'string':
-                types.append(Text)
-            elif value['type'] == 'boolean':
-                types.append(BOOLEAN)
+            if types_as_string:
+                if value['type'] == 'number':
+                    types.append('float')
+                elif value['type'] == 'string':
+                    types.append("varchar(100)")
+                else:
+                    types.append(value['type'])
             else:
-                raise NotImplementedError
-
+                if value['type'] == 'integer' or value['type'] == 'number':
+                    types.append(Integer)
+                elif value['type'] == 'string':
+                    types.append(Text)
+                elif value['type'] == 'boolean':
+                    types.append(BOOLEAN)
+                else:
+                    raise NotImplementedError
         return col_names, types
 
     @staticmethod

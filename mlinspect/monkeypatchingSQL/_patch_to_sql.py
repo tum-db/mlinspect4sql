@@ -408,19 +408,26 @@ class DataFramePatchingSQL:
             elif len(args) >= 3:
                 merge_column = args[2]
 
+            if isinstance(merge_column, list):
+                merge_column = merge_column[0]
+
+            tb1_name = mapping.get_name(tb1)
+            tb2_name = mapping.get_name(tb2)
+
+            # Attention: we need to select all columns, just using * can result in a doubled column!
             if merge_column == "":  # Cross product:
                 sql_code = f"SELECT * \n" \
-                           f"FROM {mapping.get_name(tb1)}, {mapping.get_name(tb2)}"
+                           f"FROM {tb1_name}, {tb2_name}"
             else:
                 sql_code = f"SELECT * \n" \
-                           f"FROM {mapping.get_name(tb1)} tb1 \n" \
-                           f"{merge_type.upper()} JOIN {mapping.get_name(tb2)} tb2" \
+                           f"FROM {tb1_name} tb1 \n" \
+                           f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
+
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             # PRINT SQL DONE! ##########################################################################################
-
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -506,9 +513,10 @@ class DataFrameGroupByPatchingSQL:
             for p, n, f in zip(agg_params, new_col_names, agg_funcs):
                 selection_string.append(f"{f.upper()}({p}) AS {n}")
 
-            sql_code = f"SELECT {', '.join(selection_string)} \n" \
-                       f"FROM {mapping.get_name(tb1)} \n" \
-                       f"GROUP BY {', '.join(groupby_columns)}"
+            groupby_columns = ', '.join(groupby_columns)
+            sql_code = f"SELECT {groupby_columns}, {', '.join(selection_string)} \n" \
+                       f"FROM {mapping.get_name(tb1)}\n" \
+                       f"GROUP BY {groupby_columns}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
