@@ -55,6 +55,7 @@ mapping = DfToStringMapping()
 sql_backend = SQLBackend()
 continue_sql_transpile = True
 
+
 @gorilla.patches(pandas)
 class PandasPatchingSQL:
     """ Patches for pandas """
@@ -251,8 +252,6 @@ class DataFramePatchingSQL:
                     sql_code = f"SELECT tb1.* \n" \
                                f"FROM {tb1_name} as tb1,  {mapping.get_name(source)} as tb2\n" \
                                f"WHERE tb2.{source.name} "
-
-
                 else:
                     if not isinstance(source, list):
                         source = [source]
@@ -413,13 +412,14 @@ class DataFramePatchingSQL:
 
             tb1_name = mapping.get_name(tb1)
             tb2_name = mapping.get_name(tb2)
-
+            tb1_columns = list(tb1.columns.values)
+            tb2_columns = [x for x in tb2.columns.values if x not in tb1_columns]  # remove duplicates!
             # Attention: we need to select all columns, just using * can result in a doubled column!
             if merge_column == "":  # Cross product:
                 sql_code = f"SELECT * \n" \
                            f"FROM {tb1_name}, {tb2_name}"
             else:
-                sql_code = f"SELECT * \n" \
+                sql_code = f"SELECT tb1.{', tb1.'.join(tb1_columns)}, tb2.{', tb2.'.join(tb2_columns)}\n" \
                            f"FROM {tb1_name} tb1 \n" \
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
