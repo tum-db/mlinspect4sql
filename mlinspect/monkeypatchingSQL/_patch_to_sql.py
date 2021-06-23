@@ -812,7 +812,11 @@ class SeriesPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             assert (len(args) == 1)
-            result = self.gt(args[0])
+            if not isinstance(args[0], pandas.Series):
+                # we can't use  self.gt(args[0]) or  self >= args[0] => would be caught again!
+                result = self.gt(pd.Series([args[0]]).repeat(self.size))
+            else:
+                result = self.gt(args[0])
             return sql_backend.handle_operation_series(">", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -840,7 +844,10 @@ class SeriesPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             assert (len(args) == 1)
-            result = self.le(args[0])
+            if not isinstance(args[0], pandas.Series):
+                result = self.le(pd.Series([args[0]]).repeat(self.size))
+            else:
+                result = self.le(args[0])
             return sql_backend.handle_operation_series("<=", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -854,7 +861,10 @@ class SeriesPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             assert (len(args) == 1)
-            result = self.ge(args[0])
+            if not isinstance(args[0], pandas.Series):
+                result = self.ge(pd.Series([args[0]]).repeat(self.size))
+            else:
+                result = self.ge(args[0])
             return sql_backend.handle_operation_series(">=", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)

@@ -8,7 +8,7 @@ import gorilla
 import nbformat
 import networkx
 from astmonkey.transformers import ParentChildNodeTransformer
-from astmonkey import visitors
+import astor # from astmonkey import visitors -> visitors unfortunately is buggy.
 from nbconvert import PythonExporter
 
 from .. import monkeypatchingSQL
@@ -95,7 +95,7 @@ class PipelineExecutor:
 
         parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references, self.to_sql)
 
-        modified_code = visitors.to_source(parsed_modified_ast)
+        modified_code = astor.to_source(parsed_modified_ast)
 
         if self.to_sql:
             print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n")
