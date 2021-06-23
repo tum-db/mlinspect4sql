@@ -798,7 +798,10 @@ class SeriesPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             assert (len(args) == 1)
-            result = self.eq(args[0])
+            if not isinstance(args[0], pandas.Series):
+                result = self.eq(pd.Series([args[0]]).repeat(self.size))
+            else:
+                result = self.eq(args[0])
             return sql_backend.handle_operation_series("=", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -830,7 +833,10 @@ class SeriesPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             assert (len(args) == 1)
-            result = self.lt(args[0])
+            if not isinstance(args[0], pandas.Series):
+                result = self.lt(pd.Series([args[0]]).repeat(self.size))
+            else:
+                result = self.lt(args[0])
             return sql_backend.handle_operation_series("<", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
