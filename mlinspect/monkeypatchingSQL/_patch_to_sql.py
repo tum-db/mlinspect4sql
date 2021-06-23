@@ -26,7 +26,13 @@ class DfToStringMapping:
     mapping = []  # contains tuples of form: (*Name*, *DataFrame*)
 
     def add(self, name: str, df: pd.DataFrame) -> None:
-        self.mapping.append((name, df))
+        """
+        Note: As we don't check the variable we are assigning some pandas objects (Series, DataFrame) to, we need to append values at the
+        front. This is, because we store the original pandas objects the list and not copies. So if these original objects are altered,
+        it can happen that the dataframe is already in the mapping. This would return us some old with table from SQL.
+        Which would be wrong!
+        """
+        self.mapping = [(name, df), *self.mapping]  # Quite efficient way to append values at the front.
 
     def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
         index = self.mapping.index(old_entry)
@@ -53,7 +59,6 @@ class DfToStringMapping:
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
 sql_backend = SQLBackend()
-continue_sql_transpile = True
 
 
 @gorilla.patches(pandas)
@@ -249,14 +254,15 @@ class DataFramePatchingSQL:
                 tb1_name = mapping.get_name(tb1)
                 source = args[0]
                 if isinstance(source, pandas.Series):
-                    sql_code = f"SELECT tb1.* \n" \
-                               f"FROM {tb1_name} as tb1,  {mapping.get_name(source)} as tb2\n" \
-                               f"WHERE tb2.{source.name} "
+                    sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)} \n" \
+                               f"FROM {sql_backend.create_indexed_table(tb1_name)} as tb1,  " \
+                               f"{sql_backend.create_indexed_table(mapping.get_name(source))} as tb2\n" \
+                               f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
                 else:
                     if not isinstance(source, list):
                         source = [source]
 
-                    sql_code = f"SELECT {', '.join(source)} \n" \
+                    sql_code = f"SELECT {', '.join(source)}\n" \
                                f"FROM {tb1_name}"
 
                 sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
@@ -313,11 +319,13 @@ class DataFramePatchingSQL:
             old_cols = tb1.columns.values
 
             sql_code = f"SELECT tb1.{', tb1.'.join([x for x in old_cols if x != new_name])}, " \
-                       f"tb2.{new_col} AS {new_name} \n" \
-                       f"FROM {mapping.get_name(tb1)} AS tb1,  {mapping.get_name(tb2)} AS tb2"
+                       f"tb2.{new_col} AS {new_name}\n" \
+                       f"FROM {sql_backend.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
+                       f"{sql_backend.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
+                       f"WHERE tb1.row_number = tb2.row_number"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-            mapping.add(sql_table_name, result)
+            mapping.add(sql_table_name, self)  # Here we need to take "self", as the restult of __setitem__ will be None
             print(sql_code + "\n")
 
             # PRINT SQL DONE! ##########################################################################################
@@ -651,9 +659,8 @@ class SeriesPatchingSQL:
                 where_in_block = ", ".join(values)
 
             column = self.name
-            sql_code = f"SELECT {column} \n" \
-                       f"FROM {mapping.get_name(self)} \n" \
-                       f"WHERE {column} IN ({where_in_block})"
+            sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}\n" \
+                       f"FROM {mapping.get_name(self)} \n"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
 

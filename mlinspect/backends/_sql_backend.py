@@ -27,31 +27,27 @@ class SQLBackend:
         return self.id - 1
 
     def handle_operation_series(self, operator, mapping, result, left, right, lineno):
-        left_column = left
-        right_column = right
-        left_origin = ""
-        right_origin = ""
-        if isinstance(left, pandas.Series):
-            rename = f"AS {left_column.name}"
-            result.name = rename.split(" ")[1]
-            left_column = "l." + left_column.name
-            left_origin = f"{mapping.get_name(left)} AS l"
-        if isinstance(right, pandas.Series):
-            rename = f"AS {right_column.name}"
-            result.name = rename.split(" ")[1]
-            right_column = "r." + right_column.name
-            right_origin = f", {mapping.get_name(right)} AS r"
-        assert left_origin + right_origin != ""  # at least one needs to be set!
 
-        if operator in [">", "<", ">=", "=", "<="]:  # a rename gets necessary, as otherwise the name will be "None"
-            rename = f"AS compare_{self.get_unique_id()}"
-            result.name = rename.split(" ")[1]
-        if rename == "":
-            rename = f"AS arithmetic_{self.get_unique_id()}"
-            result.name = rename.split(" ")[1]
+        # a rename gets necessary, as otherwise in binary ops the name will be "None"
+        rename = f"op_{self.get_unique_id()}"
+        result.name = rename  # don't forget to set pandas object name!
+        where_block = ""
+        from_block = ""
+        if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
+            select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}"
+            from_block = f"{self.create_indexed_table(mapping.get_name(left))} l, " \
+                         f"{self.create_indexed_table(mapping.get_name(right))} r"
+            where_block = f"\nWHERE l.row_number = r.row_number"
+        elif isinstance(left, pandas.Series):
+            select_block = f"({left.name} {operator} {right}) AS {rename}"
+            from_block = f"{mapping.get_name(left)}"
+        elif isinstance(right, pandas.Series):
+            select_block = f"({left} {operator} {right.name}) AS {rename}"
+            from_block = f"{mapping.get_name(right)}"
 
-        sql_code = f"SELECT ({left_column} {operator} {right_column}) {rename}\n" \
-                   f"FROM {left_origin}{right_origin}"
+        sql_code = f"SELECT {select_block }\n" \
+                   f"FROM {from_block}" \
+                   f"{where_block}"
 
         sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
         mapping.add(sql_table_name, result)
@@ -75,6 +71,10 @@ class SQLBackend:
         mapping.add(sql_table_name, result)
         print(sql_code + "\n")
         return result
+
+    @staticmethod
+    def create_indexed_table(table_name):
+        return f"(SELECT *, ROW_NUMBER() OVER(ORDER BY NULL) FROM {table_name})"
 
 
 class CreateTablesFromCSVs:
