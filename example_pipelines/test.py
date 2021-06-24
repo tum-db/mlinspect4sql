@@ -104,8 +104,8 @@ def example_two():
 
 
 if __name__ == "__main__":
-    # example_one()
-    example_compas()
+    example_one()
+    # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")
     # test = pd.read_csv(path_to_patient_csv, nrows=10, header=0)

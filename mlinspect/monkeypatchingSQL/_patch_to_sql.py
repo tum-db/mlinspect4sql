@@ -681,9 +681,9 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__mul__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
-            result = (self * args[0])
             assert (len(args) == 1)
+            SeriesPatchingSQL.__fix_index_for_op(self, args[0])
+            result = (self * args[0])
             return sql_backend.handle_operation_series("*", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -694,11 +694,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__rmul__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rmul__')
 
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
-            result = (self * args[0])
-            assert (len(args) == 1)
-            return sql_backend.handle_operation_series("*", mapping, result, left=self, right=args[0], lineno=lineno)
+
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -709,7 +705,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__sum__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self + args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("+", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -723,7 +718,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__rsum__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self + args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("+", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -737,7 +731,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__sub__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self - args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("-", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -751,7 +744,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__rsub__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self - args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("-", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -765,7 +757,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__div__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self / args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("/", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -779,7 +770,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__rdiv__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             result = (self / args[0])
             assert (len(args) == 1)
             return sql_backend.handle_operation_series("/", mapping, result, left=self, right=args[0], lineno=lineno)
@@ -796,7 +786,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__eq__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             assert (len(args) == 1)
             if not isinstance(args[0], pandas.Series):
                 result = self.eq(pd.Series([args[0]]).repeat(self.size))
@@ -813,7 +802,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__gt__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             assert (len(args) == 1)
             if not isinstance(args[0], pandas.Series):
                 # we can't use  self.gt(args[0]) or  self >= args[0] => would be caught again!
@@ -824,6 +812,24 @@ class SeriesPatchingSQL:
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
+    @gorilla.name('__ge__')
+    @gorilla.settings(allow_hit=True)
+    def patched__ge__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__ge__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__ge__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            assert (len(args) == 1)
+            if not isinstance(args[0], pandas.Series):
+                # we can't use  self.gt(args[0]) or  self >= args[0] => would be caught again!
+                comperator = pd.Series([args[0]]).repeat(self.size)
+                result = self.ge(comperator)
+            else:
+                result = self.ge(args[0])
+            return sql_backend.handle_operation_series(">=", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
     @gorilla.name('__lt__')
     @gorilla.settings(allow_hit=True)
     def patched__lt__(self, *args, **kwargs):
@@ -831,7 +837,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__lt__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             assert (len(args) == 1)
             if not isinstance(args[0], pandas.Series):
                 result = self.lt(pd.Series([args[0]]).repeat(self.size))
@@ -848,7 +853,6 @@ class SeriesPatchingSQL:
         original = gorilla.get_original_attribute(pandas.Series, '__le__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
             assert (len(args) == 1)
             if not isinstance(args[0], pandas.Series):
                 result = self.le(pd.Series([args[0]]).repeat(self.size))
@@ -858,19 +862,84 @@ class SeriesPatchingSQL:
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
-    @gorilla.name('__ge__')
+    @gorilla.name('__and__')
     @gorilla.settings(allow_hit=True)
-    def patched__ge__(self, *args, **kwargs):
-        """ Patch for ('pandas.core.series', '__ge__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__ge__')
+    def patched__and__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__and__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__and__')
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            """ Execute inspections, add DAG node """
-            assert (len(args) == 1)
-            if not isinstance(args[0], pandas.Series):
-                result = self.ge(pd.Series([args[0]]).repeat(self.size))
-            else:
-                result = self.ge(args[0])
-            return sql_backend.handle_operation_series(">=", mapping, result, left=self, right=args[0], lineno=lineno)
+            assert (len(args) == 1 and isinstance(args[0], pandas.Series))
+            result = (self & args[0])
+            return sql_backend.handle_operation_series("and", mapping, result, left=self, right=args[0], lineno=lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__or__')
+    @gorilla.settings(allow_hit=True)
+    def patched__or__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__or__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__or__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            assert (len(args) == 1 and isinstance(args[0], pandas.Series))
+            result = (self & args[0])
+            return sql_backend.handle_operation_series("and", mapping, result, left=self, right=args[0], lineno=lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__not__')
+    @gorilla.settings(allow_hit=True)
+    def patched__not__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__not__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__not__')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            return self.__op_call_helper("!=", self, args, lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @staticmethod
+    def __op_call_helper(op, left, args, lineno):
+        assert (len(args) == 1)
+        right = args[0]
+
+        # Comparison:
+        if op == ">":
+            result = (left.gt(right))
+        elif op == "<":
+            result = (left.lt(right))
+        elif op == ">=":
+            result = (left.ge(right))
+        elif op == "<=":
+            result = (left.le(right))
+        elif op == "==":
+            result = (left.eq(right))
+
+        # Logical operations:
+        elif op == "&":
+            result = (left & right)
+        elif op == "|":
+            result = (left | right)
+        elif op == "!=":
+            result = (left != right)
+
+        # Arithmetic:
+        elif op == "+":
+            result = (left + right)
+        elif op == "-":
+            result = (left - right)
+        elif op == "*":
+            result = (left * right)
+        elif op == "/":
+            result = (left / right)
+
+        return sql_backend.handle_operation_series(op, mapping, result, left=left, right=right, lineno=lineno)
+
+    @staticmethod
+    def __fix_index_for_op(left: pandas.Series, right: pandas.Series):
+        if isinstance(left, pandas.Series):
+            left = left.reset_index()[left.name]
+        if isinstance(right, pandas.Series):
+            right = right.reset_index()[right.name]
+        return left, right
