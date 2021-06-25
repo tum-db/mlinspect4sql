@@ -62,10 +62,6 @@ def example_adult_complex():
         .on_pipeline_from_py_file(HEALTHCARE_FILE_PY) \
         .add_custom_monkey_patching_module(custom_monkeypatching) \
         .add_check(NoBiasIntroducedFor(["age_group", "race"])) \
-        .add_check(NoIllegalFeatures()) \
-        .add_check(NoMissingEmbeddings()) \
-        .add_required_inspection(RowLineage(5)) \
-        .add_required_inspection(MaterializeFirstOutputRows(5)) \
         .execute(to_sql=True)
     t1 = time.time()
 
@@ -104,8 +100,8 @@ def example_two():
 
 
 if __name__ == "__main__":
-    # example_one()
-    example_compas()
+    example_one()
+    # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")
     # test = pd.read_csv(path_to_patient_csv, nrows=10, header=0)

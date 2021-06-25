@@ -14,6 +14,9 @@ class SQLBackend:
     id = 1
 
     def wrap_in_with(self, sql_code, lineno):
+        """
+        Wrappes the passed sql code in a WITH... AS block. Takes into account, that WITH only needs to be used once.
+        """
         with_block_name = f"with_{lineno}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         sql_code = f"{with_block_name} AS (\n\t{sql_code}\n),"
@@ -45,7 +48,7 @@ class SQLBackend:
             select_block = f"({left} {operator} {right.name}) AS {rename}"
             from_block = f"{mapping.get_name(right)}"
 
-        sql_code = f"SELECT {select_block }\n" \
+        sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
                    f"{where_block}"
 
@@ -54,7 +57,7 @@ class SQLBackend:
         print(sql_code + "\n")
         return result
 
-    def handle_operation_dataframe(self, operator, mapping, result, left, right, lineno):
+    def __handle_operation_dataframe(self, operator, mapping, result, left, right, lineno):
 
         # TODO: handle operations over pandas.DataFrames
         operator = "*"
@@ -71,6 +74,68 @@ class SQLBackend:
         mapping.add(sql_table_name, result)
         print(sql_code + "\n")
         return result
+
+    @staticmethod
+    def __column_ratio_original(table_orig, column_name):
+        print(f"original_ratio_{column_name} as (\n"
+              f"\tselect i.{column_name}, (count(*) * 1.0 / (select count(*) from {table_orig})) as ratio\n"
+              f"\tfrom {table_orig} i\n"
+              f"\tgroup by i.{column_name}\n"
+              "),")
+
+    @staticmethod
+    def __column_ratio_current(table_orig, table_new, column_name):
+        """
+        Here the query for the new/current ratio of the values inside the passed column is provided.
+        """
+        print(f"current_ratio_{column_name} as (\n"
+              f"\tselect orig.{column_name}, (\n"
+              f"\t\t(select count(temp.original_label)\n"
+              f"\t\tfrom (\n"
+              f"\t\t\tselect lookup.original_label\n"
+              f"\t\t\tfrom lookup_{column_name}_{table_new} lookup, {table_new} curr\n"
+              f"\t\t\twhere lookup.current_label = curr.{column_name} and "
+              f"orig.{column_name} = lookup.original_label and lookup.current_label is not null) temp\n"
+              f"\t\t) * 1.0 / (select count(*) from {table_new})) as ratio\n"
+              f"\tfrom {table_orig} orig,  {table_new} curr, lookup_{column_name}_{table_new} lookup\n"
+              f"\twhere curr.{table_orig}_ctid = orig.ctid\n"
+              f"\tgroup by orig.{column_name}\n"
+              f"),")
+
+    @staticmethod
+    def __lookup_table(table_orig, table_new, column_name):
+        """
+        Creates the lookup_table to cope with possible projections.
+        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
+        Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
+        """
+        print(f"lookup_{column_name}_{table_new} as (\n"
+              f"\tselect distinct orig.{column_name} as original_label, curr.{column_name} as current_label\n"
+              f"\tfrom {table_orig} orig,  {table_new} curr\n"
+              f"\twhere curr.{table_orig}_ctid = orig.ctid\n"
+              f"),")
+
+    @staticmethod
+    def ratio_track(origin_dict, column_names, table_name):
+        """
+        Creates the full query for the overview of the change in ratio of a certain attribute.
+
+        :param origin_dict: Dictionary with all the origin tables of the single attributes.
+        :param column_names: The column names of which we want to have the ratio comparison
+        :param table_name: the name of the table of which we need the 'current' ratio.
+        :return: None -> see stdout
+        """
+        for i in column_names:
+            table_orig = origin_dict[i]
+            SQLBackend.__lookup_table(table_orig, table_new=table_name, column_name=i)
+        print()
+        for i in column_names:
+            table_orig = origin_dict[i]
+            SQLBackend.__column_ratio_original(table_orig, column_name=i)
+        print()
+        for i in column_names:
+            table_orig = origin_dict[i]
+            SQLBackend.__column_ratio_current(table_orig, table_new=table_name, column_name=i)
 
     @staticmethod
     def create_indexed_table(table_name):
