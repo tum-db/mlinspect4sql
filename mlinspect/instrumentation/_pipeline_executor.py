@@ -83,7 +83,7 @@ class PipelineExecutor:
 
         # Here the modified code is created and run:
         self.run_inspections(notebook_path, python_code, python_path)
-        check_to_results = dict((check, check.evaluate(self.inspection_results)) for check in checks)
+        check_to_results = dict((check, check.evaluate(self.inspection_results, self.to_sql)) for check in checks)
         return InspectorResult(self.inspection_results.dag, self.inspection_results.dag_node_to_inspection_results,
                                check_to_results)
 
@@ -249,11 +249,6 @@ def undo_monkey_patch():
     patches = gorilla.find_patches(patch_sources)
     for patch in patches:
         gorilla.revert(patch)
-    # This is the call finalizing mlinspects work -> we will also use it as a trigger to finish the sql transpiling
-    if singleton.to_sql:
-        for insp in singleton.inspections:
-            if isinstance(insp, NoBiasIntroducedFor):
-
 
 
 def get_monkey_patching_patch_sources():

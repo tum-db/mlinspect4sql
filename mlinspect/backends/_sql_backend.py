@@ -6,8 +6,6 @@ from sqlalchemy.types import Integer, Text, BOOLEAN
 import pathlib
 from mlinspect.utils import get_project_root
 
-ROOT_DIR = get_project_root()
-
 
 class SQLBackend:
     first_with = True
@@ -237,3 +235,46 @@ class CreateTablesFromCSVs:
         if drop_old:
             return f"{drop_old_table};\n\n{create_table};\n\n{add_data};"
         return f"{create_table};\n\n{add_data};"
+
+
+class DfToStringMapping:
+    """
+    Simple data structure to track the mappings of pandas.Dataframes to SQL table names.
+    """
+    mapping = []  # contains tuples of form: (*Name*, *DataFrame*)
+
+    def add(self, name: str, df: pd.DataFrame) -> None:
+        """
+        Note: As we don't check the variable we are assigning some pandas objects (Series, DataFrame) to, we need to append values at the
+        front. This is, because we store the original pandas objects the list and not copies. So if these original objects are altered,
+        it can happen that the dataframe is already in the mapping. This would return us some old with table from SQL.
+        Which would be wrong!
+        """
+        self.mapping = [(name, df), *self.mapping]  # Quite efficient way to append values at the front.
+
+    def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
+        index = self.mapping.index(old_entry)
+        self.mapping[index] = new_entry
+
+    def update_name_at_df(self, df, new_name):
+        old_name = self.get_name(df)
+        index = self.mapping.index((old_name, df))
+        self.mapping[index] = (new_name, df)
+
+    def get_df(self, name_to_find: str) -> pd.DataFrame:
+        return next(df for (n, df) in self.mapping if n == name_to_find)
+
+    def get_name(self, df_to_find: pd.DataFrame) -> str:
+        return next(n for (n, df) in self.mapping if df is df_to_find)
+
+    def contains(self, df_to_find):
+        for m in self.mapping:
+            if m[1] is df_to_find:
+                return True
+        return False
+
+
+# This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
+mapping = DfToStringMapping()
+
+ROOT_DIR = get_project_root()

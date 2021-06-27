@@ -41,7 +41,7 @@ class NoMissingEmbeddings(Check):
         """The id of the check"""
         return [MissingEmbeddings(self.example_threshold)]
 
-    def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
+    def evaluate(self, inspection_result: InspectionResult, to_sql: bool) -> CheckResult:
         """Evaluate the check"""
         dag_node_to_missing_embeddings = dict()
         for dag_node, dag_node_inspection_result in inspection_result.dag_node_to_inspection_results.items():

@@ -6,6 +6,8 @@ from __future__ import annotations
 import dataclasses
 from typing import Iterable, Dict
 import collections
+
+import pandas
 from matplotlib import pyplot
 from pandas import DataFrame
 
@@ -15,6 +17,7 @@ from mlinspect.inspections._inspection import Inspection
 from mlinspect.inspections._inspection_input import OperatorType, FunctionInfo
 from mlinspect.instrumentation._dag_node import DagNode
 from mlinspect.inspections._inspection_result import InspectionResult
+from mlinspect.backends._sql_backend import SQLBackend, mapping
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
@@ -64,9 +67,29 @@ class NoBiasIntroducedFor(Check):
         """The inspections required for the check"""
         return [HistogramForColumns(self.sensitive_columns)]
 
-    def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
+    def evaluate(self, inspection_result: InspectionResult, to_sql: bool) -> CheckResult:
         """Evaluate the check"""
         # pylint: disable=too-many-locals
+        if to_sql:
+            print("/*" + ("#" * 10) + f"NoBiasIntroducedFor ({', '.join(self.sensitive_columns)}):" + ("#" * 10) + "*/")
+            origin_dict = {}
+            for sc in self.sensitive_columns:
+                origin_of_sc = ""
+                for m in reversed(mapping.mapping):  # we reverse because of the adding order -> faster match
+                    table_name = m[0]
+                    if table_name.split("_")[0] != "with":  # check that name represents an original table (f.e. '.csv')
+                        table = m[1]
+                        if isinstance(table, pandas.Series) and sc == table.name:  # one column .csv
+                            origin_of_sc = table_name
+                            break
+                        elif isinstance(table, pandas.DataFrame) and sc in table.columns.values:  # one column .csv
+                            origin_of_sc = table_name
+                            break
+                assert (origin_of_sc != "")
+                origin_dict[sc] = origin_of_sc
+            SQLBackend.ratio_track(origin_dict, self.sensitive_columns, table_name=mapping.mapping[0][0])
+            print("/*" + ("#") * 10 + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
+
         dag = inspection_result.dag
         histograms = {}
         for dag_node, inspection_results in inspection_result.dag_node_to_inspection_results.items():

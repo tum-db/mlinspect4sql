@@ -10,7 +10,6 @@ import warnings
 import numpy
 from pandas import DataFrame, Series
 from scipy.sparse import csr_matrix
-
 from mlinspect.backends._backend import AnnotatedDfObject, BackendResult
 from mlinspect.backends._pandas_backend import execute_inspection_visits_data_source
 from mlinspect.inspections._inspection_input import OperatorContext, OperatorType
