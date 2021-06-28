@@ -73,22 +73,29 @@ class NoBiasIntroducedFor(Check):
         if to_sql:
             print("/*" + ("#" * 10) + f"NoBiasIntroducedFor ({', '.join(self.sensitive_columns)}):" + ("#" * 10) + "*/")
             origin_dict = {}
+            current_dict = {}
             for sc in self.sensitive_columns:
                 origin_of_sc = ""
+                current_table_sc = ""  # newest table containing the sensitive column
                 for m in reversed(mapping.mapping):  # we reverse because of the adding order -> faster match
                     table_name = m[0]
+                    table = m[1]
                     if table_name.split("_")[0] != "with":  # check that name represents an original table (f.e. '.csv')
-                        table = m[1]
                         if isinstance(table, pandas.Series) and sc == table.name:  # one column .csv
                             origin_of_sc = table_name
-                            break
-                        elif isinstance(table, pandas.DataFrame) and sc in table.columns.values:  # one column .csv
+                        elif isinstance(table, pandas.DataFrame) and sc in table.columns.values:
                             origin_of_sc = table_name
-                            break
+                    if (isinstance(table, pandas.DataFrame) and sc in table.columns.values) or \
+                            (isinstance(table, pandas.Series) and sc == table.name):
+                        current_table_sc = table_name
+                # TODO: select all relevant operations in mapping and for those, check the ratios before and after!
+                # TODO: also add to select!
                 assert (origin_of_sc != "")
                 origin_dict[sc] = origin_of_sc
-            SQLBackend.ratio_track(origin_dict, self.sensitive_columns, table_name=mapping.mapping[0][0])
-            print("/*" + ("#") * 10 + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
+                current_dict[sc] = current_table_sc
+
+            SQLBackend.ratio_track(origin_dict, self.sensitive_columns, current_dict)
+            print("/*" + ("#" * 10) + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
 
         dag = inspection_result.dag
         histograms = {}

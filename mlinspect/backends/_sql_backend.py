@@ -11,11 +11,12 @@ class SQLBackend:
     first_with = True
     id = 1
 
-    def wrap_in_with(self, sql_code, lineno):
+    def wrap_in_with(self, sql_code, lineno, with_block_name=""):
         """
         Wrappes the passed sql code in a WITH... AS block. Takes into account, that WITH only needs to be used once.
         """
-        with_block_name = f"with_{lineno}_{self.get_unique_id()}"
+        if with_block_name == "":
+            with_block_name = f"with_{lineno}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         sql_code = f"{with_block_name} AS (\n\t{sql_code}\n),"
         if self.first_with:
@@ -34,71 +35,108 @@ class SQLBackend:
         result.name = rename  # don't forget to set pandas object name!
         where_block = ""
         from_block = ""
+        columns_t = []
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
-            select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}"
-            from_block = f"{self.create_indexed_table(mapping.get_name(left))} l, " \
-                         f"{self.create_indexed_table(mapping.get_name(right))} r"
+            name_l = mapping.get_name(left)
+            name_r = mapping.get_name(right)
+
+            select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}, "
+            select_addition = f"l.{', l.'.join(set(series_to_col_map[name_l]) - set(series_to_col_map[name_r]))}"
+            if select_addition != "l.":  # only add if non empty
+                select_block = select_block + select_addition
+            select_block = select_block + f"r.{', r.'.join(set(series_to_col_map[name_r]))}"
+
+            from_block = f"{self.create_indexed_table(name_l)} l, " \
+                         f"{self.create_indexed_table(name_r)} r"
             where_block = f"\nWHERE l.row_number = r.row_number"
+            columns_t = list(set(series_to_col_map[name_l]) | set(series_to_col_map[name_r]))
         elif isinstance(left, pandas.Series):
-            select_block = f"({left.name} {operator} {right}) AS {rename}"
-            from_block = f"{mapping.get_name(left)}"
+            name_l = mapping.get_name(left)
+            select_block = f"({left.name} {operator} {right}) AS {rename}, {', '.join(series_to_col_map[name_l])}"
+            from_block = name_l
+            columns_t = [left.name] + series_to_col_map[name_l]
         elif isinstance(right, pandas.Series):
-            select_block = f"({left} {operator} {right.name}) AS {rename}"
-            from_block = f"{mapping.get_name(right)}"
+            name_r = mapping.get_name(right)
+            select_block = f"({left} {operator} {right.name}) AS {rename}, {', '.join(series_to_col_map[name_r])}"
+            from_block = name_r
+            columns_t = [right.name] + series_to_col_map[name_r]
 
         sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
                    f"{where_block}"
 
         sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
+
+        # Add mapping to be able to select the tracking columns in sql:
+        series_to_col_map[sql_table_name] = self.get_tracking_cols_raw(columns_t)
+
         mapping.add(sql_table_name, result)
         print(sql_code + "\n")
-        return result
-
-    def __handle_operation_dataframe(self, operator, mapping, result, left, right, lineno):
-
-        # TODO: handle operations over pandas.DataFrames
-        operator = "*"
-        multiplicand = left
-        multiplier = right
-        affected_columns = self.name
-        if not isinstance(affected_columns, list):
-            affected_columns = [affected_columns]
-
-        sql_code = f"SELECT {f' {operator} {multiplier} , '.join(affected_columns)} {operator} {multiplier} \n" \
-                   f"FROM {mapping.get_name(multiplicand)}"
-
-        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
-        mapping.add(sql_table_name, result)
-        print(sql_code + "\n")
+        self.write_to_pipe_query(sql_code)
         return result
 
     @staticmethod
+    def write_to_table_init(sql_code, file_name=""):
+        if file_name == "":
+            file_name = "create_table.sql"
+        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
+            file.write(sql_code)
+
+    @staticmethod
+    def write_to_pipe_query(sql_code, file_name=""):
+        if file_name == "":
+            file_name = "pipeline.sql"
+        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
+            file.write(sql_code + "\n")
+
+    @staticmethod
+    def write_to_side_query(sql_code, name):
+        if len(name.split(".")) == 1:
+            name = name + ".sql"
+        with (ROOT_DIR_TO_SQL / name).open(mode="a")as file:
+            file.write(sql_code)
+
+    @staticmethod
+    def get_tracking_cols(columns, table_name=""):
+        addition = ""
+        if table_name != "":
+            addition = table_name + "."
+        columns_track = SQLBackend.get_tracking_cols_raw(columns)
+        if columns_track:
+            return ", " + addition + f', {addition}'.join(SQLBackend.get_tracking_cols_raw(columns))
+        return ""
+
+    @staticmethod
+    def get_tracking_cols_raw(columns):
+        return [x for x in columns if "ctid" in x]
+
+    @staticmethod
     def __column_ratio_original(table_orig, column_name):
-        print(f"original_ratio_{column_name} as (\n"
-              f"\tselect i.{column_name}, (count(*) * 1.0 / (select count(*) from {table_orig})) as ratio\n"
-              f"\tfrom {table_orig} i\n"
-              f"\tgroup by i.{column_name}\n"
-              "),")
+        return f"original_ratio_{column_name} as (\n" \
+               f"\tselect i.{column_name}, (count(*) * 1.0 / (select count(*) from {table_orig})) as ratio\n" \
+               f"\tfrom {table_orig} i\n" \
+               f"\tgroup by i.{column_name}\n" \
+               "),"
 
     @staticmethod
     def __column_ratio_current(table_orig, table_new, column_name):
         """
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
-        print(f"current_ratio_{column_name} as (\n"
-              f"\tselect orig.{column_name}, (\n"
-              f"\t\t(select count(temp.original_label)\n"
-              f"\t\tfrom (\n"
-              f"\t\t\tselect lookup.original_label\n"
-              f"\t\t\tfrom lookup_{column_name}_{table_new} lookup, {table_new} curr\n"
-              f"\t\t\twhere lookup.current_label = curr.{column_name} and "
-              f"orig.{column_name} = lookup.original_label and lookup.current_label is not null) temp\n"
-              f"\t\t) * 1.0 / (select count(*) from {table_new})) as ratio\n"
-              f"\tfrom {table_orig} orig,  {table_new} curr, lookup_{column_name}_{table_new} lookup\n"
-              f"\twhere curr.{table_orig}_ctid = orig.ctid\n"
-              f"\tgroup by orig.{column_name}\n"
-              f"),")
+        return f"current_ratio_{column_name} AS (\n" \
+               f"\tSELECT orig.{column_name}, (\n" \
+               f"\t\t(SELECT count(*)\n" \
+               f"\t\tFROM (\n" \
+               f"\t\t\tSELECT lookup.original_label\n" \
+               f"\t\t\tFROM lookup_{column_name}_{table_new} lookup, {table_new} curr\n" \
+               f"\t\t\tWHERE lookup.current_label = curr.{column_name} and " \
+               f"orig.{column_name} = lookup.original_label or" \
+               f"(lookup.current_label is NULL and orig.{column_name} is NULL and curr.{column_name} is NULL)) temp\n" \
+               f"\t\t) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
+               f"\tFROM {table_orig} orig,  {table_new} curr, lookup_{column_name}_{table_new} lookup\n" \
+               f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
+               f"\tGROUP BY orig.{column_name}\n" \
+               f"),"
 
     @staticmethod
     def __lookup_table(table_orig, table_new, column_name):
@@ -107,33 +145,55 @@ class SQLBackend:
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
-        print(f"lookup_{column_name}_{table_new} as (\n"
-              f"\tselect distinct orig.{column_name} as original_label, curr.{column_name} as current_label\n"
-              f"\tfrom {table_orig} orig,  {table_new} curr\n"
-              f"\twhere curr.{table_orig}_ctid = orig.ctid\n"
-              f"),")
+        return f"lookup_{column_name}_{table_new} AS (\n" \
+               f"\tSELECT distinct orig.{column_name} AS original_label, curr.{column_name} AS current_label\n" \
+               f"\tFROM {table_orig} orig,  {table_new} curr\n" \
+               f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
+               f"),"
 
     @staticmethod
-    def ratio_track(origin_dict, column_names, table_name):
+    def __overview_table(table_new, column_name):
+        """
+        Creates the lookup_table to cope with possible projections.
+        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
+        Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
+        """
+        return f"overview_{column_name}_{table_new} as (\n" \
+               f"\tSELECT n.* , o.ratio AS ratio_original \n" \
+               f"\tFROM current_ratio_{column_name} n right JOIN original_ratio_{column_name} o " \
+               f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} is NULL)\n" \
+               f"),"
+
+    @staticmethod
+    def ratio_track(origin_dict, column_names, current_dict):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
         :param origin_dict: Dictionary with all the origin tables of the single attributes.
         :param column_names: The column names of which we want to have the ratio comparison
-        :param table_name: the name of the table of which we need the 'current' ratio.
+        :param current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
+            new ratio we want to check.
         :return: None -> see stdout
         """
         for i in column_names:
             table_orig = origin_dict[i]
-            SQLBackend.__lookup_table(table_orig, table_new=table_name, column_name=i)
-        print()
+            sql_code = SQLBackend.__lookup_table(table_orig, table_new=current_dict[i], column_name=i) + "\n"
+            print(sql_code)
+            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
         for i in column_names:
             table_orig = origin_dict[i]
-            SQLBackend.__column_ratio_original(table_orig, column_name=i)
-        print()
+            sql_code = SQLBackend.__column_ratio_original(table_orig, column_name=i) + "\n"
+            print(sql_code)
+            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
         for i in column_names:
             table_orig = origin_dict[i]
-            SQLBackend.__column_ratio_current(table_orig, table_new=table_name, column_name=i)
+            sql_code = SQLBackend.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i) + "\n"
+            print(sql_code)
+            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
+        for i in column_names:
+            sql_code = SQLBackend.__overview_table(table_new=current_dict[i], column_name=i) + "\n"
+            print(sql_code)
+            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
 
     @staticmethod
     def create_indexed_table(table_name):
@@ -277,4 +337,11 @@ class DfToStringMapping:
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
 
+# This mapping is needed to be able to handle the tracking columns when working on pandas.Series
+series_to_col_map = {}
+
 ROOT_DIR = get_project_root()
+ROOT_DIR_TO_SQL = ROOT_DIR / "to_sql_output"
+
+# Empty the "to_sql_output" folder if necessary:
+[f.unlink() for f in ROOT_DIR_TO_SQL.glob("*") if f.is_file()]

@@ -11,7 +11,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from mlinspect.backends._sql_backend import SQLBackend, CreateTablesFromCSVs, mapping
+from mlinspect.backends._sql_backend import *
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
@@ -46,9 +46,6 @@ class PandasPatchingSQL:
             result = original(*args, **kwargs)
 
             # PRINT SQL: ###############################################################################################
-            # we need to add the ct_id columns to the original table:
-
-
             sep = ","
             na_values = "?"
             header = 1
@@ -76,13 +73,24 @@ class PandasPatchingSQL:
 
             table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.get_unique_id())
 
+            # we need to add the ct_id columns to the original table:
+            result[f"{table_name}_ctid"] = "placeholder"
+
             sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
                                                                       delimiter=sep,
                                                                       header=(1 == header))
 
             print(sql_code + "\n")
+            sql_backend.write_to_table_init(sql_code)
 
-            mapping.add(table_name, result)
+            # We need to instantly add the ctid to the tables:
+            sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
+                       f"FROM {table_name}"
+
+            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno, table_name)
+            mapping.add(sql_table_name, result)
+            print(sql_code + "\n")
+            sql_backend.write_to_pipe_query(sql_code)
             # PRINT SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -211,26 +219,34 @@ class DataFramePatchingSQL:
                                                       result)
             result = backend_result.annotated_dfobject.result_data
             # PRINT SQL: ###############################################################################################
+
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
                 tb1 = self
                 tb1_name = mapping.get_name(tb1)
                 source = args[0]
                 if isinstance(source, pandas.Series):
-                    sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)} \n" \
+                    sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
                                f"FROM {sql_backend.create_indexed_table(tb1_name)} as tb1,  " \
                                f"{sql_backend.create_indexed_table(mapping.get_name(source))} as tb2\n" \
                                f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
                 else:
-                    if not isinstance(source, list):
-                        source = [source]
 
-                    sql_code = f"SELECT {', '.join(source)}\n" \
+                    if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
+                        for c in sql_backend.get_tracking_cols_raw(self.columns.values):
+                            result[c] = "placeholder"
+                    else:
+                        source = [source]
+                    sql_code = f"SELECT {', '.join(source)}{sql_backend.get_tracking_cols(self.columns.values)}\n" \
                                f"FROM {tb1_name}"
 
                 sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
 
+                # Add mapping to be able to select the tracking columns in sql:
+                series_to_col_map[sql_table_name] = sql_backend.get_tracking_cols_raw(self.columns.values)
+
                 mapping.add(sql_table_name, result)
                 print(sql_code + "\n")
+                sql_backend.write_to_pipe_query(sql_code)
             # PRINT SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -277,11 +293,8 @@ class DataFramePatchingSQL:
             if len(args) != 2:
                 raise NotImplementedError
 
-            new_col = tb2.name
-            old_cols = tb1.columns.values
-
-            sql_code = f"SELECT tb1.{', tb1.'.join([x for x in old_cols if x != new_name])}, " \
-                       f"tb2.{new_col} AS {new_name}\n" \
+            sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
+                       f"tb2.{tb2.name} AS {new_name}\n" \
                        f"FROM {sql_backend.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
                        f"{sql_backend.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
                        f"WHERE tb1.row_number = tb2.row_number"
@@ -289,6 +302,7 @@ class DataFramePatchingSQL:
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, self)  # Here we need to take "self", as the restult of __setitem__ will be None
             print(sql_code + "\n")
+            sql_backend.write_to_pipe_query(sql_code)
 
             # PRINT SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
@@ -362,6 +376,15 @@ class DataFramePatchingSQL:
             result = backend_result.annotated_dfobject.result_data
 
             # PRINT SQL: ###############################################################################################
+
+            # Attention: If two columns are merged and column names overlap between the two merge partner tables the
+            # columns are renamed .._x and .._y => if this affects the ctid columns we can remove one, as they are the
+            # same.
+            x_ctid_columns = [x for x in result.columns.values if "ctid_x" in x]
+            result = result.drop(x_ctid_columns, axis=1)
+            for y in [y for y in result.columns.values if "ctid_y" in y]:
+                result = result.rename(columns={y: y.split("_y")[0]})
+
             tb1 = input_info_a.annotated_dfobject.result_data
             tb2 = input_info_b.annotated_dfobject.result_data
 
@@ -382,7 +405,7 @@ class DataFramePatchingSQL:
 
             tb1_name = mapping.get_name(tb1)
             tb2_name = mapping.get_name(tb2)
-            tb1_columns = list(tb1.columns.values)
+            tb1_columns = tb1.columns.values
             tb2_columns = [x for x in tb2.columns.values if x not in tb1_columns]  # remove duplicates!
             # Attention: we need to select all columns, just using * can result in a doubled column!
             if merge_column == "":  # Cross product:
@@ -397,6 +420,7 @@ class DataFramePatchingSQL:
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
+            sql_backend.write_to_pipe_query(sql_code)
             # PRINT SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
@@ -446,8 +470,6 @@ class DataFrameGroupByPatchingSQL:
     def patched_agg(self, *args, **kwargs):
         """ Patch for ('pandas.core.groupby.generic', 'agg') """
         original = gorilla.get_original_attribute(pandas.core.groupby.generic.DataFrameGroupBy, 'agg')
-        groupby_columns_outer_scope = self.grouper.names  # gets the columns on which thr groupby was applied
-        tb1_outer_scope = self.obj  # gets the pandas.DataFrame on which the groupby was called upon
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
@@ -461,8 +483,8 @@ class DataFrameGroupByPatchingSQL:
             input_infos = PandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
             # PRINT SQL: ###############################################################################################
-            tb1 = tb1_outer_scope
-            groupby_columns = groupby_columns_outer_scope  # could be: mapping, function, label, or list of labels
+            tb1 = self.obj
+            groupby_columns = self.grouper.names
             agg_params = [x[0] for x in kwargs.values()]
             new_col_names = list(kwargs.keys())  # The name of the new column containing the aggregation
             agg_funcs = [x[1] for x in kwargs.values()]
@@ -491,6 +513,7 @@ class DataFrameGroupByPatchingSQL:
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
+            sql_backend.write_to_pipe_query(sql_code)
             # PRINT SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -621,13 +644,16 @@ class SeriesPatchingSQL:
                 where_in_block = ", ".join(values)
 
             column = self.name
-            sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}\n" \
-                       f"FROM {mapping.get_name(self)} \n"
+            source_name = mapping.get_name(self)
+            sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}, " \
+                       f"{', '.join(series_to_col_map[source_name])}\n" \
+                       f"FROM {source_name}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
 
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
+            sql_backend.write_to_pipe_query(sql_code)
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)

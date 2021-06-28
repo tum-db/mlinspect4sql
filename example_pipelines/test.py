@@ -8,9 +8,10 @@ from demo.feature_overview.no_missing_embeddings import NoMissingEmbeddings
 from inspect import cleandoc
 from example_pipelines.healthcare import custom_monkeypatching
 import time
+from IPython.display import display
 
 
-def example_one():
+def example_one(to_sql):
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
     t0 = time.time()
     inspector_result = PipelineInspector \
@@ -21,10 +22,25 @@ def example_one():
         .add_check(NoMissingEmbeddings()) \
         .add_required_inspection(RowLineage(5)) \
         .add_required_inspection(MaterializeFirstOutputRows(5)) \
-        .execute(to_sql=True)
+        .execute(to_sql=to_sql)
     t1 = time.time()
 
     print(t1 - t0)
+    if not to_sql:
+        extracted_dag = inspector_result.dag
+        dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
+        check_results = inspector_result.check_to_check_results
+        no_bias_check_result = check_results[NoBiasIntroducedFor(["age_group", "race"])]
+
+        distribution_changes_overview_df = NoBiasIntroducedFor.get_distribution_changes_overview_as_df(no_bias_check_result)
+        display(distribution_changes_overview_df)
+
+        for i in  list(no_bias_check_result.bias_distribution_change.items()):
+            _, join_distribution_changes = i
+            for column, distribution_change in join_distribution_changes.items():
+                print("")
+                print(f"\033[1m Column '{column}'\033[0m")
+                display(distribution_change.before_and_after_df)
 
 
 def example_compas():
@@ -100,7 +116,7 @@ def example_two():
 
 
 if __name__ == "__main__":
-    example_one()
+    example_one(False)
     # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")
