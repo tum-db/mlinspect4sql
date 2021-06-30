@@ -335,7 +335,7 @@ class DfToStringMapping:
 
 
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
-mapping = DfToStringMapping()
+mapping = DfToStringMapping()  # TODO: substitute by: from typing import Dict
 
 # This mapping is needed to be able to handle the tracking columns when working on pandas.Series
 series_to_col_map = {}

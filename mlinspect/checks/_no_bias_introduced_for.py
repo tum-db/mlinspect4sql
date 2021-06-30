@@ -70,6 +70,8 @@ class NoBiasIntroducedFor(Check):
     def evaluate(self, inspection_result: InspectionResult, to_sql: bool) -> CheckResult:
         """Evaluate the check"""
         # pylint: disable=too-many-locals
+
+        # TO_SQL: ###############################################################################################
         if to_sql:
             print("/*" + ("#" * 10) + f"NoBiasIntroducedFor ({', '.join(self.sensitive_columns)}):" + ("#" * 10) + "*/")
             origin_dict = {}
@@ -96,6 +98,7 @@ class NoBiasIntroducedFor(Check):
 
             SQLBackend.ratio_track(origin_dict, self.sensitive_columns, current_dict)
             print("/*" + ("#" * 10) + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
+        # TO_SQL DONE! ##########################################################################################
 
         dag = inspection_result.dag
         histograms = {}

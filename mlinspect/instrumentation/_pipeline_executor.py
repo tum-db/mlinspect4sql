@@ -8,7 +8,7 @@ import gorilla
 import nbformat
 import networkx
 from astmonkey.transformers import ParentChildNodeTransformer
-import astor # from astmonkey import visitors -> visitors unfortunately is buggy.
+import astor  # from astmonkey import visitors -> visitors unfortunately is buggy.
 from nbconvert import PythonExporter
 
 from .. import monkeypatchingSQL
@@ -18,9 +18,6 @@ from .._inspector_result import InspectorResult
 from ..checks._check import Check
 from ..inspections import InspectionResult
 from ..inspections._inspection import Inspection
-
-from mlinspect.checks import NoBiasIntroducedFor
-
 
 class PipelineExecutor:
     """
@@ -59,7 +56,7 @@ class PipelineExecutor:
         Instrument and execute the pipeline and evaluate all checks
         """
         # pylint: disable=too-many-arguments
-
+        self.to_sql = to_sql
         if reset_state:
             # reset_state=False should only be used internally for performance experiments etc!
             # It does not ensure the same inspections are still used as args etc.
@@ -79,7 +76,6 @@ class PipelineExecutor:
         self.inspections = all_inspections
         self.track_code_references = track_code_references
         self.custom_monkey_patching = custom_monkey_patching
-        self.to_sql = to_sql
 
         # Here the modified code is created and run:
         self.run_inspections(notebook_path, python_code, python_path)
@@ -147,7 +143,7 @@ class PipelineExecutor:
         """
         # insert set_code_reference calls
         if track_code_references:
-            # Needed to get the parent assign node for subscript assigns.
+            #  Needed to get the parent assign node for subscript assigns.
             #  Without this, "pandas_df['baz'] = baz + 1" would only be "pandas_df['baz']"
             parent_child_transformer = ParentChildNodeTransformer()
             parsed_ast = parent_child_transformer.visit(parsed_ast)

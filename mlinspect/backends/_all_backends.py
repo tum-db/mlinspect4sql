@@ -2,7 +2,6 @@
 Get all available backends
 """
 from typing import List
-
 from ._backend import Backend
 from ._pandas_backend import PandasBackend
 from ._sklearn_backend import SklearnBackend

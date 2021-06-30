@@ -6,12 +6,11 @@ import os
 
 import gorilla
 import pandas
-import pandas as pd
 import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from mlinspect.backends._sql_backend import *
+from mlinspect.backends._sql_backend import SQLBackend, mapping, series_to_col_map, CreateTablesFromCSVs
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
@@ -45,7 +44,7 @@ class PandasPatchingSQL:
             kwargs["nrows"] = 10
             result = original(*args, **kwargs)
 
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
             sep = ","
             na_values = "?"
             header = 1
@@ -91,7 +90,7 @@ class PandasPatchingSQL:
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
@@ -218,7 +217,7 @@ class DataFramePatchingSQL:
                                                       input_infos,
                                                       result)
             result = backend_result.annotated_dfobject.result_data
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
 
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
                 tb1 = self
@@ -247,7 +246,7 @@ class DataFramePatchingSQL:
                 mapping.add(sql_table_name, result)
                 print(sql_code + "\n")
                 sql_backend.write_to_pipe_query(sql_code)
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
             return result
@@ -280,7 +279,7 @@ class DataFramePatchingSQL:
                 description = "modifies {}".format([args[0]])
             else:
                 raise NotImplementedError("TODO: Handling __setitem__ for key type {}".format(type(args[0])))
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
             # There are two options to handle this kind of arithmetic operations of pandas.DataFrames / pandas.series:
             # we can catch the entire operations here and create one with a single "with_statement", or create one with
             # for each operation and put these with together. The second option is preferred as is its only downside is,
@@ -304,7 +303,7 @@ class DataFramePatchingSQL:
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
 
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
                                operator_context,
@@ -375,7 +374,7 @@ class DataFramePatchingSQL:
                                                       result)
             result = backend_result.annotated_dfobject.result_data
 
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
 
             # Attention: If two columns are merged and column names overlap between the two merge partner tables the
             # columns are renamed .._x and .._y => if this affects the ctid columns we can remove one, as they are the
@@ -421,7 +420,7 @@ class DataFramePatchingSQL:
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -448,10 +447,10 @@ class DataFramePatchingSQL:
             input_info = get_input_info(self, caller_filename, lineno, function_info, optional_code_reference,
                                         optional_source_code)
             result = original(self, *args, **kwargs)
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
             # Here we don't need to do anything, as the groupby alone, is irrelevent. Only together with the applied
             # operation, we need to act.
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
             result._mlinspect_dag_node = input_info.dag_node.node_id  # pylint: disable=protected-access
 
             return result
@@ -482,7 +481,7 @@ class DataFrameGroupByPatchingSQL:
 
             input_infos = PandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
-            # PRINT SQL: ###############################################################################################
+            # TO_SQL: ###############################################################################################
             tb1 = self.obj
             groupby_columns = self.grouper.names
             agg_params = [x[0] for x in kwargs.values()]
@@ -514,7 +513,7 @@ class DataFrameGroupByPatchingSQL:
             mapping.add(sql_table_name, result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
-            # PRINT SQL DONE! ##########################################################################################
+            # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
                                                       input_infos,
@@ -854,7 +853,7 @@ class SeriesPatchingSQL:
         assert (len(args) == 1)
         right = args[0]
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
-            right = pd.Series([right]).repeat(left.size)  #
+            right = pandas.Series([right]).repeat(left.size)  #
         return left, right
 
     # @staticmethod
