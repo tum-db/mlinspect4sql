@@ -89,7 +89,7 @@ class SQLBackend:
         if file_name == "":
             file_name = "create_table.sql"
         with (ROOT_DIR_TO_SQL / file_name).open(mode="a", ) as file:
-            file.write(sql_code)
+            file.write(sql_code + "\n\n")
 
     @staticmethod
     def write_to_pipe_query(sql_code, file_name=""):
@@ -103,7 +103,7 @@ class SQLBackend:
         if len(name.split(".")) == 1:
             name = name + ".sql"
         with (ROOT_DIR_TO_SQL / name).open(mode="a")as file:
-            file.write(sql_code)
+            file.write(sql_code + "\n")
 
     @staticmethod
     def get_tracking_cols(columns, table_name=""):

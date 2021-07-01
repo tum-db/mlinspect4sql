@@ -44,7 +44,7 @@ class CreateTablesFromCSVs:
         return col_names, types
 
     def get_sql_code(self, table_name, null_symbol="?", delimiter=",", header=True, drop_old=False):
-        names, data_types = self._get_schema_from_csv(types_as_string=True)
+        names, data_types = self._get_schema_from_csv()
 
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
 

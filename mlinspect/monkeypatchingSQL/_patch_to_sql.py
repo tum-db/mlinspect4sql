@@ -10,7 +10,9 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from ._sql_logic import SQLBackend, mapping, CreateTablesFromCSVs, TableInfo
+from ._sql_logic import SQLBackend, mapping
+from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
+from mlinspect.to_sql.py_to_sql_mapping import TableInfo
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
@@ -36,7 +38,6 @@ class PandasPatchingSQL:
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             function_info = FunctionInfo('pandas.io.parsers', 'read_csv')
-
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
             input_infos = PandasBackend.before_call(operator_context, [])
 
@@ -101,7 +102,7 @@ class PandasPatchingSQL:
                                                       input_infos,
                                                       result)
 
-            description = "{}".format(args[0].split(os.path.sep)[-1])
+            description = args[0].split(os.path.sep)[-1]
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
                                operator_context,
