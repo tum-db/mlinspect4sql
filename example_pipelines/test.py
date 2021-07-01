@@ -35,7 +35,7 @@ def example_one(to_sql):
         distribution_changes_overview_df = NoBiasIntroducedFor.get_distribution_changes_overview_as_df(no_bias_check_result)
         display(distribution_changes_overview_df)
 
-        for i in  list(no_bias_check_result.bias_distribution_change.items()):
+        for i in list(no_bias_check_result.bias_distribution_change.items()):
             _, join_distribution_changes = i
             for column, distribution_change in join_distribution_changes.items():
                 print("")
@@ -116,7 +116,7 @@ def example_two():
 
 
 if __name__ == "__main__":
-    example_one(False)
+    example_one(True)
     # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")

@@ -81,11 +81,13 @@ class NoBiasIntroducedFor(Check):
                 current_table_sc = ""  # newest table containing the sensitive column
                 for m in reversed(mapping.mapping):  # we reverse because of the adding order -> faster match
                     table_name = m[0]
-                    table = m[1]
+                    table_info = m[1]
+                    table = table_info.data_object
                     if table_name.split("_")[0] != "with":  # check that name represents an original table (f.e. '.csv')
                         if isinstance(table, pandas.Series) and sc == table.name:  # one column .csv
                             origin_of_sc = table_name
-                        elif isinstance(table, pandas.DataFrame) and sc in table.columns.values:
+                        elif isinstance(table,
+                                        pandas.DataFrame) and sc in table.columns.values:  # TODO: substitute by "contains_col" fucntion in TableInfo!
                             origin_of_sc = table_name
                     if (isinstance(table, pandas.DataFrame) and sc in table.columns.values) or \
                             (isinstance(table, pandas.Series) and sc == table.name):

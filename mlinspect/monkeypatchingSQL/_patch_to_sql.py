@@ -10,7 +10,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from mlinspect.backends._sql_backend import SQLBackend, mapping, series_to_col_map, CreateTablesFromCSVs
+from mlinspect.backends._sql_backend import SQLBackend, mapping, CreateTablesFromCSVs, TableInfo
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
@@ -73,7 +73,8 @@ class PandasPatchingSQL:
             table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.get_unique_id())
 
             # we need to add the ct_id columns to the original table:
-            result[f"{table_name}_ctid"] = "placeholder"
+            tracking_column = f"{table_name}_ctid"
+            result[tracking_column] = "placeholder"
 
             sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
                                                                       delimiter=sep,
@@ -87,7 +88,11 @@ class PandasPatchingSQL:
                        f"FROM {table_name}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno, table_name)
-            mapping.add(sql_table_name, result)
+            mapping_result = TableInfo(data_object=result,
+                                       tracking_cols=[tracking_column],
+                                       operation_type=OperatorType.DATA_SOURCE,
+                                       main_op=True)
+            mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
@@ -218,7 +223,14 @@ class DataFramePatchingSQL:
                                                       result)
             result = backend_result.annotated_dfobject.result_data
             # TO_SQL: ###############################################################################################
-
+            if isinstance(args[0], str):  # Projection to Series
+                operation_type = OperatorType.PROJECTION
+            elif isinstance(args[0], list) and isinstance(args[0][0], str):  # Projection to DF
+                operation_type = OperatorType.PROJECTION
+            elif isinstance(args[0], pandas.Series):  # Selection
+                operation_type = OperatorType.SELECTION
+            else:
+                raise NotImplementedError()
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
                 tb1 = self
                 tb1_name = mapping.get_name(tb1)
@@ -239,11 +251,11 @@ class DataFramePatchingSQL:
                                f"FROM {tb1_name}"
 
                 sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-
-                # Add mapping to be able to select the tracking columns in sql:
-                series_to_col_map[sql_table_name] = sql_backend.get_tracking_cols_raw(self.columns.values)
-
-                mapping.add(sql_table_name, result)
+                mapping_result = TableInfo(data_object=result,
+                                           tracking_cols=sql_backend.get_tracking_cols_raw(self.columns.values),
+                                           operation_type=operation_type,
+                                           main_op=False)
+                mapping.add(sql_table_name, mapping_result)
                 print(sql_code + "\n")
                 sql_backend.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
@@ -299,7 +311,12 @@ class DataFramePatchingSQL:
                        f"WHERE tb1.row_number = tb2.row_number"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-            mapping.add(sql_table_name, self)  # Here we need to take "self", as the restult of __setitem__ will be None
+            # Here we need to take "self", as the result of __setitem__ will be None.
+            mapping_result = TableInfo(data_object=self,
+                                       tracking_cols=sql_backend.get_tracking_cols_raw(self.columns.values),
+                                       operation_type=OperatorType.PROJECTION_MODIFY,
+                                       main_op=True)
+            mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
 
@@ -417,7 +434,11 @@ class DataFramePatchingSQL:
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-            mapping.add(sql_table_name, result)
+            mapping_result = TableInfo(data_object=result,
+                                       tracking_cols=sql_backend.get_tracking_cols_raw(result.columns.values),
+                                       operation_type=OperatorType.JOIN,
+                                       main_op=True)
+            mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
@@ -510,7 +531,11 @@ class DataFrameGroupByPatchingSQL:
                        f"GROUP BY {groupby_columns}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-            mapping.add(sql_table_name, result)
+            mapping_result = TableInfo(data_object=result,
+                                       tracking_cols=sql_backend.get_tracking_cols_raw(result.columns.values),
+                                       operation_type=OperatorType.GROUP_BY_AGG,
+                                       main_op=True)
+            mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
@@ -643,14 +668,17 @@ class SeriesPatchingSQL:
                 where_in_block = ", ".join(values)
 
             column = self.name
-            source_name = mapping.get_name(self)
+            name, ti = mapping.get_n_ti(self)
             sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}, " \
-                       f"{', '.join(series_to_col_map[source_name])}\n" \
-                       f"FROM {source_name}"
+                       f"{', '.join(ti.tracking_cols)}\n" \
+                       f"FROM {name}"
 
             sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-
-            mapping.add(sql_table_name, result)
+            mapping_result = TableInfo(data_object=result,
+                                       tracking_cols=ti.tracking_cols,
+                                       operation_type=OperatorType.SELECTION,
+                                       main_op=True)
+            mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
             sql_backend.write_to_pipe_query(sql_code)
             return result
@@ -839,6 +867,9 @@ class SeriesPatchingSQL:
 
     @staticmethod
     def __op_call_helper(op, left, args, original):
+        """
+        To reduce code repetition.
+        """
         assert (len(args) == 1)
         right = args[0]
         result = original(self=left, other=right)
@@ -850,6 +881,10 @@ class SeriesPatchingSQL:
 
     @staticmethod
     def __help_set_right_compare(left, args):
+        """
+        Helps to transform the value to which is compared to a pandas.Series if needed.
+        For example "ds1 < 3" => "ds1 < ds_of_3"
+        """
         assert (len(args) == 1)
         right = args[0]
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call

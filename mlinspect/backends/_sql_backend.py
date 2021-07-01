@@ -1,3 +1,6 @@
+import collections.abc
+from abc import ABC
+
 import pandas
 import pandas as pd
 from tableschema import Table
@@ -5,6 +8,10 @@ import sqlalchemy
 from sqlalchemy.types import Integer, Text, BOOLEAN
 import pathlib
 from mlinspect.utils import get_project_root
+from dataclasses import dataclass
+from mlinspect.inspections._inspection_input import OperatorType
+from typing import Dict
+from collections.abc import Mapping
 
 
 class SQLBackend:
@@ -36,30 +43,31 @@ class SQLBackend:
         where_block = ""
         from_block = ""
         columns_t = []
+
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
-            name_l = mapping.get_name(left)
-            name_r = mapping.get_name(right)
+            name_l, ti_l = mapping.get_n_ti(left)
+            name_r, ti_r = mapping.get_n_ti(right)
 
             select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}, "
-            select_addition = f"l.{', l.'.join(set(series_to_col_map[name_l]) - set(series_to_col_map[name_r]))}"
+            select_addition = f"l.{', l.'.join(set(ti_l.tracking_cols) - set(ti_r.tracking_cols))}"
             if select_addition != "l.":  # only add if non empty
                 select_block = select_block + select_addition
-            select_block = select_block + f"r.{', r.'.join(set(series_to_col_map[name_r]))}"
+            select_block = select_block + f"r.{', r.'.join(set(ti_r.tracking_cols))}"
 
             from_block = f"{self.create_indexed_table(name_l)} l, " \
                          f"{self.create_indexed_table(name_r)} r"
             where_block = f"\nWHERE l.row_number = r.row_number"
-            columns_t = list(set(series_to_col_map[name_l]) | set(series_to_col_map[name_r]))
+            columns_t = list(set(ti_l.tracking_cols) | set(ti_r.tracking_cols))
         elif isinstance(left, pandas.Series):
-            name_l = mapping.get_name(left)
-            select_block = f"({left.name} {operator} {right}) AS {rename}, {', '.join(series_to_col_map[name_l])}"
+            name_l, ti_l = mapping.get_n_ti(left)
+            select_block = f"({left.name} {operator} {right}) AS {rename}, {', '.join(ti_l.tracking_cols)}"
             from_block = name_l
-            columns_t = [left.name] + series_to_col_map[name_l]
+            columns_t = [left.name] + ti_l.tracking_cols
         elif isinstance(right, pandas.Series):
-            name_r = mapping.get_name(right)
-            select_block = f"({left} {operator} {right.name}) AS {rename}, {', '.join(series_to_col_map[name_r])}"
+            name_r, ti_r = mapping.get_n_ti(right)
+            select_block = f"({left} {operator} {right.name}) AS {rename}, {', '.join(ti_r.tracking_cols)}"
             from_block = name_r
-            columns_t = [right.name] + series_to_col_map[name_r]
+            columns_t = [right.name] + ti_r.tracking_cols
 
         sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
@@ -67,10 +75,12 @@ class SQLBackend:
 
         sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
 
-        # Add mapping to be able to select the tracking columns in sql:
-        series_to_col_map[sql_table_name] = self.get_tracking_cols_raw(columns_t)
+        mapping_result = TableInfo(data_object=result,
+                                   tracking_cols=self.get_tracking_cols_raw(columns_t),
+                                   operation_type=OperatorType.SELECTION,
+                                   main_op=True)
 
-        mapping.add(sql_table_name, result)
+        mapping.add(sql_table_name, mapping_result)
         print(sql_code + "\n")
         self.write_to_pipe_query(sql_code)
         return result
@@ -79,7 +89,7 @@ class SQLBackend:
     def write_to_table_init(sql_code, file_name=""):
         if file_name == "":
             file_name = "create_table.sql"
-        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
+        with (ROOT_DIR_TO_SQL / file_name).open(mode="a", ) as file:
             file.write(sql_code)
 
     @staticmethod
@@ -297,39 +307,67 @@ class CreateTablesFromCSVs:
         return f"{create_table};\n\n{add_data};"
 
 
-class DfToStringMapping:
+@dataclass
+class TableInfo:
+    """Dataclass for intern SQL-Pandas table/operation mapping.
+
+    Parameters:
+        data_object (None): Can be pandas.DataFrame or pandas.Series
+        tracking_cols (list): All the columns relevant for tracking in this object
+        operation_type (OperatorType): We need this to reduce the amount of checks we need to do, when f.e. looking
+            for a problem that only occurs ofter certain operations.
+        main_op (bool): Distinguishes between sub- and main-operations. This distinction is nice to have for SQL,
+            because it further allows to skip certain checks. | df1[..] = df2 * 3 -> assign is main, * is sub
     """
-    Simple data structure to track the mappings of pandas.Dataframes to SQL table names.
+    data_object: any
+    tracking_cols: list
+    operation_type: OperatorType
+    main_op: bool
+
+    def __hash__(self):
+        return hash(self.data_object)
+
+    # def is_df(self) -> bool:
+    #     return isinstance(self.data_object, pandas.DataFrame)
+
+
+class DfToStringMapping:
+    """Mapping between SQL-with_table names and pandas objects(pandas.DataFrame, pandas.Series)
+    To be able to trace the order in which the tables were added, we will use a list and not a dictionary for this
+    mapping.
     """
     mapping = []  # contains tuples of form: (*Name*, *DataFrame*)
 
-    def add(self, name: str, df: pd.DataFrame) -> None:
+    def add(self, name: str, ti: TableInfo) -> None:
         """
-        Note: As we don't check the variable we are assigning some pandas objects (Series, DataFrame) to, we need to append values at the
-        front. This is, because we store the original pandas objects the list and not copies. So if these original objects are altered,
-        it can happen that the dataframe is already in the mapping. This would return us some old with table from SQL.
-        Which would be wrong!
+        Note: As we don't check the variable we are assigning some pandas objects (Series, DataFrame) to, we need to
+        append values at the front. This is, because we store the original pandas objects the list and not copies. So
+        if these original  objects are altered, it can happen that the dataframe is already in the mapping.
+        This would return us some old "with-table" from SQL. Which would be wrong!
         """
-        self.mapping = [(name, df), *self.mapping]  # Quite efficient way to append values at the front.
+        self.mapping = [(name, ti), *self.mapping]  # Quite efficient way to add values at the front.
 
-    def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
-        index = self.mapping.index(old_entry)
-        self.mapping[index] = new_entry
+    # def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
+    #     index = self.mapping.index(old_entry)
+    #     self.mapping[index] = new_entry
 
-    def update_name_at_df(self, df, new_name):
-        old_name = self.get_name(df)
-        index = self.mapping.index((old_name, df))
-        self.mapping[index] = (new_name, df)
+    # def update_name_at_df(self, df, new_name):
+    #     old_name = self.get_name(df)
+    #     index = self.mapping.index((old_name, df))
+    #     self.mapping[index] = (new_name, df)
 
-    def get_df(self, name_to_find: str) -> pd.DataFrame:
-        return next(df for (n, df) in self.mapping if n == name_to_find)
+    # def get_df(self, name_to_find: str) -> pd.DataFrame:
+    #     return next(df for (n, df) in self.mapping if n == name_to_find)
 
     def get_name(self, df_to_find: pd.DataFrame) -> str:
-        return next(n for (n, df) in self.mapping if df is df_to_find)
+        return next(n for (n, ti) in self.mapping if ti.data_object is df_to_find)
+
+    def get_n_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
+        return next(x for x in self.mapping if x[1].data_object is df_to_find)
 
     def contains(self, df_to_find):
         for m in self.mapping:
-            if m[1] is df_to_find:
+            if m[1].data_object is df_to_find:
                 return True
         return False
 
@@ -338,10 +376,10 @@ class DfToStringMapping:
 mapping = DfToStringMapping()  # TODO: substitute by: from typing import Dict
 
 # This mapping is needed to be able to handle the tracking columns when working on pandas.Series
-series_to_col_map = {}
+# series_to_col_map = {}
 
 ROOT_DIR = get_project_root()
-ROOT_DIR_TO_SQL = ROOT_DIR / "to_sql_output"
+ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql_dbms_connection" / "generated_code"
 
 # Empty the "to_sql_output" folder if necessary:
 [f.unlink() for f in ROOT_DIR_TO_SQL.glob("*") if f.is_file()]
