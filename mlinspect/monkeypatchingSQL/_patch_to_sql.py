@@ -10,7 +10,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from mlinspect.backends._sql_backend import SQLBackend, mapping, CreateTablesFromCSVs, TableInfo
+from ._sql_logic import SQLBackend, mapping, CreateTablesFromCSVs, TableInfo
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \

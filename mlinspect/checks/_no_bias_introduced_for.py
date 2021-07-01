@@ -17,7 +17,7 @@ from mlinspect.inspections._inspection import Inspection
 from mlinspect.inspections._inspection_input import OperatorType, FunctionInfo
 from mlinspect.instrumentation._dag_node import DagNode
 from mlinspect.inspections._inspection_result import InspectionResult
-from mlinspect.backends._sql_backend import SQLBackend, mapping
+from mlinspect.monkeypatchingSQL._sql_logic import SQLBackend, mapping
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
