@@ -25,9 +25,6 @@ class SQLInfo:
     annotated_dfobject: AnnotatedDfObject
 
 
-
-
-
 def add_dag_node(dag_node: DagNode, dag_node_parents: List[DagNode], sql_info: SQLInfo):
     """
     Inserts a new node into the DAG
@@ -54,4 +51,3 @@ def add_dag_node(dag_node: DagNode, dag_node_parents: List[DagNode], sql_info: S
     # if annotated_df is not None:
     #     singleton.inspection_results.dag_node_to_inspection_results[dag_node] = backend_result.dag_node_annotation
     pass
-
