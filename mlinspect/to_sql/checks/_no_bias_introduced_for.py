@@ -2,12 +2,12 @@
 The NoBiasIntroducedFor check for SQL
 """
 import pandas
-from mlinspect.monkeypatchingSQL._sql_logic import SQLBackend, mapping
+from mlinspect.monkeypatchingSQL._sql_logic import SQLLogic, mapping
 
 
 def no_bias_introduced_sql_evaluate(sensitive_columns):
     # TO_SQL: ###############################################################################################
-
+    # TODO: maybe remove optional rename
     print("/*" + ("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) + "*/")
     origin_dict = {}
     current_dict = {}
@@ -33,6 +33,6 @@ def no_bias_introduced_sql_evaluate(sensitive_columns):
         origin_dict[sc] = origin_of_sc
         current_dict[sc] = current_table_sc
 
-    SQLBackend.ratio_track(origin_dict, sensitive_columns, current_dict)
+    SQLLogic.ratio_track(origin_dict, sensitive_columns, current_dict)
     print("/*" + ("#" * 10) + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
     # TO_SQL DONE! ##########################################################################################

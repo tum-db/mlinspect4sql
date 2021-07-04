@@ -17,7 +17,7 @@ from mlinspect.inspections._inspection import Inspection
 from mlinspect.inspections._inspection_input import OperatorType, FunctionInfo
 from mlinspect.instrumentation._dag_node import DagNode
 from mlinspect.inspections._inspection_result import InspectionResult
-from mlinspect.monkeypatchingSQL._sql_logic import SQLBackend, mapping
+from mlinspect.monkeypatchingSQL._sql_logic import SQLLogic, mapping
 from mlinspect.to_sql.checks._no_bias_introduced_for import no_bias_introduced_sql_evaluate
 
 

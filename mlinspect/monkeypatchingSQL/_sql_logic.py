@@ -13,7 +13,7 @@ ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
 mapping = DfToStringMapping()
 
 
-class SQLBackend:
+class SQLLogic:
     first_with = True
     id = 1
 
@@ -77,15 +77,27 @@ class SQLBackend:
         mapping_result = TableInfo(data_object=result,
                                    tracking_cols=self.get_tracking_cols_raw(columns_t),
                                    operation_type=OperatorType.SELECTION,
-                                   main_op=True)
+                                   main_op=True,
+                                   optional_context=[])
 
         mapping.add(sql_table_name, mapping_result)
         print(sql_code + "\n")
         self.write_to_pipe_query(sql_code)
         return result
 
+    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, optional_context=[],
+                        with_block_name=""):
+        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=with_block_name)
+        mapping_result = TableInfo(data_object=result,
+                                   tracking_cols=tracking_cols,
+                                   operation_type=operation_type,
+                                   main_op=main_op,
+                                   optional_context=optional_context)
+        mapping.add(sql_table_name, mapping_result)
+        print(sql_code + "\n")
+
     @staticmethod
-    def write_to_table_init(sql_code, file_name=""):
+    def write_to_init_file(sql_code, file_name=""):
         if file_name == "":
             file_name = "create_table.sql"
         with (ROOT_DIR_TO_SQL / file_name).open(mode="a", ) as file:
@@ -110,9 +122,9 @@ class SQLBackend:
         addition = ""
         if table_name != "":
             addition = table_name + "."
-        columns_track = SQLBackend.get_tracking_cols_raw(columns)
+        columns_track = SQLLogic.get_tracking_cols_raw(columns)
         if columns_track:
-            return ", " + addition + f', {addition}'.join(SQLBackend.get_tracking_cols_raw(columns))
+            return ", " + addition + f', {addition}'.join(SQLLogic.get_tracking_cols_raw(columns))
         return ""
 
     @staticmethod
@@ -183,32 +195,30 @@ class SQLBackend:
         :param current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
             new ratio we want to check.
         :return: None -> see stdout
+
+        Note:
+        supports column renaming -> in case the dict contains one.
         """
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLBackend.__lookup_table(table_orig, table_new=current_dict[i], column_name=i) + "\n"
+            sql_code = SQLLogic.__lookup_table(table_orig, table_new=current_dict[i], column_name=i) + "\n"
             print(sql_code)
-            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
+            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLBackend.__column_ratio_original(table_orig, column_name=i) + "\n"
+            sql_code = SQLLogic.__column_ratio_original(table_orig, column_name=i) + "\n"
             print(sql_code)
-            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
+            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLBackend.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i) + "\n"
+            sql_code = SQLLogic.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i) + "\n"
             print(sql_code)
-            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
+            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
         for i in column_names:
-            sql_code = SQLBackend.__overview_table(table_new=current_dict[i], column_name=i) + "\n"
+            sql_code = SQLLogic.__overview_table(table_new=current_dict[i], column_name=i) + "\n"
             print(sql_code)
-            SQLBackend.write_to_side_query(sql_code, f"ratio_{i}")
+            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
 
     @staticmethod
     def create_indexed_table(table_name):
         return f"(SELECT *, ROW_NUMBER() OVER(ORDER BY NULL) FROM {table_name})"
-
-
-
-
-

@@ -19,6 +19,7 @@ class TableInfo:
     tracking_cols: list
     operation_type: OperatorType
     main_op: bool
+    optional_context: list  # Will be added for Projections and binary operations
 
     def __hash__(self):
         return hash(self.data_object)

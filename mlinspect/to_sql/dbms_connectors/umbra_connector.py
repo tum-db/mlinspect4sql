@@ -11,7 +11,7 @@ class UmbraConnector(Connector):
 
         Note: For Umbra:
             1) clone the Umbra repo.
-            2) build everything: "cd umbra && mkdir build && cd build && cmake .. && make"
+            2) build everything: "mkdir build && cd build && cmake .. && make"
             3) Optional: Create User
             3) create a db file with: "./bin/sql -createdb <dbname>"
             4) Start server (with data base): "./build/server /path/to/<dbname> -port=5433 -address=localhost"
@@ -34,7 +34,7 @@ class UmbraConnector(Connector):
             subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.PIPE, shell=True)
         command = f"./build/server \"\" -port=5433 -address=localhost"
         self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.DEVNULL)
-        time.sleep(0.05)  # wait for the server to start
+        time.sleep(0.1)  # wait for the server to start
         conn = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
         self.cur = conn.cursor()
 
@@ -61,6 +61,11 @@ if __name__ == "__main__":
     umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=umbra_path)
     with open(
             r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/generated_code/create_table.sql") as file:
+        content = file.read()
+    result = umbra.run(content)
+
+    with open(
+            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/generated_code/pipeline.sql") as file:
         content = file.read()
     result = umbra.run(content)
     print(result)

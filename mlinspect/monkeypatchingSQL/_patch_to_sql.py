@@ -10,7 +10,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from ._sql_logic import SQLBackend, mapping
+from ._sql_logic import SQLLogic, mapping
 from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
 from mlinspect.to_sql.py_to_sql_mapping import TableInfo
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
@@ -19,7 +19,7 @@ from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func
     get_dag_node_for_id, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
-sql_backend = SQLBackend()
+sql_logic = SQLLogic()
 
 
 @gorilla.patches(pandas)
@@ -71,7 +71,7 @@ class PandasPatchingSQL:
             if len(args) >= 3:
                 raise NotImplementedError
 
-            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_backend.get_unique_id())
+            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_logic.get_unique_id())
 
             # we need to add the ct_id columns to the original table:
             tracking_column = f"{table_name}_ctid"
@@ -82,20 +82,18 @@ class PandasPatchingSQL:
                                                                       header=(1 == header))
 
             print(sql_code + "\n")
-            sql_backend.write_to_table_init(sql_code)
+            sql_logic.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno, table_name)
-            mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=[tracking_column],
-                                       operation_type=OperatorType.DATA_SOURCE,
-                                       main_op=True)
-            mapping.add(sql_table_name, mapping_result)
-            print(sql_code + "\n")
-            sql_backend.write_to_pipe_query(sql_code)
+            sql_logic.finish_sql_call(sql_code, lineno, result,
+                                      tracking_cols=[tracking_column],
+                                      operation_type=OperatorType.DATA_SOURCE,
+                                      main_op=False,
+                                      with_block_name=table_name)
+            sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -238,27 +236,23 @@ class DataFramePatchingSQL:
                 source = args[0]
                 if isinstance(source, pandas.Series):
                     sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
-                               f"FROM {sql_backend.create_indexed_table(tb1_name)} as tb1,  " \
-                               f"{sql_backend.create_indexed_table(mapping.get_name(source))} as tb2\n" \
+                               f"FROM {sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
+                               f"{sql_logic.create_indexed_table(mapping.get_name(source))} as tb2\n" \
                                f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
                 else:
 
                     if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
-                        for c in sql_backend.get_tracking_cols_raw(self.columns.values):
+                        for c in sql_logic.get_tracking_cols_raw(self.columns.values):
                             result[c] = "placeholder"
                     else:
                         source = [source]
-                    sql_code = f"SELECT {', '.join(source)}{sql_backend.get_tracking_cols(self.columns.values)}\n" \
+                    sql_code = f"SELECT {', '.join(source)}{sql_logic.get_tracking_cols(self.columns.values)}\n" \
                                f"FROM {tb1_name}"
 
-                sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-                mapping_result = TableInfo(data_object=result,
-                                           tracking_cols=sql_backend.get_tracking_cols_raw(self.columns.values),
-                                           operation_type=operation_type,
-                                           main_op=False)
-                mapping.add(sql_table_name, mapping_result)
-                print(sql_code + "\n")
-                sql_backend.write_to_pipe_query(sql_code)
+                sql_logic.finish_sql_call(sql_code, lineno, result,
+                                          tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
+                                          operation_type=operation_type, main_op=False)
+                sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -307,19 +301,20 @@ class DataFramePatchingSQL:
 
             sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
                        f"tb2.{tb2.name} AS {new_name}\n" \
-                       f"FROM {sql_backend.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
-                       f"{sql_backend.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
+                       f"FROM {sql_logic.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
+                       f"{sql_logic.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
                        f"WHERE tb1.row_number = tb2.row_number"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
+            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
             # Here we need to take "self", as the result of __setitem__ will be None.
             mapping_result = TableInfo(data_object=self,
-                                       tracking_cols=sql_backend.get_tracking_cols_raw(self.columns.values),
+                                       tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
                                        operation_type=OperatorType.PROJECTION_MODIFY,
-                                       main_op=True)
+                                       main_op=True,
+                                       optional_context=[])
             mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
-            sql_backend.write_to_pipe_query(sql_code)
+            sql_logic.write_to_pipe_query(sql_code)
 
             # TO_SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
@@ -434,14 +429,10 @@ class DataFramePatchingSQL:
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
-            mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=sql_backend.get_tracking_cols_raw(result.columns.values),
-                                       operation_type=OperatorType.JOIN,
-                                       main_op=True)
-            mapping.add(sql_table_name, mapping_result)
-            print(sql_code + "\n")
-            sql_backend.write_to_pipe_query(sql_code)
+            sql_logic.finish_sql_call(sql_code, lineno, result,
+                                      tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
+                                      operation_type=OperatorType.JOIN, main_op=True)
+            sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
@@ -531,14 +522,15 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {mapping.get_name(tb1)}\n" \
                        f"GROUP BY {groupby_columns}"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
+            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
             mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=sql_backend.get_tracking_cols_raw(result.columns.values),
+                                       tracking_cols=sql_logic.get_tracking_cols_raw(result.columns.values),
                                        operation_type=OperatorType.GROUP_BY_AGG,
-                                       main_op=True)
+                                       main_op=True,
+                                       optional_context=[])
             mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
-            sql_backend.write_to_pipe_query(sql_code)
+            sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -674,14 +666,14 @@ class SeriesPatchingSQL:
                        f"{', '.join(ti.tracking_cols)}\n" \
                        f"FROM {name}"
 
-            sql_table_name, sql_code = sql_backend.wrap_in_with(sql_code, lineno)
+            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
             mapping_result = TableInfo(data_object=result,
                                        tracking_cols=ti.tracking_cols,
                                        operation_type=OperatorType.SELECTION,
                                        main_op=True)
             mapping.add(sql_table_name, mapping_result)
             print(sql_code + "\n")
-            sql_backend.write_to_pipe_query(sql_code)
+            sql_logic.write_to_pipe_query(sql_code)
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -781,7 +773,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series("=", mapping, self.eq(right), self, right, lineno)
+            return sql_logic.handle_operation_series("=", mapping, self.eq(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -793,7 +785,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series(">", mapping, self.gt(right), self, right, lineno)
+            return sql_logic.handle_operation_series(">", mapping, self.gt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -805,7 +797,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series(">=", mapping, self.ge(right), self, right, lineno)
+            return sql_logic.handle_operation_series(">=", mapping, self.ge(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -817,7 +809,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series("a", mapping, self.lt(right), self, right, lineno)
+            return sql_logic.handle_operation_series("a", mapping, self.lt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -829,7 +821,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series("<=", mapping, self.le(right), self, right, lineno)
+            return sql_logic.handle_operation_series("<=", mapping, self.le(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -876,7 +868,7 @@ class SeriesPatchingSQL:
         result = original(self=left, other=right)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_backend.handle_operation_series(op, mapping, result, left=left, right=right, lineno=lineno)
+            return sql_logic.handle_operation_series(op, mapping, result, left=left, right=right, lineno=lineno)
 
         return execute_inspections
 
