@@ -34,7 +34,7 @@ class SQLLogic:
         self.id += 1
         return self.id - 1
 
-    def handle_operation_series(self, operator, mapping, result, left, right, lineno):
+    def handle_operation_series(self, operator, result, left, right, lineno):
 
         # a rename gets necessary, as otherwise in binary ops the name will be "None"
         rename = f"op_{self.get_unique_id()}"
@@ -42,10 +42,11 @@ class SQLLogic:
         where_block = ""
         from_block = ""
         columns_t = []
+        optional_context = []
 
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
-            name_l, ti_l = mapping.get_n_ti(left)
-            name_r, ti_r = mapping.get_n_ti(right)
+            name_l, ti_l = mapping.get_name_and_ti(left)
+            name_r, ti_r = mapping.get_name_and_ti(right)
 
             select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}, "
             select_addition = f"l.{', l.'.join(set(ti_l.tracking_cols) - set(ti_r.tracking_cols))}"
@@ -57,33 +58,34 @@ class SQLLogic:
                          f"{self.create_indexed_table(name_r)} r"
             where_block = f"\nWHERE l.row_number = r.row_number"
             columns_t = list(set(ti_l.tracking_cols) | set(ti_r.tracking_cols))
+            optional_context = [ti_l, ti_r]
         elif isinstance(left, pandas.Series):
-            name_l, ti_l = mapping.get_n_ti(left)
+            name_l, ti_l = mapping.get_name_and_ti(left)
             select_block = f"({left.name} {operator} {right}) AS {rename}, {', '.join(ti_l.tracking_cols)}"
             from_block = name_l
             columns_t = [left.name] + ti_l.tracking_cols
+            optional_context = [ti_l]
         elif isinstance(right, pandas.Series):
-            name_r, ti_r = mapping.get_n_ti(right)
+            name_r, ti_r = mapping.get_name_and_ti(right)
             select_block = f"({left} {operator} {right.name}) AS {rename}, {', '.join(ti_r.tracking_cols)}"
             from_block = name_r
             columns_t = [right.name] + ti_r.tracking_cols
+            optional_context = [ti_r]
 
         sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
                    f"{where_block}"
 
-        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno)
-
-        mapping_result = TableInfo(data_object=result,
-                                   tracking_cols=self.get_tracking_cols_raw(columns_t),
-                                   operation_type=OperatorType.SELECTION,
-                                   main_op=True,
-                                   optional_context=[])
-
-        mapping.add(sql_table_name, mapping_result)
-        print(sql_code + "\n")
+        self.finish_sql_call(sql_code, lineno, result,
+                             tracking_cols=self.get_tracking_cols_raw(columns_t),
+                             operation_type=OperatorType.SELECTION,
+                             main_op=True,
+                             optional_context=optional_context)
         self.write_to_pipe_query(sql_code)
         return result
+
+    def __get_origins_recursively(self, code):
+        pass
 
     def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, optional_context=[],
                         with_block_name=""):
@@ -221,4 +223,4 @@ class SQLLogic:
 
     @staticmethod
     def create_indexed_table(table_name):
-        return f"(SELECT *, ROW_NUMBER() OVER(ORDER BY NULL) FROM {table_name})"
+        return f"(SELECT *, ROW_NUMBER() OVER() FROM {table_name})"

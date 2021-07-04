@@ -59,7 +59,10 @@ class DfToStringMapping:
     def get_name(self, df_to_find: pd.DataFrame) -> str:
         return next(n for (n, ti) in self.mapping if ti.data_object is df_to_find)
 
-    def get_n_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
+    def get_name_and_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
+        return next(x for x in self.mapping if x[1].data_object is df_to_find)
+
+    def get_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
         return next(x for x in self.mapping if x[1].data_object is df_to_find)
 
     def contains(self, df_to_find):

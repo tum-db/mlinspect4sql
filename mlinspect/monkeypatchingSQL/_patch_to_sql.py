@@ -232,7 +232,7 @@ class DataFramePatchingSQL:
                 raise NotImplementedError()
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
                 tb1 = self
-                tb1_name = mapping.get_name(tb1)
+                tb1_name, ti = mapping.get_name_and_ti(tb1)
                 source = args[0]
                 if isinstance(source, pandas.Series):
                     sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
@@ -251,7 +251,9 @@ class DataFramePatchingSQL:
 
                 sql_logic.finish_sql_call(sql_code, lineno, result,
                                           tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                          operation_type=operation_type, main_op=False)
+                                          operation_type=operation_type,
+                                          main_op=False,
+                                          optional_context=[ti])
                 sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
@@ -305,15 +307,11 @@ class DataFramePatchingSQL:
                        f"{sql_logic.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
                        f"WHERE tb1.row_number = tb2.row_number"
 
-            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
             # Here we need to take "self", as the result of __setitem__ will be None.
-            mapping_result = TableInfo(data_object=self,
-                                       tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                       operation_type=OperatorType.PROJECTION_MODIFY,
-                                       main_op=True,
-                                       optional_context=[])
-            mapping.add(sql_table_name, mapping_result)
-            print(sql_code + "\n")
+            sql_logic.finish_sql_call(sql_code, lineno, result=self,
+                                      tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
+                                      operation_type=OperatorType.PROJECTION_MODIFY, main_op=True,
+                                      optional_context=[])
             sql_logic.write_to_pipe_query(sql_code)
 
             # TO_SQL DONE! ##########################################################################################
@@ -522,14 +520,11 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {mapping.get_name(tb1)}\n" \
                        f"GROUP BY {groupby_columns}"
 
-            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
-            mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=sql_logic.get_tracking_cols_raw(result.columns.values),
-                                       operation_type=OperatorType.GROUP_BY_AGG,
-                                       main_op=True,
-                                       optional_context=[])
-            mapping.add(sql_table_name, mapping_result)
-            print(sql_code + "\n")
+            sql_logic.finish_sql_call(sql_code, lineno, result,
+                                      tracking_cols=sql_logic.get_tracking_cols_raw(result.columns.values),
+                                      operation_type=OperatorType.GROUP_BY_AGG,
+                                      main_op=True,
+                                      optional_context=[])
             sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
 
@@ -661,18 +656,16 @@ class SeriesPatchingSQL:
                 where_in_block = ", ".join(values)
 
             column = self.name
-            name, ti = mapping.get_n_ti(self)
+            name, ti = mapping.get_name_and_ti(self)
             sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}, " \
                        f"{', '.join(ti.tracking_cols)}\n" \
                        f"FROM {name}"
 
-            sql_table_name, sql_code = sql_logic.wrap_in_with(sql_code, lineno)
-            mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=ti.tracking_cols,
-                                       operation_type=OperatorType.SELECTION,
-                                       main_op=True)
-            mapping.add(sql_table_name, mapping_result)
-            print(sql_code + "\n")
+            sql_logic.finish_sql_call(sql_code, lineno, result,
+                                      tracking_cols=ti.tracking_cols,
+                                      operation_type=OperatorType.SELECTION,
+                                      main_op=True,
+                                      optional_context=[])
             sql_logic.write_to_pipe_query(sql_code)
             return result
 
@@ -773,7 +766,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("=", mapping, self.eq(right), self, right, lineno)
+            return sql_logic.handle_operation_series("=", self.eq(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -785,7 +778,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(">", mapping, self.gt(right), self, right, lineno)
+            return sql_logic.handle_operation_series(">", self.gt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -797,7 +790,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(">=", mapping, self.ge(right), self, right, lineno)
+            return sql_logic.handle_operation_series(">=", self.ge(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -809,7 +802,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("a", mapping, self.lt(right), self, right, lineno)
+            return sql_logic.handle_operation_series("<", self.lt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -821,7 +814,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("<=", mapping, self.le(right), self, right, lineno)
+            return sql_logic.handle_operation_series("<=", self.le(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -868,7 +861,7 @@ class SeriesPatchingSQL:
         result = original(self=left, other=right)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(op, mapping, result, left=left, right=right, lineno=lineno)
+            return sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)
 
         return execute_inspections
 
