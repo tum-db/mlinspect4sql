@@ -12,7 +12,7 @@ from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
 from ._sql_logic import SQLLogic, mapping
 from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
-from mlinspect.to_sql.py_to_sql_mapping import TableInfo
+from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
@@ -88,7 +88,7 @@ class PandasPatchingSQL:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
-            sql_logic.finish_sql_call(sql_code, lineno, result,
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
                                       tracking_cols=[tracking_column],
                                       operation_type=OperatorType.DATA_SOURCE,
                                       main_op=False,
@@ -222,23 +222,37 @@ class DataFramePatchingSQL:
                                                       result)
             result = backend_result.annotated_dfobject.result_data
             # TO_SQL: ###############################################################################################
-            if isinstance(args[0], str):  # Projection to Series
+            tb1 = self
+            tb1_name, ti = mapping.get_name_and_ti(tb1)
+            source = args[0]
+            columns_tracking = sql_logic.get_tracking_cols_raw(self.columns.values)
+            if isinstance(source, str):  # Projection to Series
                 operation_type = OperatorType.PROJECTION
-            elif isinstance(args[0], list) and isinstance(args[0][0], str):  # Projection to DF
+                origin_context = OpTree(op="", table=tb1_name, columns=[source], tracking_columns=columns_tracking)
+            elif isinstance(source, list) and isinstance(args[0][0], str):  # Projection to DF
                 operation_type = OperatorType.PROJECTION
-            elif isinstance(args[0], pandas.Series):  # Selection
+                origin_context = OpTree(op="", table=tb1_name, columns=source, tracking_columns=columns_tracking)
+            elif isinstance(source, pandas.Series):  # Selection
                 operation_type = OperatorType.SELECTION
+                origin_context = None
             else:
                 raise NotImplementedError()
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
-                tb1 = self
-                tb1_name, ti = mapping.get_name_and_ti(tb1)
-                source = args[0]
+
                 if isinstance(source, pandas.Series):
-                    sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
-                               f"FROM {sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
-                               f"{sql_logic.create_indexed_table(mapping.get_name(source))} as tb2\n" \
-                               f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
+                    name, ti = mapping.get_name_and_ti(source)
+                    tables, column, tracking_columns = sql_logic.get_origin_series(ti.origin_context)
+                    if len(tables) == 1:
+                        sql_code = f"SELECT * \n" \
+                                   f"FROM {tables[0]} \n" \
+                                   f"WHERE {column}"
+                    else:
+                        raise NotImplementedError  # TODO: column wise
+                    # sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
+                    #            f"FROM {sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
+                    #            f"{sql_logic.create_indexed_table(mapping.get_name(source))} as tb2\n" \
+                    #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
+
                 else:
 
                     if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
@@ -249,12 +263,13 @@ class DataFramePatchingSQL:
                     sql_code = f"SELECT {', '.join(source)}{sql_logic.get_tracking_cols(self.columns.values)}\n" \
                                f"FROM {tb1_name}"
 
-                sql_logic.finish_sql_call(sql_code, lineno, result,
-                                          tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                          operation_type=operation_type,
-                                          main_op=False,
-                                          optional_context=[ti])
-                sql_logic.write_to_pipe_query(sql_code)
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                      tracking_cols=columns_tracking,
+                                      operation_type=operation_type,
+                                      main_op=False,
+                                      origin_context=origin_context)
+            sql_logic.write_to_pipe_query(sql_code)
+
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -294,24 +309,42 @@ class DataFramePatchingSQL:
             # for each operation and put these with together. The second option is preferred as is its only downside is,
             # that it is more verbose, but on the other side its simpler, more elegant and dosn't require to go over
             # the statements twice.
-            tb1 = self
+            tb1 = self  # Table where the new column is set, or the old one overwritten.
             new_name = args[0]
-            tb2 = args[1]
+            tb2 = args[1]  # the target
 
             if len(args) != 2:
                 raise NotImplementedError
 
-            sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
-                       f"tb2.{tb2.name} AS {new_name}\n" \
-                       f"FROM {sql_logic.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
-                       f"{sql_logic.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
-                       f"WHERE tb1.row_number = tb2.row_number"
+            if not isinstance(tb2, pandas.Series) and not isinstance(tb2, pandas.DataFrame):
+                # we are assigning some constant.
+                sql_code = f"SELECT *, {tb2} AS {new_name}\n" \
+                           f"FROM {mapping.get_name(tb1)}"
+            else:
+                tb2_name, tb2_ti = mapping.get_name_and_ti(tb2)
+                tb1_name, tb1_ti = mapping.get_name_and_ti(tb1)
+                tables, column, tracking_columns = sql_logic.get_origin_series(tb2_ti.origin_context)
+
+                if len(tables) == 1 and tb1_name == tables[0]:
+                    # We can avoid an Window function:
+                    sql_code = f"SELECT *, {column} AS {new_name}\n" \
+                               f"FROM {tb1_name}"
+                else:
+                    # TODO: Row-wise
+                    raise NotImplementedError
+                    # final_tracking_columns = list(set(tracking_columns) | set(tb1_ti.tracking_cols))
+                    # sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
+                    #            f"tb2.{tb2.name} AS {new_name}\n" \
+                    #            f"FROM {sql_logic.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
+                    #            f"{sql_logic.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
+                    #            f"WHERE tb1.row_number = tb2.row_number"
 
             # Here we need to take "self", as the result of __setitem__ will be None.
-            sql_logic.finish_sql_call(sql_code, lineno, result=self,
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result=self,
                                       tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                      operation_type=OperatorType.PROJECTION_MODIFY, main_op=True,
-                                      optional_context=[])
+                                      operation_type=OperatorType.PROJECTION_MODIFY,
+                                      main_op=True,
+                                      origin_context=None)  # TODO
             sql_logic.write_to_pipe_query(sql_code)
 
             # TO_SQL DONE! ##########################################################################################
@@ -427,7 +460,7 @@ class DataFramePatchingSQL:
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
 
-            sql_logic.finish_sql_call(sql_code, lineno, result,
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
                                       tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
                                       operation_type=OperatorType.JOIN, main_op=True)
             sql_logic.write_to_pipe_query(sql_code)
@@ -520,11 +553,10 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {mapping.get_name(tb1)}\n" \
                        f"GROUP BY {groupby_columns}"
 
-            sql_logic.finish_sql_call(sql_code, lineno, result,
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
                                       tracking_cols=sql_logic.get_tracking_cols_raw(result.columns.values),
                                       operation_type=OperatorType.GROUP_BY_AGG,
-                                      main_op=True,
-                                      optional_context=[])
+                                      main_op=True)
             sql_logic.write_to_pipe_query(sql_code)
             # TO_SQL DONE! ##########################################################################################
 
@@ -652,20 +684,27 @@ class SeriesPatchingSQL:
             result = self.isin(values)
             if isinstance(values[0], str):
                 where_in_block = "\'" + "\', \'".join(values) + "\'"
-            else:
+            elif isinstance(values[0], list):
                 where_in_block = ", ".join(values)
+            else:
+                raise NotImplementedError
 
             column = self.name
             name, ti = mapping.get_name_and_ti(self)
-            sql_code = f"SELECT ({column} IN ({where_in_block})) AS {column}, " \
-                       f"{', '.join(ti.tracking_cols)}\n" \
-                       f"FROM {name}"
+            new_syntax_tree = OpTree(op="IN", left=ti.origin_context, right=f"({where_in_block})")
+            tables, column, tracking_columns = sql_logic.get_origin_series(new_syntax_tree)
+            if len(tables) == 1 and ti.origin_context.op == "":  # TODO: add correct ENUM -> improve syntax tree.
+                sql_code = f"SELECT {column}, {', '.join(tracking_columns)}\n" \
+                           f"FROM {tables[0]}"
+            else:
+                # TODO: row wise
+                raise NotImplementedError
 
-            sql_logic.finish_sql_call(sql_code, lineno, result,
+            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
                                       tracking_cols=ti.tracking_cols,
                                       operation_type=OperatorType.SELECTION,
                                       main_op=True,
-                                      optional_context=[])
+                                      origin_context=new_syntax_tree)
             sql_logic.write_to_pipe_query(sql_code)
             return result
 
@@ -674,6 +713,25 @@ class SeriesPatchingSQL:
     ################
     # ARITHMETIC:
     ################
+    @gorilla.name('__add__')
+    @gorilla.settings(allow_hit=True)
+    def patched__add__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__add__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__add__')
+
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original, rop=False)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
+    @gorilla.name('__radd__')
+    @gorilla.settings(allow_hit=True)
+    def patched__radd__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__radd__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__radd__')
+
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original, rop=True)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__mul__')
     @gorilla.settings(allow_hit=True)
@@ -681,7 +739,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__mul__') """
         original = gorilla.get_original_attribute(pandas.Series, '__mul__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("*", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("*", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -691,7 +749,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__rmul__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rmul__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("*", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("*", self, args, original, rop=True)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -701,7 +759,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__sum__') """
         original = gorilla.get_original_attribute(pandas.Series, '__sum__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -711,7 +769,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__rsum__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rsum__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("+", self, args, original, rop=True)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -721,7 +779,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__sub__') """
         original = gorilla.get_original_attribute(pandas.Series, '__sub__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("-", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("-", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -731,7 +789,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__rsub__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rsub__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("-", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("-", self, args, original, rop=True)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -741,7 +799,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__div__') """
         original = gorilla.get_original_attribute(pandas.Series, '__div__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("/", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("/", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -751,7 +809,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__rdiv__') """
         original = gorilla.get_original_attribute(pandas.Series, '__rdiv__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("/", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("/", self, args, original, rop=True)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -827,7 +885,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__and__') """
         original = gorilla.get_original_attribute(pandas.Series, '__and__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("AND", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("AND", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -837,7 +895,7 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__or__') """
         original = gorilla.get_original_attribute(pandas.Series, '__or__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("OR", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("OR", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -847,18 +905,30 @@ class SeriesPatchingSQL:
         """ Patch for ('pandas.core.series', '__not__') """
         original = gorilla.get_original_attribute(pandas.Series, '__not__')
 
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("NOT", self, args, original)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("NOT", self, args, original, rop=False)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
     @staticmethod
-    def __op_call_helper(op, left, args, original):
+    def __op_call_helper(op, left, args, original, rop):
         """
         To reduce code repetition.
+        Args:
+            op(str): operator as string as used in SQL.
+            left: the "left" operand in case rop is False
+            args:
+            original: original function
+            rop(bool): True if the non-pandas operator is on the left => we need to swap left and right, because
+                the const will always be in the argument, but for f.e for a subtraction this would be wrong otherwise.
         """
         assert (len(args) == 1)
-        right = args[0]
-        result = original(self=left, other=right)
+        if rop:
+            right = left
+            left = args[0]
+            result = original(self=right, other=left)
+        else:
+            right = args[0]
+            result = original(self=left, other=right)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             return sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)

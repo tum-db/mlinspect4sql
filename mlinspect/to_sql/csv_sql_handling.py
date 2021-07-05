@@ -58,3 +58,18 @@ class CreateTablesFromCSVs:
         if drop_old:
             return f"{drop_old_table};\n\n{create_table};\n\n{add_data};"
         return f"{create_table};\n\n{add_data};"
+
+
+class CreateTableRaw:
+    def get_sql_code(self, table_name, column_names, column_types, column_values, drop_old=False):
+        drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
+
+        create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
+            [i + " " + j for i, j in zip(column_names, column_types)]) + "\n)"
+
+        add_data = f"COPY {table_name}({', '.join([i for i in list(column_names)])}) " \
+                   f"FROM VALUES"
+
+        if drop_old:
+            create_table = f"{drop_old_table};\n\n{create_table}"
+        return f"{create_table};\n\n{add_data};"

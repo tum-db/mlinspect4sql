@@ -1,7 +1,7 @@
 import pandas
 from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
-from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping
+from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
 
 ROOT_DIR = get_project_root()
 ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
@@ -35,68 +35,114 @@ class SQLLogic:
         return self.id - 1
 
     def handle_operation_series(self, operator, result, left, right, lineno):
-
+        """
+        Args:
+        """
         # a rename gets necessary, as otherwise in binary ops the name will be "None"
         rename = f"op_{self.get_unique_id()}"
         result.name = rename  # don't forget to set pandas object name!
         where_block = ""
         from_block = ""
         columns_t = []
-        optional_context = []
-
+        origin_context = []
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
             name_l, ti_l = mapping.get_name_and_ti(left)
             name_r, ti_r = mapping.get_name_and_ti(right)
 
-            select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}, "
-            select_addition = f"l.{', l.'.join(set(ti_l.tracking_cols) - set(ti_r.tracking_cols))}"
-            if select_addition != "l.":  # only add if non empty
-                select_block = select_block + select_addition
-            select_block = select_block + f"r.{', r.'.join(set(ti_r.tracking_cols))}"
+            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=ti_r.origin_context)
+            tables, column, tracking_columns = self.get_origin_series(origin_context)
 
-            from_block = f"{self.create_indexed_table(name_l)} l, " \
-                         f"{self.create_indexed_table(name_r)} r"
-            where_block = f"\nWHERE l.row_number = r.row_number"
-            columns_t = list(set(ti_l.tracking_cols) | set(ti_r.tracking_cols))
-            optional_context = [ti_l, ti_r]
+            if len(tables) == 1:
+                select_block = f"({column}) AS {rename}, {', '.join(tracking_columns)}"
+                from_block = tables[0]
+            else:
+                from_block = f"{self.create_indexed_table(name_l)} l, " \
+                             f"{self.create_indexed_table(name_r)} r"
+                where_block = f"\nWHERE l.row_number = r.row_number"
+                select_block = f"(l.{left.name} {operator} r.{right.name}) AS {rename}, "
+                select_addition = f"l.{', l.'.join(set(ti_l.tracking_cols) - set(ti_r.tracking_cols))}"
+                if select_addition != "l.":  # only add if non empty
+                    select_block = select_block + select_addition
+                select_block = select_block + f"r.{', r.'.join(set(ti_r.tracking_cols))}"
+
         elif isinstance(left, pandas.Series):
             name_l, ti_l = mapping.get_name_and_ti(left)
-            select_block = f"({left.name} {operator} {right}) AS {rename}, {', '.join(ti_l.tracking_cols)}"
-            from_block = name_l
-            columns_t = [left.name] + ti_l.tracking_cols
-            optional_context = [ti_l]
+            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=right)
+            tables, column, tracking_columns = self.get_origin_series(origin_context)
+            select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
+            from_block = tables[0]
+            if len(tables) > 1:
+                raise NotImplementedError  # TODO Row-wise
+
         elif isinstance(right, pandas.Series):
             name_r, ti_r = mapping.get_name_and_ti(right)
-            select_block = f"({left} {operator} {right.name}) AS {rename}, {', '.join(ti_r.tracking_cols)}"
-            from_block = name_r
-            columns_t = [right.name] + ti_r.tracking_cols
-            optional_context = [ti_r]
+            origin_context = OpTree(op=operator, left=left, right=ti_r.origin_context)
+            tables, column, tracking_columns = self.get_origin_series(origin_context)
+            select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
+            from_block = tables[0]
+            if len(tables) > 1:
+                raise NotImplementedError  # TODO Row-wise
 
         sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
                    f"{where_block}"
 
-        self.finish_sql_call(sql_code, lineno, result,
-                             tracking_cols=self.get_tracking_cols_raw(columns_t),
-                             operation_type=OperatorType.SELECTION,
+        sql_code = self.finish_sql_call(sql_code, lineno, result,
+                             tracking_cols=self.get_tracking_cols_raw(tracking_columns),
+                             operation_type=OperatorType.BIN_OP,
                              main_op=True,
-                             optional_context=optional_context)
+                             origin_context=origin_context)
         self.write_to_pipe_query(sql_code)
         return result
 
-    def __get_origins_recursively(self, code):
-        pass
+    def get_origin_series(self, origin_context):
+        """
+        Gets the correct origin table and column for series.
+        Returns:
+            Tuple, where the first element is the table, and the second is the column name.
 
-    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, optional_context=[],
+        Note: Currently only supporting a single origin! -> TODO: has to be solved with row-wise operations see: create_indexed_table.
+        """
+        if not isinstance(origin_context, OpTree):
+            return [], origin_context, []
+        op = origin_context.op
+        if op == "":
+
+            # We are dealing with a projection:
+            table = origin_context.table  # format: [(table1, [col1, ...]), ...]
+            columns = origin_context.columns
+            tracking_columns = origin_context.tracking_columns
+            if not len(columns) == 1:
+                raise NotImplementedError  # Only Series supported as of now.
+            column = columns[0]
+            return [table], column, tracking_columns
+
+        table_r, content_r, tracking_columns_r = self.get_origin_series(origin_context.right)
+        table_l, content_l, tracking_columns_l = self.get_origin_series(origin_context.left)
+
+        tables = list(set(table_r + table_l))
+        tracking_columns = list(set(tracking_columns_l + tracking_columns_r))
+        if len(tables) == 1:
+            new_table = tables
+            new_tracking_columns = tracking_columns
+        else:
+            # TODO adding naming etc. + row-wise
+            table = "TODO"
+
+        new_content = f"({content_l} {op} {content_r})"
+        return new_table, new_content, new_tracking_columns
+
+    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, origin_context=None,
                         with_block_name=""):
         sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=with_block_name)
         mapping_result = TableInfo(data_object=result,
                                    tracking_cols=tracking_cols,
                                    operation_type=operation_type,
                                    main_op=main_op,
-                                   optional_context=optional_context)
+                                   origin_context=origin_context)
         mapping.add(sql_table_name, mapping_result)
         print(sql_code + "\n")
+        return sql_code
 
     @staticmethod
     def write_to_init_file(sql_code, file_name=""):
@@ -132,6 +178,10 @@ class SQLLogic:
     @staticmethod
     def get_tracking_cols_raw(columns):
         return [x for x in columns if "ctid" in x]
+
+    @staticmethod
+    def get_non_tracking_cols_raw(columns):
+        return [x for x in columns if "ctid" not in x]
 
     @staticmethod
     def __column_ratio_original(table_orig, column_name):

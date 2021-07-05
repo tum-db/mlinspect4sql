@@ -1,6 +1,28 @@
+from typing import List
+
 from mlinspect.inspections._inspection_input import OperatorType
 from dataclasses import dataclass
 import pandas as pd
+
+
+class OpTree:
+    """
+    This class is devoted to simplify to handle multiple binary operations.
+    Args:
+        format_string(str): a String the can be formatted with Python's ".format()" function.
+        origin(str): is the origin, if we are dealing with a projection. It is empty otherwise.
+    """
+
+    def __init__(self, op="", columns=[], tracking_columns=[], table="", left=None, right=None):
+        self.op = op
+        self.columns = columns
+        self.tracking_columns = tracking_columns
+        self.table = table
+        self.left = left
+        self.right = right
+
+    def is_leaf(self):
+        return self.left is None and self.right is None
 
 
 @dataclass
@@ -14,12 +36,14 @@ class TableInfo:
             for a problem that only occurs ofter certain operations.
         main_op (bool): Distinguishes between sub- and main-operations. This distinction is nice to have for SQL,
             because it further allows to skip certain checks. | df1[..] = df2 * 3 -> assign is main, * is sub
+        origin_context(list): Is empty if the current operation created a new table, otherwise
+            (f.e. binop or projection) this ordered list contains the applied operations and sources.
     """
     data_object: any
     tracking_cols: list
     operation_type: OperatorType
     main_op: bool
-    optional_context: list  # Will be added for Projections and binary operations
+    origin_context: OpTree  # Will be added for Projections and binary operations
 
     def __hash__(self):
         return hash(self.data_object)

@@ -53,6 +53,7 @@ class OperatorType(Enum):
     JOIN = "Join"
     GROUP_BY_AGG = "Groupby and Aggregate"
     TRAIN_TEST_SPLIT = "Train Test Split"
+    BIN_OP = "Arithmetic or Boolean Operation"
 
 
 @dataclasses.dataclass(frozen=True)

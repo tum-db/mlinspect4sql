@@ -25,10 +25,9 @@ histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines
 data = patients.merge(histories, on=['ssn'])
 complications = data.groupby('age_group').agg(mean_complications=('complications', 'mean'))
 data = data.merge(complications, on=['age_group'])
-data['label'] = data['complications'] - 1 > 1.2 * data['mean_complications'] + 10
-# bla2 = data["age_group"]
-# data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
-# data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
+data['label'] = data['complications'] > 1.2 * data['mean_complications']
+data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
+data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
 
 print()
 # impute_and_one_hot_encode = Pipeline([
