@@ -2,7 +2,7 @@ from typing import List
 
 from mlinspect.inspections._inspection_input import OperatorType
 from dataclasses import dataclass
-import pandas as pd
+import pandas
 
 
 class OpTree:
@@ -48,8 +48,16 @@ class TableInfo:
     def __hash__(self):
         return hash(self.data_object)
 
-    # def is_df(self) -> bool:
-    #     return isinstance(self.data_object, pandas.DataFrame)
+    def get_non_tracking_cols(self):
+        if self.is_se():
+            return self.data_object.name
+        return list(set(self.data_object.columns.values) - set(self.tracking_cols))
+
+    def is_df(self) -> bool:
+        return isinstance(self.data_object, pandas.DataFrame)
+
+    def is_se(self) -> bool:
+        return isinstance(self.data_object, pandas.Series)
 
 
 class DfToStringMapping:
@@ -80,13 +88,25 @@ class DfToStringMapping:
     # def get_df(self, name_to_find: str) -> pd.DataFrame:
     #     return next(df for (n, df) in self.mapping if n == name_to_find)
 
-    def get_name(self, df_to_find: pd.DataFrame) -> str:
+    def get_name(self, df_to_find) -> str:
+        """
+        Args:
+            df_to_find(pandas.DataFrame or pandas.Series)
+        """
         return next(n for (n, ti) in self.mapping if ti.data_object is df_to_find)
 
-    def get_name_and_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
+    def get_name_and_ti(self, df_to_find) -> TableInfo:
+        """
+        Args:
+            df_to_find(pandas.DataFrame or pandas.Series)
+        """
         return next(x for x in self.mapping if x[1].data_object is df_to_find)
 
-    def get_ti(self, df_to_find: pd.DataFrame) -> TableInfo:
+    def get_ti(self, df_to_find) -> TableInfo:
+        """
+        Args:
+            df_to_find(pandas.DataFrame or pandas.Series)
+        """
         return next(x for x in self.mapping if x[1].data_object is df_to_find)
 
     def contains(self, df_to_find):

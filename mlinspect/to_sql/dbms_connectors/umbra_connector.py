@@ -1,7 +1,11 @@
+from abc import ABC
+
 from dbms_connector import Connector
 import psycopg2
 import subprocess
 import time
+import fcntl
+import os
 
 
 class UmbraConnector(Connector):
@@ -15,7 +19,7 @@ class UmbraConnector(Connector):
             3) Optional: Create User
             3) create a db file with: "./bin/sql -createdb <dbname>"
             4) Start server (with data base): "./build/server /path/to/<dbname> -port=5433 -address=localhost"
-            5) Confirm it is running: "sudo netstat -lntup | grep '5433\|5432'"
+            5) Confirm it is running: "sudo netstat -lntup | grep '5433\\|5432'"
             6) Connect with arguments below: - In terminal: "psql -h /tmp -p 5433 -U postgres"
                 db_name: "healthcare_benchmark"
                 user: "postgres"
@@ -33,40 +37,70 @@ class UmbraConnector(Connector):
         if result.returncode == 0:  # here we check if the process is already running
             subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.PIPE, shell=True)
         command = f"./build/server \"\" -port=5433 -address=localhost"
-        self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.DEVNULL)
+        self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.PIPE)
+
+        # Set output handle to non-blocking (essential to read all that is available and not wait for process term.):
+        fcntl.fcntl(self.server.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
+
         time.sleep(0.1)  # wait for the server to start
         conn = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
         self.cur = conn.cursor()
 
+    # Destructor:
+    def __del__(self):
+        self.server.kill()
+
     def run(self, sql_query):
-        sql_query = sql_query.strip()
-        sql_queries = sql_query.split(";")
         results = []
-        for q in sql_queries:
-            if q == "":
-                continue
-            self.cur.execute(q + ";")
+        for q in super()._prepare_query(sql_query):
+            self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
         return results
 
-    def close(self):
-        self.server.kill()
+    def benchmark_run(self, sql_query, repetitions=1, verbose=True):
+        print("Executing Query in Umbra...") if verbose else 0
+        sql_query = super()._prepare_query(sql_query)
+        if len(sql_query) != 1:
+            raise ValueError("Can only benchmark ONE query!")
+        sql_query = sql_query[0]
+
+        new_output = []
+
+        # Get old output out of the way:
+        for _ in iter(lambda: self.server.stdout.readline(), b''):
+            continue
+
+        for _ in range(repetitions):  # Execute the Query multiple times:
+            self.cur.execute(sql_query)
+            new_output.append(self.server.stdout.readline().decode("utf-8"))
+
+        assert (len(new_output) == repetitions)
+        result_exec_times_sum = 0
+        for output in new_output:
+            try:
+                result_exec_times_sum += float(output.split("execution")[0].split(" ")[-3])
+            except ValueError:
+                continue  # No execution time found here..
+        bench_time = result_exec_times_sum / repetitions
+        print(f"Done in {bench_time}!") if verbose else 0
+        return bench_time
 
 
 if __name__ == "__main__":
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
     umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=umbra_path)
     with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/generated_code/create_table.sql") as file:
+            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
+            r"generated_code/create_table.sql") as file:
         content = file.read()
-    result = umbra.run(content)
+    res = umbra.run(content)
 
     with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/generated_code/pipeline.sql") as file:
+            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
+            r"generated_code/pipeline.sql") as file:
         content = file.read()
-    result = umbra.run(content)
-    print(result)
-    umbra.close()
+
+    umbra.benchmark_run(content, repetitions=10)

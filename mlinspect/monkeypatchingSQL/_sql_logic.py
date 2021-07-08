@@ -1,4 +1,5 @@
 import pandas
+import os
 from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
 from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
@@ -24,7 +25,7 @@ class SQLLogic:
         if with_block_name == "":
             with_block_name = f"with_{lineno}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
-        sql_code = f"{with_block_name} AS (\n\t{sql_code}\n),"
+        sql_code = f"{with_block_name} AS (\n\t{sql_code}\n)"
         if self.first_with:
             sql_code = "WITH " + sql_code
             self.first_with = False
@@ -74,7 +75,8 @@ class SQLLogic:
             if len(tables) > 1:
                 raise NotImplementedError  # TODO Row-wise
 
-        elif isinstance(right, pandas.Series):
+        else:
+            assert (isinstance(right, pandas.Series))
             name_r, ti_r = mapping.get_name_and_ti(right)
             origin_context = OpTree(op=operator, left=left, right=ti_r.origin_context)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
@@ -87,12 +89,12 @@ class SQLLogic:
                    f"FROM {from_block}" \
                    f"{where_block}"
 
-        sql_code = self.finish_sql_call(sql_code, lineno, result,
-                             tracking_cols=self.get_tracking_cols_raw(tracking_columns),
-                             operation_type=OperatorType.BIN_OP,
-                             main_op=True,
-                             origin_context=origin_context)
-        self.write_to_pipe_query(sql_code)
+        cte_name, sql_code = self.finish_sql_call(sql_code, lineno, result,
+                                                  tracking_cols=self.get_tracking_cols_raw(tracking_columns),
+                                                  operation_type=OperatorType.BIN_OP,
+                                                  main_op=True,
+                                                  origin_context=origin_context)
+        SQLFileHandler.write_to_pipe_query(cte_name, sql_code, [rename])
         return result
 
     def get_origin_series(self, origin_context):
@@ -127,43 +129,23 @@ class SQLLogic:
             new_tracking_columns = tracking_columns
         else:
             # TODO adding naming etc. + row-wise
-            table = "TODO"
+            raise NotImplementedError
+            # table = "TODO"
 
         new_content = f"({content_l} {op} {content_r})"
         return new_table, new_content, new_tracking_columns
 
     def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, origin_context=None,
-                        with_block_name=""):
-        sql_table_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=with_block_name)
+                        cte_name=""):
+        final_cte_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=cte_name)
         mapping_result = TableInfo(data_object=result,
                                    tracking_cols=tracking_cols,
                                    operation_type=operation_type,
                                    main_op=main_op,
                                    origin_context=origin_context)
-        mapping.add(sql_table_name, mapping_result)
+        mapping.add(final_cte_name, mapping_result)
         print(sql_code + "\n")
-        return sql_code
-
-    @staticmethod
-    def write_to_init_file(sql_code, file_name=""):
-        if file_name == "":
-            file_name = "create_table.sql"
-        with (ROOT_DIR_TO_SQL / file_name).open(mode="a", ) as file:
-            file.write(sql_code + "\n\n")
-
-    @staticmethod
-    def write_to_pipe_query(sql_code, file_name=""):
-        if file_name == "":
-            file_name = "pipeline.sql"
-        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
-            file.write(sql_code + "\n")
-
-    @staticmethod
-    def write_to_side_query(sql_code, name):
-        if len(name.split(".")) == 1:
-            name = name + ".sql"
-        with (ROOT_DIR_TO_SQL / name).open(mode="a")as file:
-            file.write(sql_code + "\n")
+        return final_cte_name, sql_code
 
     @staticmethod
     def get_tracking_cols(columns, table_name=""):
@@ -231,11 +213,12 @@ class SQLLogic:
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
-        return f"overview_{column_name}_{table_new} as (\n" \
-               f"\tSELECT n.* , o.ratio AS ratio_original \n" \
-               f"\tFROM current_ratio_{column_name} n right JOIN original_ratio_{column_name} o " \
-               f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} is NULL)\n" \
-               f"),"
+        cte_name = f"overview_{column_name}_{table_new}"
+        return cte_name, f" as (\n" \
+                         f"\tSELECT n.* , o.ratio AS ratio_original \n" \
+                         f"\tFROM current_ratio_{column_name} n right JOIN original_ratio_{column_name} o " \
+                         f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} " \
+                         f"is NULL)\n )"
 
     @staticmethod
     def ratio_track(origin_dict, column_names, current_dict):
@@ -251,26 +234,105 @@ class SQLLogic:
         Note:
         supports column renaming -> in case the dict contains one.
         """
+        sql_code = {cn: "" for cn in column_names}
+        last_cte_names = {cn: "" for cn in column_names}
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLLogic.__lookup_table(table_orig, table_new=current_dict[i], column_name=i) + "\n"
-            print(sql_code)
-            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
+            sql_code[i] += SQLLogic.__lookup_table(table_orig, table_new=current_dict[i], column_name=i)
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLLogic.__column_ratio_original(table_orig, column_name=i) + "\n"
-            print(sql_code)
-            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
+            sql_code[i] += SQLLogic.__column_ratio_original(table_orig, column_name=i)
         for i in column_names:
             table_orig = origin_dict[i]
-            sql_code = SQLLogic.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i) + "\n"
-            print(sql_code)
-            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
+            sql_code[i] += SQLLogic.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i)
         for i in column_names:
-            sql_code = SQLLogic.__overview_table(table_new=current_dict[i], column_name=i) + "\n"
-            print(sql_code)
-            SQLLogic.write_to_side_query(sql_code, f"ratio_{i}")
+            cte_name, sql_code_addition = SQLLogic.__overview_table(table_new=current_dict[i], column_name=i)
+            last_cte_names[i] = cte_name
+            sql_code[i] += sql_code_addition
+        # Write the code for each column of interest to the corresponding file:
+        for i in column_names:
+            SQLFileHandler.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
 
     @staticmethod
     def create_indexed_table(table_name):
         return f"(SELECT *, ROW_NUMBER() OVER() FROM {table_name})"
+
+
+class SQLFileHandler:
+    """
+    Guarantees always to have an executable file of the entire pipeline up until current code.
+    """
+
+    @staticmethod
+    def write_to_init_file(sql_code):
+        file_name = "create_table.sql"
+        path = ROOT_DIR_TO_SQL / file_name
+        with path.open(mode="a", ) as file:
+            file.write(sql_code + "\n\n")
+
+    @staticmethod
+    def write_to_pipe_query(last_cte_name, sql_code, cols_to_keep):
+        file_name = "pipeline.sql"
+        path = ROOT_DIR_TO_SQL / file_name
+        SQLFileHandler.__del_select_line(path)
+        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
+            file.write(sql_code)
+        SQLFileHandler.__add_select_line(path, last_cte_name, cols_to_keep)
+
+    @staticmethod
+    def write_to_side_query(last_cte_name, sql_code, file_name):
+        """
+        ATTENTION! -> needs to be runnable sql file at end.
+        """
+        if len(file_name.split(".")) == 1:
+            file_name = file_name + ".sql"
+        path = ROOT_DIR_TO_SQL / file_name
+        SQLFileHandler.__del_select_line(path)
+        with path.open(mode="a")as file:
+            file.write(sql_code)
+        SQLFileHandler.__add_select_line(path, last_cte_name)
+
+    @staticmethod
+    def __del_select_line(path):
+        """
+        Delestes the last line and add a comma (",")
+        Note:
+            Partly taken from: https://stackoverflow.com/a/10289740/9621080
+        """
+        with path.open("a+", encoding="utf-8") as file:
+
+            # Move the pointer (similar to a cursor in a text editor) to the end of the file
+            if file.seek(0, os.SEEK_END) == 0: # File is empty
+                return
+
+            # This code means the following code skips the very last character in the file -
+            # i.e. in the case the last line is null we delete the last line
+            # and the penultimate one
+            pos = file.tell() - 1
+
+            # Read each character in the file one at a time from the penultimate
+            # character going backwards, searching for a newline character
+            # If we find a new line, exit the search
+            while pos > 0 and file.read(1) != "\n":
+                pos -= 1
+                file.seek(pos, os.SEEK_SET)
+
+            # So long as we're not at the start of the file, delete all the characters ahead
+            # of this position
+            if pos > 0:
+                file.seek(pos, os.SEEK_SET)
+                file.truncate()
+            file.write(",\n")
+
+    @staticmethod
+    def __add_select_line(path, last_cte_name, cols_to_keep=None):
+        """
+        Args:
+            cols_to_keep(list)
+        """
+        if cols_to_keep is None or cols_to_keep == []:
+            selection = "*"
+        else:
+            selection = ", ".join(cols_to_keep)
+        with path.open(mode="a") as f:
+            f.write(f"\nSELECT {selection} FROM {last_cte_name};")

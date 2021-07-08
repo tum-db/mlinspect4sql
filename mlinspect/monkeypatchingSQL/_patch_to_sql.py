@@ -10,7 +10,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from ._sql_logic import SQLLogic, mapping
+from ._sql_logic import SQLLogic, SQLFileHandler, mapping
 from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
 from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
@@ -77,23 +77,24 @@ class PandasPatchingSQL:
             tracking_column = f"{table_name}_ctid"
             result[tracking_column] = "placeholder"
 
-            sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name, null_symbol=na_values,
-                                                                      delimiter=sep,
-                                                                      header=(1 == header))
+            col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
+                                                                                 null_symbol=na_values,
+                                                                                 delimiter=sep,
+                                                                                 header=(1 == header))
 
             print(sql_code + "\n")
-            sql_logic.write_to_init_file(sql_code)
+            SQLFileHandler.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                      tracking_cols=[tracking_column],
-                                      operation_type=OperatorType.DATA_SOURCE,
-                                      main_op=False,
-                                      with_block_name=table_name)
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                           tracking_cols=[tracking_column],
+                                                           operation_type=OperatorType.DATA_SOURCE,
+                                                           main_op=False,
+                                                           cte_name=table_name)
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, cols_to_keep=col_names)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -226,15 +227,19 @@ class DataFramePatchingSQL:
             tb1_name, ti = mapping.get_name_and_ti(tb1)
             source = args[0]
             columns_tracking = sql_logic.get_tracking_cols_raw(self.columns.values)
+            columns_without_tracking = []
             if isinstance(source, str):  # Projection to Series
                 operation_type = OperatorType.PROJECTION
                 origin_context = OpTree(op="", table=tb1_name, columns=[source], tracking_columns=columns_tracking)
+                columns_without_tracking = [source]
             elif isinstance(source, list) and isinstance(args[0][0], str):  # Projection to DF
                 operation_type = OperatorType.PROJECTION
                 origin_context = OpTree(op="", table=tb1_name, columns=source, tracking_columns=columns_tracking)
+                columns_without_tracking = source
             elif isinstance(source, pandas.Series):  # Selection
                 operation_type = OperatorType.SELECTION
                 origin_context = None
+                columns_without_tracking = ti.get_non_tracking_cols()
             else:
                 raise NotImplementedError()
             if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
@@ -263,12 +268,12 @@ class DataFramePatchingSQL:
                     sql_code = f"SELECT {', '.join(source)}{sql_logic.get_tracking_cols(self.columns.values)}\n" \
                                f"FROM {tb1_name}"
 
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                      tracking_cols=columns_tracking,
-                                      operation_type=operation_type,
-                                      main_op=False,
-                                      origin_context=origin_context)
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                           tracking_cols=columns_tracking,
+                                                           operation_type=operation_type,
+                                                           main_op=False,
+                                                           origin_context=origin_context)
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, columns_without_tracking)
 
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
@@ -340,12 +345,14 @@ class DataFramePatchingSQL:
                     #            f"WHERE tb1.row_number = tb2.row_number"
 
             # Here we need to take "self", as the result of __setitem__ will be None.
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result=self,
-                                      tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                      operation_type=OperatorType.PROJECTION_MODIFY,
-                                      main_op=True,
-                                      origin_context=None)  # TODO
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result=self,
+                                                           tracking_cols=sql_logic.get_tracking_cols_raw(
+                                                               self.columns.values),
+                                                           operation_type=OperatorType.PROJECTION_MODIFY,
+                                                           main_op=True,
+                                                           origin_context=None)  # TODO
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, sql_logic.get_non_tracking_cols_raw(
+                self.columns.values))
 
             # TO_SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
@@ -452,18 +459,22 @@ class DataFramePatchingSQL:
             tb2_columns = [x for x in tb2.columns.values if x not in tb1_columns]  # remove duplicates!
             # Attention: we need to select all columns, just using * can result in a doubled column!
             if merge_column == "":  # Cross product:
-                sql_code = f"SELECT * \n" \
-                           f"FROM {tb1_name}, {tb2_name}"
+                raise NotImplementedError  # TODO -> change * to all columns in default pandas order.
+                # sql_code = f"SELECT * \n" \
+                #            f"FROM {tb1_name}, {tb2_name}"
             else:
                 sql_code = f"SELECT tb1.{', tb1.'.join(tb1_columns)}, tb2.{', tb2.'.join(tb2_columns)}\n" \
                            f"FROM {tb1_name} tb1 \n" \
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
 
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                      tracking_cols=sql_logic.get_tracking_cols_raw(self.columns.values),
-                                      operation_type=OperatorType.JOIN, main_op=True)
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                           tracking_cols=sql_logic.get_tracking_cols_raw(
+                                                               self.columns.values),
+                                                           operation_type=OperatorType.JOIN, main_op=True)
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code,
+                                               sql_logic.get_non_tracking_cols_raw(
+                                                   list(tb1_columns) + list(tb2_columns)))
             # TO_SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
@@ -544,20 +555,23 @@ class DataFrameGroupByPatchingSQL:
                 elif f == "var":
                     agg_funcs[i] = "variance"
 
+            groupby_string = ', '.join(groupby_columns)
             selection_string = []
             for p, n, f in zip(agg_params, new_col_names, agg_funcs):
                 selection_string.append(f"{f.upper()}({p}) AS {n}")
 
-            groupby_columns = ', '.join(groupby_columns)
-            sql_code = f"SELECT {groupby_columns}, {', '.join(selection_string)} \n" \
+            sql_code = f"SELECT {groupby_string}, {', '.join(selection_string)} \n" \
                        f"FROM {mapping.get_name(tb1)}\n" \
-                       f"GROUP BY {groupby_columns}"
+                       f"GROUP BY {groupby_string}"
 
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                      tracking_cols=sql_logic.get_tracking_cols_raw(result.columns.values),
-                                      operation_type=OperatorType.GROUP_BY_AGG,
-                                      main_op=True)
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                           tracking_cols=sql_logic.get_tracking_cols_raw(
+                                                               result.columns.values),
+                                                           operation_type=OperatorType.GROUP_BY_AGG,
+                                                           main_op=True)
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code,
+                                               sql_logic.get_non_tracking_cols_raw(
+                                                   result.columns.values) + groupby_columns)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context,
@@ -689,7 +703,6 @@ class SeriesPatchingSQL:
             else:
                 raise NotImplementedError
 
-            column = self.name
             name, ti = mapping.get_name_and_ti(self)
             new_syntax_tree = OpTree(op="IN", left=ti.origin_context, right=f"({where_in_block})")
             tables, column, tracking_columns = sql_logic.get_origin_series(new_syntax_tree)
@@ -700,12 +713,12 @@ class SeriesPatchingSQL:
                 # TODO: row wise
                 raise NotImplementedError
 
-            sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                      tracking_cols=ti.tracking_cols,
-                                      operation_type=OperatorType.SELECTION,
-                                      main_op=True,
-                                      origin_context=new_syntax_tree)
-            sql_logic.write_to_pipe_query(sql_code)
+            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                           tracking_cols=ti.tracking_cols,
+                                                           operation_type=OperatorType.SELECTION,
+                                                           main_op=True,
+                                                           origin_context=new_syntax_tree)
+            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, cols_to_keep=[self.name])
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)

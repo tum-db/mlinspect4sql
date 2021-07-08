@@ -8,8 +8,6 @@ class Connector(abc.ABC):
 
     def run(self, sql_query):
         """
-        This function needs to be able to execute a string of one or multiple SQL-Statements divided by a ";". The
-        results have to ge returned.
         Args:
             sql_query(str): The query
         Returns:
@@ -17,7 +15,20 @@ class Connector(abc.ABC):
         """
         raise NotImplementedError()
 
-    def get_result(self):
+    def benchmark_run(self, sql_query, repetitions):
         """
+        Args:
+            sql_query(str): Single query
+            repetitions(int): number of repetition
+        Returns:
+            List of all the query results.
         """
         raise NotImplementedError()
+
+    @staticmethod
+    def _prepare_query(sql_query):
+        """
+        Strips the query and returns a list of the sub-queries.
+        """
+        sql_query = sql_query.strip()
+        return [x + ";" for x in sql_query.split(";") if x != ""]

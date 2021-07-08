@@ -57,7 +57,7 @@ class CreateTablesFromCSVs:
 
         if drop_old:
             return f"{drop_old_table};\n\n{create_table};\n\n{add_data};"
-        return f"{create_table};\n\n{add_data};"
+        return names, f"{create_table};\n\n{add_data};"
 
 
 class CreateTableRaw:
