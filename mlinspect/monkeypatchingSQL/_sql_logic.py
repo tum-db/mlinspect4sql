@@ -167,11 +167,11 @@ class SQLLogic:
 
     @staticmethod
     def __column_ratio_original(table_orig, column_name):
-        return f"original_ratio_{column_name} as (\n" \
-               f"\tselect i.{column_name}, (count(*) * 1.0 / (select count(*) from {table_orig})) as ratio\n" \
-               f"\tfrom {table_orig} i\n" \
-               f"\tgroup by i.{column_name}\n" \
-               "),"
+        return f"original_ratio_{column_name} AS (\n" \
+               f"\tSELECT i.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_orig})) AS ratio\n" \
+               f"\tFROM {table_orig} i\n" \
+               f"\tGROUP BY i.{column_name}\n" \
+               "),\n"
 
     @staticmethod
     def __column_ratio_current(table_orig, table_new, column_name):
@@ -191,7 +191,7 @@ class SQLLogic:
                f"\tFROM {table_orig} orig,  {table_new} curr, lookup_{column_name}_{table_new} lookup\n" \
                f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
                f"\tGROUP BY orig.{column_name}\n" \
-               f"),"
+               f"),\n"
 
     @staticmethod
     def __lookup_table(table_orig, table_new, column_name):
@@ -204,7 +204,7 @@ class SQLLogic:
                f"\tSELECT distinct orig.{column_name} AS original_label, curr.{column_name} AS current_label\n" \
                f"\tFROM {table_orig} orig,  {table_new} curr\n" \
                f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
-               f"),"
+               f"),\n"
 
     @staticmethod
     def __overview_table(table_new, column_name):
@@ -214,7 +214,7 @@ class SQLLogic:
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
         cte_name = f"overview_{column_name}_{table_new}"
-        return cte_name, f" as (\n" \
+        return cte_name, f"{cte_name} AS (\n" \
                          f"\tSELECT n.* , o.ratio AS ratio_original \n" \
                          f"\tFROM current_ratio_{column_name} n right JOIN original_ratio_{column_name} o " \
                          f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} " \
