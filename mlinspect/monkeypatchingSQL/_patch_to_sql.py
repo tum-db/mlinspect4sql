@@ -9,9 +9,9 @@ import pandas
 import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
-from mlinspect.backends._pandas_backend import PandasBackend
+from mlinspect.backends._sql_pandas_backend import SQLPandasBackend
 from ._sql_logic import SQLLogic, SQLFileHandler, mapping
-from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
+
 from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
 from mlinspect.instrumentation._pipeline_executor import singleton
@@ -39,7 +39,6 @@ class PandasPatchingSQL:
             """ Execute inspections, add DAG node """
             function_info = FunctionInfo('pandas.io.parsers', 'read_csv')
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
-            input_infos = []
 
             # Add the restriction to only load 10 rows of the csv and add the Dataframe to the wrapper.
             kwargs["nrows"] = 10
@@ -47,7 +46,7 @@ class PandasPatchingSQL:
 
             # TO_SQL: ###############################################################################################
             sep = ","
-            na_values = "?"
+            na_values = ["?"]
             header = 1
             path_to_csv = ""
 
@@ -58,6 +57,7 @@ class PandasPatchingSQL:
                 sep = kwargs["sep"]
             elif "na_values" in kwargs:
                 na_values = kwargs["na_values"]
+                na_values = [na_values] if isinstance(na_values, str) else na_values
             elif "header" in kwargs:  # int that states the how many rows resemble the columns header
                 header = kwargs["header"]
                 if not isinstance(header, int):
@@ -77,10 +77,8 @@ class PandasPatchingSQL:
             tracking_column = f"{table_name}_ctid"
             result[tracking_column] = "placeholder"
 
-            col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
-                                                                                 null_symbol=na_values,
-                                                                                 delimiter=sep,
-                                                                                 header=(1 == header))
+            col_names, sql_code = singleton.dbms_connector.add_csv(path_to_csv, table_name, null_symbols=na_values,
+                                                                   delimiter=sep, header=(header == 1))
 
             # print(sql_code + "\n")
             SQLFileHandler.write_to_init_file(sql_code)
@@ -97,9 +95,9 @@ class PandasPatchingSQL:
             SQLFileHandler.write_to_pipe_query(cte_name, sql_code, cols_to_keep=col_names)
             # TO_SQL DONE! ##########################################################################################
 
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         [],
+                                                         result)
 
             description = args[0].split(os.path.sep)[-1]
             dag_node = DagNode(op_id,
@@ -127,10 +125,10 @@ class DataFramePatchingSQL:
             """ Execute inspections, add DAG node """
             function_info = FunctionInfo('pandas.core.frame', 'DataFrame')
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [])
+            input_infos = SQLPandasBackend.before_call(operator_context, [])
             original(self, *args, **kwargs)
             result = self
-            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
+            backend_result = SQLPandasBackend.after_call(operator_context, input_infos, result)
 
             columns = list(self.columns)  # pylint: disable=no-member
             dag_node = DagNode(op_id,
@@ -155,14 +153,14 @@ class DataFramePatchingSQL:
             input_info = get_input_info(self, caller_filename, lineno, function_info, optional_code_reference,
                                         optional_source_code)
             operator_context = OperatorContext(OperatorType.SELECTION, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            input_infos = SQLPandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, *args[1:], **kwargs)
             if result is None:
                 raise NotImplementedError("TODO: Support inplace dropna")
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
             result = backend_result.annotated_dfobject.result_data
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -216,11 +214,11 @@ class DataFramePatchingSQL:
                                    get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             else:
                 raise NotImplementedError()
-            input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            input_infos = SQLPandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             result = original(input_infos[0].result_data, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
             result = backend_result.annotated_dfobject.result_data
             # TO_SQL: ###############################################################################################
             tb1 = self
@@ -298,12 +296,12 @@ class DataFramePatchingSQL:
                                         optional_source_code)
 
             if isinstance(args[0], str):
-                input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
+                input_infos = SQLPandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
                 input_infos = copy.deepcopy(input_infos)
                 result = original(self, *args, **kwargs)
-                backend_result = PandasBackend.after_call(operator_context,
-                                                          input_infos,
-                                                          self)
+                backend_result = SQLPandasBackend.after_call(operator_context,
+                                                             input_infos,
+                                                             self)
                 columns = list(self.columns)  # pylint: disable=no-member
                 description = "modifies {}".format([args[0]])
             else:
@@ -379,12 +377,12 @@ class DataFramePatchingSQL:
             input_info = get_input_info(self, caller_filename, lineno, function_info, optional_code_reference,
                                         optional_source_code)
             operator_context = OperatorContext(OperatorType.PROJECTION_MODIFY, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            input_infos = SQLPandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
             result = backend_result.annotated_dfobject.result_data
             if isinstance(args[0], dict):
                 raise NotImplementedError("TODO: Add support for replace with dicts")
@@ -415,14 +413,14 @@ class DataFramePatchingSQL:
             input_info_b = get_input_info(args[0], caller_filename, lineno, function_info, optional_code_reference,
                                           optional_source_code)
             operator_context = OperatorContext(OperatorType.JOIN, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [input_info_a.annotated_dfobject,
-                                                                       input_info_b.annotated_dfobject])
+            input_infos = SQLPandasBackend.before_call(operator_context, [input_info_a.annotated_dfobject,
+                                                                          input_info_b.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, input_infos[1].result_data, *args[1:], **kwargs)
 
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
             result = backend_result.annotated_dfobject.result_data
 
             # TO_SQL: ###############################################################################################
@@ -534,7 +532,7 @@ class DataFrameGroupByPatchingSQL:
 
             operator_context = OperatorContext(OperatorType.GROUP_BY_AGG, function_info)
 
-            input_infos = PandasBackend.before_call(operator_context, [])
+            input_infos = SQLPandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
             # TO_SQL: ###############################################################################################
             tb1 = self.obj
@@ -574,9 +572,9 @@ class DataFrameGroupByPatchingSQL:
                                                    result.columns.values) + groupby_columns)
             # TO_SQL DONE! ##########################################################################################
 
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
 
             if len(args) > 0:
                 description = "Groupby '{}', Aggregate: '{}'".format(result.index.name, args)
@@ -627,11 +625,11 @@ class LocIndexerPatchingSQL:
             operator_context = OperatorContext(OperatorType.PROJECTION, function_info)
             input_info = get_input_info(self.obj, caller_filename,  # pylint: disable=no-member
                                         lineno, function_info, optional_code_reference, optional_source_code)
-            input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            input_infos = SQLPandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             result = original(self, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
             result = backend_result.annotated_dfobject.result_data
 
             dag_node = DagNode(op_id,
@@ -663,12 +661,12 @@ class SeriesPatchingSQL:
             function_info = FunctionInfo('pandas.core.series', 'Series')
 
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [])
+            input_infos = SQLPandasBackend.before_call(operator_context, [])
             original(self, *args, **kwargs)
             result = self
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = SQLPandasBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         result)
 
             if self.name:  # pylint: disable=no-member
                 columns = list(self.name)  # pylint: disable=no-member

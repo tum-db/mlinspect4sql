@@ -9,12 +9,12 @@ from inspect import cleandoc
 from example_pipelines.healthcare import custom_monkeypatching
 import time
 from IPython.display import display
-
+from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 
 # import tensorflow as tf
 # tf.logging.set_verbosity(tf.logging.ERROR)
 
-def example_one(to_sql, simple_ins=True, despite=False):
+def example_one(to_sql, simple_ins=True, despite=False, sql_one_run=True, dbms_connector=None):
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
 
     if simple_ins:
@@ -25,14 +25,17 @@ def example_one(to_sql, simple_ins=True, despite=False):
             .add_check(NoIllegalFeatures()) \
             .add_check(NoMissingEmbeddings()) \
             .add_required_inspection(RowLineage(5)) \
-            .add_required_inspection(MaterializeFirstOutputRows(5)) \
-            .execute(to_sql=to_sql)
+            .add_required_inspection(MaterializeFirstOutputRows(5))
     else:
         inspector_result = PipelineInspector \
             .on_pipeline_from_py_file(HEALTHCARE_FILE_PY) \
             .add_check(NoBiasIntroducedFor(["age_group", "race"])) \
-            .add_check(NoIllegalFeatures()) \
-            .execute(to_sql=to_sql)
+            .add_check(NoIllegalFeatures())
+    if to_sql:
+        assert(dbms_connector)
+        inspector_result = inspector_result.execute_in_sql(sql_one_run=sql_one_run, dbms_connector=dbms_connector)
+    else:
+        inspector_result = inspector_result.execute()
 
     if not to_sql or despite:
         extracted_dag = inspector_result.dag
@@ -116,8 +119,10 @@ def example_two():
 
 
 if __name__ == "__main__":
+    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
+    dbms_connector = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=umbra_path)
     t0 = time.time()
-    example_one(True, simple_ins=True, despite=True)
+    example_one(True, simple_ins=True, despite=True, dbms_connector=dbms_connector)
     # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")

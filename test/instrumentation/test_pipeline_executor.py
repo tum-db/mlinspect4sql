@@ -185,7 +185,7 @@ def test_instrument_pipeline_with_code_reference_tracking():
     """
     test_code = get_test_code_with_function_def_and_for_loop()
     parsed_ast = ast.parse(test_code)
-    parsed_modified_ast = singleton.instrument_pipeline(parsed_ast, True)
+    parsed_modified_ast = singleton.instrument_pipeline(parsed_ast)
     instrumented_code = astunparse.unparse(parsed_modified_ast)
     expected_code = cleandoc("""
             from mlinspect.instrumentation._pipeline_executor import set_code_reference_call, set_code_reference_subscript, monkey_patch, undo_monkey_patch
@@ -209,7 +209,7 @@ def test_instrument_pipeline_without_code_reference_tracking():
     """
     test_code = get_test_code_with_function_def_and_for_loop()
     parsed_ast = ast.parse(test_code)
-    parsed_modified_ast = singleton.instrument_pipeline(parsed_ast, False)
+    parsed_modified_ast = singleton.instrument_pipeline(parsed_ast)
     instrumented_code = astunparse.unparse(parsed_modified_ast)
     expected_code = cleandoc("""
             from mlinspect.instrumentation._pipeline_executor import set_code_reference_call, set_code_reference_subscript, monkey_patch, undo_monkey_patch

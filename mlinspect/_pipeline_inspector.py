@@ -9,6 +9,7 @@ from mlinspect.inspections._inspection import Inspection
 from .checks._check import Check, CheckResult
 from ._inspector_result import InspectorResult
 from .instrumentation._pipeline_executor import singleton
+from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 
 
 class PipelineInspectorBuilder:
@@ -77,7 +78,7 @@ class PipelineInspectorBuilder:
         self.monkey_patching_modules.append(module)
         return self
 
-    def execute(self, to_sql) -> InspectorResult:
+    def execute(self) -> InspectorResult:
         """
         Instrument and execute the pipeline
         """
@@ -86,8 +87,20 @@ class PipelineInspectorBuilder:
                              python_code=self.python_code,
                              inspections=self.inspections,
                              checks=self.checks,
+                             custom_monkey_patching=self.monkey_patching_modules)
+
+    def execute_in_sql(self, sql_one_run, dbms_connector) -> InspectorResult:
+        """
+        Instrument and execute the pipeline
+        """
+        assert(isinstance(dbms_connector, Connector))
+        return singleton.run(notebook_path=self.notebook_path,
+                             python_path=self.python_path,
+                             python_code=self.python_code,
+                             inspections=self.inspections,
+                             checks=self.checks,
                              custom_monkey_patching=self.monkey_patching_modules,
-                             to_sql=to_sql)
+                             to_sql=True, sql_one_run=sql_one_run, dbms_connector=dbms_connector)
 
 
 class PipelineInspector:

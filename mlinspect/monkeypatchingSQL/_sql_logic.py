@@ -293,6 +293,9 @@ class SQLFileHandler:
         SQLFileHandler.__add_select_line(path, last_cte_name)
 
     @staticmethod
+    def change_selection(self, cte_name):
+
+    @staticmethod
     def __del_select_line(path):
         """
         Delestes the last line and add a comma (",")

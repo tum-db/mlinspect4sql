@@ -114,3 +114,9 @@ class DfToStringMapping:
             if m[1].data_object is df_to_find:
                 return True
         return False
+
+    def get_db_output_object(self, data_object) -> pandas.DataFrame:
+        name = self.get_name(data_object)
+
+    def get_db_output_name(self, name) -> pandas.DataFrame:
+        pass  # TODO

@@ -18,6 +18,8 @@ from .._inspector_result import InspectorResult
 from ..checks._check import Check
 from ..inspections import InspectionResult
 from ..inspections._inspection import Inspection
+from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
+
 
 class PipelineExecutor:
     """
@@ -40,6 +42,8 @@ class PipelineExecutor:
     inspections = []
     custom_monkey_patching = []
     to_sql = False
+    sql_one_run = False
+    dbms_connector = None
 
     def run(self, *,
             notebook_path: str or None = None,
@@ -50,13 +54,20 @@ class PipelineExecutor:
             reset_state: bool = True,
             track_code_references: bool = True,
             custom_monkey_patching: List[any] = None,
-            to_sql: bool = False
+            to_sql: bool = False,
+            sql_one_run: bool = False,
+            dbms_connector: Connector = None
             ) -> InspectorResult:
         """
         Instrument and execute the pipeline and evaluate all checks
         """
         # pylint: disable=too-many-arguments
+
+        # Add all SQL related attributes:
         self.to_sql = to_sql
+        self.sql_one_run = sql_one_run
+        self.dbms_connector = dbms_connector
+
         if reset_state:
             # reset_state=False should only be used internally for performance experiments etc!
             # It does not ensure the same inspections are still used as args etc.
@@ -91,7 +102,7 @@ class PipelineExecutor:
         self.source_code, self.source_code_path = self.load_source_code(notebook_path, python_path, python_code)
         parsed_ast = ast.parse(self.source_code)
 
-        parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references, self.to_sql)
+        parsed_modified_ast = self.instrument_pipeline(parsed_ast, self.track_code_references)
 
         modified_code = astor.to_source(parsed_modified_ast)
 
@@ -138,7 +149,7 @@ class PipelineExecutor:
         self.custom_monkey_patching = []
 
     @staticmethod
-    def instrument_pipeline(parsed_ast, track_code_references, to_sql):
+    def instrument_pipeline(parsed_ast, track_code_references):
         """
         Instrument the pipeline AST to instrument function calls
         """

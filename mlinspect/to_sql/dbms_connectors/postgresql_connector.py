@@ -1,3 +1,4 @@
+from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
 from dbms_connector import Connector
 import psycopg2
 
@@ -44,6 +45,16 @@ class PostgresqlConnector(Connector):
         time = sum(exe_times) / repetitions
         print(f"Done in {time}!") if verbose else 0
         return time
+
+    def add_csv(self, path_to_csv: str, table_name: str, null_symbol: str, delimiter: str, header: bool, *args,
+                **kwargs):
+        """ See parent. """
+        col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
+                                                                             null_symbol=null_symbol,
+                                                                             delimiter=delimiter,
+                                                                             header=header)
+        self.run(sql_code)
+        return col_names, sql_code
 
 
 if __name__ == "__main__":

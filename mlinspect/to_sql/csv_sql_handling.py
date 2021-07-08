@@ -43,7 +43,9 @@ class CreateTablesFromCSVs:
                 types.append(value['type'])
         return col_names, types
 
-    def get_sql_code(self, table_name, null_symbol="?", delimiter=",", header=True, drop_old=False):
+    def get_sql_code(self, table_name, null_symbols=None, delimiter=",", header=True, drop_old=False):
+        if null_symbols is None:
+            null_symbols = ["?"]
         names, data_types = self._get_schema_from_csv()
 
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
@@ -51,9 +53,12 @@ class CreateTablesFromCSVs:
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
             [i + " " + j for i, j in zip(names, data_types)]) + "\n)"
 
+        if len(null_symbols) != 1:
+            raise NotImplementedError("Currently only ONE null symbol supported!")
+
         add_data = f"COPY {table_name}({', '.join([i for i in list(names)])}) " \
                    f"FROM '{self.file}' WITH (" \
-                   f"DELIMITER '{delimiter}', NULL '{null_symbol}', FORMAT CSV, HEADER {'TRUE' if header else 'FALSE'})"
+                   f"DELIMITER '{delimiter}', NULL '{null_symbols[0]}', FORMAT CSV, HEADER {'TRUE' if header else 'FALSE'})"
 
         if drop_old:
             return f"{drop_old_table};\n\n{create_table};\n\n{add_data};"
