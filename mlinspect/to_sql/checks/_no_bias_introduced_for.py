@@ -8,7 +8,8 @@ from mlinspect.monkeypatchingSQL._sql_logic import SQLLogic, mapping
 def no_bias_introduced_sql_evaluate(sensitive_columns):
     # TO_SQL: ###############################################################################################
     # TODO: maybe remove optional rename
-    print("/*" + ("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) + "*/")
+    print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
+          "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
     origin_dict = {}
     current_dict = {}
     for sc in sensitive_columns:
@@ -34,5 +35,4 @@ def no_bias_introduced_sql_evaluate(sensitive_columns):
         current_dict[sc] = current_table_sc
 
     SQLLogic.ratio_track(origin_dict, sensitive_columns, current_dict)
-    print("/*" + ("#" * 10) + f"NoBiasIntroducedFor DONE" + ("#" * 10) + "*/")
     # TO_SQL DONE! ##########################################################################################

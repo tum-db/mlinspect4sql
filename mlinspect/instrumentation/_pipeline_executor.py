@@ -95,7 +95,9 @@ class PipelineExecutor:
 
         modified_code = astor.to_source(parsed_modified_ast)
 
-        print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n") if self.to_sql else 0
+        if self.to_sql:
+            print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n-> Files can be found under mlinspect/to_sql/generated_code")
+
         # Do the monkey patching and the inspection:
         exec(compile(modified_code, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
         return

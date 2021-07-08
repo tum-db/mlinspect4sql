@@ -144,7 +144,7 @@ class SQLLogic:
                                    main_op=main_op,
                                    origin_context=origin_context)
         mapping.add(final_cte_name, mapping_result)
-        print(sql_code + "\n")
+        # print(sql_code + "\n")
         return final_cte_name, sql_code
 
     @staticmethod

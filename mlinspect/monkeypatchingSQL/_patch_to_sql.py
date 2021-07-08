@@ -39,7 +39,7 @@ class PandasPatchingSQL:
             """ Execute inspections, add DAG node """
             function_info = FunctionInfo('pandas.io.parsers', 'read_csv')
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
-            input_infos = PandasBackend.before_call(operator_context, [])
+            input_infos = []
 
             # Add the restriction to only load 10 rows of the csv and add the Dataframe to the wrapper.
             kwargs["nrows"] = 10
@@ -82,7 +82,7 @@ class PandasPatchingSQL:
                                                                                  delimiter=sep,
                                                                                  header=(1 == header))
 
-            print(sql_code + "\n")
+            # print(sql_code + "\n")
             SQLFileHandler.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
