@@ -10,7 +10,7 @@ import pathlib
 
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._sql_pandas_backend import SQLPandasBackend
-from ._sql_logic import SQLLogic, SQLFileHandler, mapping
+from ._sql_logic import SQLLogic, mapping, pipeline_container
 
 from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
@@ -81,7 +81,7 @@ class PandasPatchingSQL:
                                                                    delimiter=sep, header=(header == 1))
 
             # print(sql_code + "\n")
-            SQLFileHandler.write_to_init_file(sql_code)
+            pipeline_container.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
@@ -92,7 +92,7 @@ class PandasPatchingSQL:
                                                            operation_type=OperatorType.DATA_SOURCE,
                                                            main_op=False,
                                                            cte_name=table_name)
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, cols_to_keep=col_names)
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=col_names)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = SQLPandasBackend.after_call(operator_context,
@@ -271,7 +271,7 @@ class DataFramePatchingSQL:
                                                            operation_type=operation_type,
                                                            main_op=False,
                                                            origin_context=origin_context)
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, columns_without_tracking)
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
 
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
@@ -349,7 +349,7 @@ class DataFramePatchingSQL:
                                                            operation_type=OperatorType.PROJECTION_MODIFY,
                                                            main_op=True,
                                                            origin_context=None)  # TODO
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, sql_logic.get_non_tracking_cols_raw(
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code, sql_logic.get_non_tracking_cols_raw(
                 self.columns.values))
 
             # TO_SQL DONE! ##########################################################################################
@@ -470,8 +470,8 @@ class DataFramePatchingSQL:
                                                            tracking_cols=sql_logic.get_tracking_cols_raw(
                                                                self.columns.values),
                                                            operation_type=OperatorType.JOIN, main_op=True)
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code,
-                                               sql_logic.get_non_tracking_cols_raw(
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code,
+                                                  sql_logic.get_non_tracking_cols_raw(
                                                    list(tb1_columns) + list(tb2_columns)))
             # TO_SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
@@ -567,8 +567,8 @@ class DataFrameGroupByPatchingSQL:
                                                                result.columns.values),
                                                            operation_type=OperatorType.GROUP_BY_AGG,
                                                            main_op=True)
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code,
-                                               sql_logic.get_non_tracking_cols_raw(
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code,
+                                                  sql_logic.get_non_tracking_cols_raw(
                                                    result.columns.values) + groupby_columns)
             # TO_SQL DONE! ##########################################################################################
 
@@ -716,7 +716,7 @@ class SeriesPatchingSQL:
                                                            operation_type=OperatorType.SELECTION,
                                                            main_op=True,
                                                            origin_context=new_syntax_tree)
-            SQLFileHandler.write_to_pipe_query(cte_name, sql_code, cols_to_keep=[self.name])
+            pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=[self.name])
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)

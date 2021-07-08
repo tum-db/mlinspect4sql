@@ -1,8 +1,8 @@
 import pandas
-import os
 from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
 from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
+from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 
 ROOT_DIR = get_project_root()
 ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
@@ -12,6 +12,7 @@ ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
 
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
+pipeline_container = SQLQueryContainer(ROOT_DIR_TO_SQL)
 
 
 class SQLLogic:
@@ -94,7 +95,7 @@ class SQLLogic:
                                                   operation_type=OperatorType.BIN_OP,
                                                   main_op=True,
                                                   origin_context=origin_context)
-        SQLFileHandler.write_to_pipe_query(cte_name, sql_code, [rename])
+        pipeline_container.add_statement_to_pipe(cte_name, sql_code, [rename])
         return result
 
     def get_origin_series(self, origin_context):
@@ -251,91 +252,11 @@ class SQLLogic:
             sql_code[i] += sql_code_addition
         # Write the code for each column of interest to the corresponding file:
         for i in column_names:
-            SQLFileHandler.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
+            pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
 
     @staticmethod
     def create_indexed_table(table_name):
         return f"(SELECT *, ROW_NUMBER() OVER() FROM {table_name})"
 
 
-class SQLFileHandler:
-    """
-    Guarantees always to have an executable file of the entire pipeline up until current code.
-    """
 
-    @staticmethod
-    def write_to_init_file(sql_code):
-        file_name = "create_table.sql"
-        path = ROOT_DIR_TO_SQL / file_name
-        with path.open(mode="a", ) as file:
-            file.write(sql_code + "\n\n")
-
-    @staticmethod
-    def write_to_pipe_query(last_cte_name, sql_code, cols_to_keep):
-        file_name = "pipeline.sql"
-        path = ROOT_DIR_TO_SQL / file_name
-        SQLFileHandler.__del_select_line(path)
-        with (ROOT_DIR_TO_SQL / file_name).open(mode="a") as file:
-            file.write(sql_code)
-        SQLFileHandler.__add_select_line(path, last_cte_name, cols_to_keep)
-
-    @staticmethod
-    def write_to_side_query(last_cte_name, sql_code, file_name):
-        """
-        ATTENTION! -> needs to be runnable sql file at end.
-        """
-        if len(file_name.split(".")) == 1:
-            file_name = file_name + ".sql"
-        path = ROOT_DIR_TO_SQL / file_name
-        SQLFileHandler.__del_select_line(path)
-        with path.open(mode="a")as file:
-            file.write(sql_code)
-        SQLFileHandler.__add_select_line(path, last_cte_name)
-
-    @staticmethod
-    def change_selection(self, cte_name):
-
-    @staticmethod
-    def __del_select_line(path):
-        """
-        Delestes the last line and add a comma (",")
-        Note:
-            Partly taken from: https://stackoverflow.com/a/10289740/9621080
-        """
-        with path.open("a+", encoding="utf-8") as file:
-
-            # Move the pointer (similar to a cursor in a text editor) to the end of the file
-            if file.seek(0, os.SEEK_END) == 0: # File is empty
-                return
-
-            # This code means the following code skips the very last character in the file -
-            # i.e. in the case the last line is null we delete the last line
-            # and the penultimate one
-            pos = file.tell() - 1
-
-            # Read each character in the file one at a time from the penultimate
-            # character going backwards, searching for a newline character
-            # If we find a new line, exit the search
-            while pos > 0 and file.read(1) != "\n":
-                pos -= 1
-                file.seek(pos, os.SEEK_SET)
-
-            # So long as we're not at the start of the file, delete all the characters ahead
-            # of this position
-            if pos > 0:
-                file.seek(pos, os.SEEK_SET)
-                file.truncate()
-            file.write(",\n")
-
-    @staticmethod
-    def __add_select_line(path, last_cte_name, cols_to_keep=None):
-        """
-        Args:
-            cols_to_keep(list)
-        """
-        if cols_to_keep is None or cols_to_keep == []:
-            selection = "*"
-        else:
-            selection = ", ".join(cols_to_keep)
-        with path.open(mode="a") as f:
-            f.write(f"\nSELECT {selection} FROM {last_cte_name};")
