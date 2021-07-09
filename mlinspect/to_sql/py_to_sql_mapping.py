@@ -7,13 +7,17 @@ import pandas
 
 class OpTree:
     """
-    This class is devoted to simplify to handle multiple binary operations.
-    Args:
-        format_string(str): a String the can be formatted with Python's ".format()" function.
-        origin(str): is the origin, if we are dealing with a projection. It is empty otherwise.
+    This class is devoted to help optimize the query by un-nesting row-wise operations.
     """
 
-    def __init__(self, op="", columns=[], tracking_columns=[], table="", left=None, right=None):
+    def __init__(self, op="", columns=None, tracking_columns=None, table="", left=None, right=None):
+
+        if tracking_columns is None:
+            tracking_columns = []
+
+        if columns is None:
+            columns = []
+
         self.op = op
         self.columns = columns
         self.tracking_columns = tracking_columns
@@ -85,8 +89,8 @@ class DfToStringMapping:
     #     index = self.mapping.index((old_name, df))
     #     self.mapping[index] = (new_name, df)
 
-    # def get_df(self, name_to_find: str) -> pd.DataFrame:
-    #     return next(df for (n, df) in self.mapping if n == name_to_find)
+    def get_ti(self, name_to_find: str) -> TableInfo:
+        return next(ti for (n, ti) in self.mapping if n == name_to_find)
 
     def get_name(self, df_to_find) -> str:
         """
@@ -115,8 +119,11 @@ class DfToStringMapping:
                 return True
         return False
 
-    def get_db_output_object(self, data_object) -> pandas.DataFrame:
-        name = self.get_name(data_object)
-
-    def get_db_output_name(self, name) -> pandas.DataFrame:
-        pass  # TODO
+    def get_columns_no_track(self, name: str) -> list:
+        ti = self.get_ti(name)
+        if ti.is_df():
+            return ti.data_object.columns.values
+        elif ti.is_se():
+            return [ti.data_object.name]
+        else:
+            assert False

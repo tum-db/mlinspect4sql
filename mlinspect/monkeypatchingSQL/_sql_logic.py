@@ -3,6 +3,7 @@ from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
 from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
+from ._sql_dag_handling import SQLHistogramUpdater
 
 ROOT_DIR = get_project_root()
 ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
@@ -13,6 +14,7 @@ ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
 pipeline_container = SQLQueryContainer(ROOT_DIR_TO_SQL)
+update_hist = SQLHistogramUpdater(mapping, pipeline_container)
 
 
 class SQLLogic:
@@ -222,15 +224,18 @@ class SQLLogic:
                          f"is NULL)\n )"
 
     @staticmethod
-    def ratio_track(origin_dict, column_names, current_dict):
+    def ratio_track(origin_dict, column_names, current_dict, only_code=False):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
-        :param origin_dict: Dictionary with all the origin tables of the single attributes.
-        :param column_names: The column names of which we want to have the ratio comparison
-        :param current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
-            new ratio we want to check.
-        :return: None -> see stdout
+        Args:
+            origin_dict: Dictionary with all the origin tables of the single attributes.
+            column_names: The column names of which we want to have the ratio comparison
+            current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
+                new ratio we want to check.
+            only_code:
+        Return:
+             None -> see stdout
 
         Note:
         supports column renaming -> in case the dict contains one.
@@ -250,6 +255,10 @@ class SQLLogic:
             cte_name, sql_code_addition = SQLLogic.__overview_table(table_new=current_dict[i], column_name=i)
             last_cte_names[i] = cte_name
             sql_code[i] += sql_code_addition
+
+        if only_code:
+            return last_cte_names, sql_code
+
         # Write the code for each column of interest to the corresponding file:
         for i in column_names:
             pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
@@ -257,6 +266,3 @@ class SQLLogic:
     @staticmethod
     def create_indexed_table(table_name):
         return f"(SELECT *, ROW_NUMBER() OVER() FROM {table_name})"
-
-
-

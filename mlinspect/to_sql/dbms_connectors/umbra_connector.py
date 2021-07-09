@@ -6,6 +6,7 @@ import subprocess
 import time
 import fcntl
 import os
+import pandas as pd
 
 
 class UmbraConnector(Connector):
@@ -58,7 +59,7 @@ class UmbraConnector(Connector):
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
-        return results
+        return [pd.DataFrame(r) for r in results]
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         print("Executing Query in Umbra...") if verbose else 0

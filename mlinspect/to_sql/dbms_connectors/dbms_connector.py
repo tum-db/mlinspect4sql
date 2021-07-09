@@ -1,5 +1,5 @@
 import abc
-
+import pandas
 
 class Connector(abc.ABC):
 
@@ -32,12 +32,12 @@ class Connector(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def run(self, sql_query):
+    def run(self, sql_query) -> pandas.DataFrame:
         """
         Args:
             sql_query(str): The query
         Returns:
-            List of all the query results.
+            pandas.DataFrame containing the query results.
         """
         raise NotImplementedError()
 

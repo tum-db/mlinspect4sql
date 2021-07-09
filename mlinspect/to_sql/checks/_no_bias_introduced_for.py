@@ -5,7 +5,7 @@ import pandas
 from mlinspect.monkeypatchingSQL._sql_logic import SQLLogic, mapping
 
 
-def no_bias_introduced_sql_evaluate(sensitive_columns):
+def no_bias_introduced_sql_evaluate_total(sensitive_columns):
     # TO_SQL: ###############################################################################################
     # TODO: maybe remove optional rename
     print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +

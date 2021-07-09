@@ -14,8 +14,8 @@ class SQLQueryContainer:
         self.file_path_create_table = root_dir_to_sql / "create_table.sql"
         self.root_dir_to_sql = root_dir_to_sql
 
-    def get_pipe_with_changed_selection(self, selection_statement):
-        pass
+    def get_pipe_without_selection(self):
+        return ",\n".join(self.pipeline_query[:-1]).strip()
 
     def add_statement_to_pipe(self, last_cte_name, sql_code, cols_to_keep):
         """
@@ -28,7 +28,7 @@ class SQLQueryContainer:
         """
         self.pipeline_query = self.pipeline_query[:-1]
         self.pipeline_query.append(sql_code)
-        select_line = self.__add_select_line(self.file_path_pipe, last_cte_name, cols_to_keep)
+        select_line = self.__write_to_pipe_query(last_cte_name, sql_code, cols_to_keep)
         self.pipeline_query.append(select_line)
 
     def write_to_init_file(self, sql_code):
@@ -54,7 +54,7 @@ class SQLQueryContainer:
         SQLQueryContainer.__del_select_line(self.file_path_pipe)
         with self.file_path_pipe.open(mode="a") as file:
             file.write(sql_code)
-        SQLQueryContainer.__add_select_line(self.file_path_pipe, last_cte_name, cols_to_keep)
+        return SQLQueryContainer.__add_select_line(self.file_path_pipe, last_cte_name, cols_to_keep)
 
     @staticmethod
     def __del_select_line(path, add_comma=True):

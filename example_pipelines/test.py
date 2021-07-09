@@ -122,7 +122,7 @@ if __name__ == "__main__":
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
     dbms_connector = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=umbra_path)
     t0 = time.time()
-    example_one(True, simple_ins=True, despite=True, dbms_connector=dbms_connector)
+    example_one(to_sql=True, simple_ins=True, despite=True, dbms_connector=dbms_connector)
     # example_compas()
     # path_to_patient_csv = os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
     #                                    "healthcare_patients.csv")
