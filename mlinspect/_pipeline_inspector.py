@@ -89,7 +89,7 @@ class PipelineInspectorBuilder:
                              checks=self.checks,
                              custom_monkey_patching=self.monkey_patching_modules)
 
-    def execute_in_sql(self, sql_one_run, dbms_connector) -> InspectorResult:
+    def execute_in_sql(self, dbms_connector, sql_one_run=False) -> InspectorResult:
         """
         Instrument and execute the pipeline
         """

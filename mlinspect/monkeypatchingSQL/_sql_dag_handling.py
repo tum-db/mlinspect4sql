@@ -8,7 +8,6 @@ from mlinspect.instrumentation._pipeline_executor import singleton
 
 INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
-
 class SQLHistogramUpdater:
     def __init__(self):
         self.hist = {}
@@ -24,7 +23,7 @@ class SQLHistogramUpdater:
         # This flag is to get the result, even if the current operation is not executed in sql. f.e.: not yet supported
         search_last_table = (curr_sql_expr_name == "")
 
-        print("#" * 20)
+        # print("#" * 20)
         old_dat_node_annotations = backend_result.dag_node_annotation
 
         # is_unary_operator = list(curr_sql_expr_columns) == 1
@@ -59,7 +58,7 @@ class SQLHistogramUpdater:
                     sc_hist_result = singleton.dbms_connector.run(
                         pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                     new_dict[sc] = {str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
-                    print(sorted(new_dict[sc].items()))
+                    # print(sorted(new_dict[sc].items()))
                 # Update the annotation:
                 old_dat_node_annotations[annotation] = new_dict
         return backend_result
