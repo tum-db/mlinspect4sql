@@ -112,7 +112,6 @@ class SQLLogic:
             return [], origin_context, []
         op = origin_context.op
         if op == "":
-
             # We are dealing with a projection:
             table = origin_context.table  # format: [(table1, [col1, ...]), ...]
             columns = origin_context.columns

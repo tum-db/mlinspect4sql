@@ -174,9 +174,9 @@ def add_dag_node(dag_node: DagNode, dag_node_parents: List[DagNode], backend_res
     # print("")
     # print("{}:{}: {}".format(dag_node.caller_filename, dag_node.lineno, dag_node.module))
 
-    # print("source code: {}".format(dag_node.optional_source_code))
+    print("source code: {}".format(dag_node.optional_code_info))
     annotated_df = backend_result.annotated_dfobject
-
+    # print(f"ADD DAG called !{dag_node.code_location}")
     if annotated_df.result_data is not None:
         annotated_df.result_data._mlinspect_dag_node = dag_node.node_id
         if annotated_df.result_annotation is not None:

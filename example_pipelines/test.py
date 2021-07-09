@@ -38,6 +38,18 @@ def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None):
 
     if despite:
         extracted_dag = inspector_result.dag
+
+        filename = os.path.join(str(get_project_root()), "demo", "feature_overview", "healthcare.png")
+        from mlinspect.visualisation import save_fig_to_path
+        from PIL.Image import Image
+        save_fig_to_path(extracted_dag, filename)
+
+        from PIL import Image
+        import matplotlib.pyplot as plt
+        im = Image.open(filename)
+        plt.imshow(im)
+        # plt.waitforbuttonpress()
+
         dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
         check_results = inspector_result.check_to_check_results
         no_bias_check_result = check_results[NoBiasIntroducedFor(["age_group", "race"])]
@@ -51,7 +63,7 @@ def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None):
             for column, distribution_change in join_distribution_changes.items():
                 print("")
                 print(f"\033[1m Column '{column}'\033[0m")
-                display(distribution_change.before_and_after_df)
+                print(distribution_change.before_and_after_df.to_markdown())
 
 
 def example_compas():
@@ -127,11 +139,11 @@ if __name__ == "__main__":
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-
-    t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    #
+    # t0 = time.time()
+    # example_one(to_sql=True, dbms_connector=dbms_connector)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")

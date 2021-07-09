@@ -99,9 +99,7 @@ class DataFramePatching:
             result = original(input_infos[0].result_data, *args[1:], **kwargs)
             if result is None:
                 raise NotImplementedError("TODO: Support inplace dropna")
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -157,12 +155,9 @@ class DataFramePatching:
                 raise NotImplementedError()
             input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             result = original(input_infos[0].result_data, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
-
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -186,9 +181,7 @@ class DataFramePatching:
                 input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
                 input_infos = copy.deepcopy(input_infos)
                 result = original(self, *args, **kwargs)
-                backend_result = PandasBackend.after_call(operator_context,
-                                                          input_infos,
-                                                          self)
+                backend_result = PandasBackend.after_call(operator_context, input_infos, self)
                 columns = list(self.columns)  # pylint: disable=no-member
                 description = "modifies {}".format([args[0]])
             else:
@@ -220,9 +213,7 @@ class DataFramePatching:
             input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
             if isinstance(args[0], dict):
                 raise NotImplementedError("TODO: Add support for replace with dicts")
@@ -257,9 +248,7 @@ class DataFramePatching:
                                                                        input_info_b.annotated_dfobject])
             # No input_infos copy needed because it's only a selection and the rows not being removed don't change
             result = original(input_infos[0].result_data, input_infos[1].result_data, *args[1:], **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
@@ -297,6 +286,7 @@ class DataFramePatching:
 @gorilla.patches(pandas.core.groupby.generic.DataFrameGroupBy)
 class DataFrameGroupByPatching:
     """ Patches for 'pandas.core.groupby.generic' """
+
     # pylint: disable=too-few-public-methods
 
     @gorilla.name('agg')
@@ -316,9 +306,7 @@ class DataFrameGroupByPatching:
 
             input_infos = PandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
 
             if len(args) > 0:
                 description = "Groupby '{}', Aggregate: '{}'".format(result.index.name, args)
@@ -371,9 +359,7 @@ class LocIndexerPatching:
                                         lineno, function_info, optional_code_reference, optional_source_code)
             input_infos = PandasBackend.before_call(operator_context, [input_info.annotated_dfobject])
             result = original(self, *args, **kwargs)
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos,  result)
             result = backend_result.annotated_dfobject.result_data
 
             dag_node = DagNode(op_id,
@@ -408,9 +394,7 @@ class SeriesPatching:
             input_infos = PandasBackend.before_call(operator_context, [])
             original(self, *args, **kwargs)
             result = self
-            backend_result = PandasBackend.after_call(operator_context,
-                                                      input_infos,
-                                                      result)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
 
             if self.name:  # pylint: disable=no-member
                 columns = list(self.name)  # pylint: disable=no-member

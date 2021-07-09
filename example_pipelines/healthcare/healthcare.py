@@ -17,21 +17,20 @@ warnings.filterwarnings('ignore')
 
 COUNTIES_OF_INTEREST = ['county2', 'county3']
 
-patients = pd.read_csv(
-    r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/"
-    r"healthcare_patients_generated_1000000.csv", na_values='?')
-histories = pd.read_csv(
-    r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/"
-    r"healthcare_histories_generated_1000000.csv", na_values='?')
+# patients = pd.read_csv(
+#     r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/"
+#     r"healthcare_patients_generated_1000000.csv", na_values='?')
+# histories = pd.read_csv(
+#     r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/"
+#     r"healthcare_histories_generated_1000000.csv", na_values='?')
 
-# patients = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
-#                                     "patients.csv"), na_values='')
-# histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
-#                                      "histories.csv"), na_values='')
+patients = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
+                                    "patients.csv"), na_values='')
+histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
+                                     "histories.csv"), na_values='')
 
 data = patients.merge(histories, on=['ssn'])
-complications = data.groupby('age_group') \
-    .agg(mean_complications=('complications', 'mean'))
+complications = data.groupby('age_group').agg(mean_complications=('complications', 'mean'))
 data = data.merge(complications, on=['age_group'])
 data['label'] = data['complications'] > 1.2 * data['mean_complications']
 data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]

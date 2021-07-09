@@ -52,10 +52,10 @@ class TableInfo:
     def __hash__(self):
         return hash(self.data_object)
 
-    def get_non_tracking_cols(self):
+    def get_non_tracking_cols(self) -> list:
         if self.is_se():
-            return self.data_object.name
-        return list(set(self.data_object.columns.values) - set(self.tracking_cols))
+            return [self.data_object.name]
+        return list(set(self.data_object.columns.values))
 
     def is_df(self) -> bool:
         return isinstance(self.data_object, pandas.DataFrame)
@@ -80,16 +80,16 @@ class DfToStringMapping:
         """
         self.mapping = [(name, ti), *self.mapping]  # Quite efficient way to add values at the front.
 
-    # def update_entry(self, old_entry: (str, pd.DataFrame), new_entry: (str, pd.DataFrame)):
-    #     index = self.mapping.index(old_entry)
-    #     self.mapping[index] = new_entry
+    def update_pandas_obj(self, old_obj, new_obj):
+        _, ti = self.get_ti(old_obj)
+        ti.data_object = new_obj
 
     # def update_name_at_df(self, df, new_name):
     #     old_name = self.get_name(df)
     #     index = self.mapping.index((old_name, df))
     #     self.mapping[index] = (new_name, df)
 
-    def get_ti(self, name_to_find: str) -> TableInfo:
+    def get_ti_from_name(self, name_to_find: str) -> TableInfo:
         return next(ti for (n, ti) in self.mapping if n == name_to_find)
 
     def get_name(self, df_to_find) -> str:
@@ -120,10 +120,5 @@ class DfToStringMapping:
         return False
 
     def get_columns_no_track(self, name: str) -> list:
-        ti = self.get_ti(name)
-        if ti.is_df():
-            return ti.data_object.columns.values
-        elif ti.is_se():
-            return [ti.data_object.name]
-        else:
-            assert False
+        ti = self.get_ti_from_name(name)
+        return ti.get_non_tracking_cols()
