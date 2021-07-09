@@ -105,7 +105,7 @@ class PandasPatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         update_hist.sql_update_backend_result(backend_result, curr_sql_expr_name=cte_name,
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result, curr_sql_expr_name=cte_name,
                                                                curr_sql_expr_columns=col_names))  # TODO: make first exec more efficient
             return result
 
@@ -140,7 +140,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(None, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         update_hist.sql_update_backend_result(backend_result))
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -173,7 +173,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails("dropna", list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(backend_result))
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
 
             return result
 
@@ -282,7 +282,7 @@ class DataFramePatchingSQL:
 
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(backend_result, curr_sql_expr_name=cte_name,
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result, curr_sql_expr_name=cte_name,
                                                                curr_sql_expr_columns=columns_without_tracking))
 
             return result
@@ -370,7 +370,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(backend_result, curr_sql_expr_name=cte_name,
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result, curr_sql_expr_name=cte_name,
                                                                curr_sql_expr_columns=columns_without_tracking))
             assert hasattr(self, "_mlinspect_annotation")
             return result
@@ -407,7 +407,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(backend_result))
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
 
             return result
 
@@ -496,7 +496,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info_a.dag_node, input_info_b.dag_node],
-                         update_hist.sql_update_backend_result(backend_result, curr_sql_expr_name=cte_name,
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result, curr_sql_expr_name=cte_name,
                                                                curr_sql_expr_columns=columns_without_tracking))
 
             return result
@@ -603,7 +603,7 @@ class DataFrameGroupByPatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_dag_node],
-                         update_hist.sql_update_backend_result(backend_result, curr_sql_expr_name=cte_name,
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result, curr_sql_expr_name=cte_name,
                                                                curr_sql_expr_columns=columns_without_tracking))
             new_return_value = backend_result.annotated_dfobject.result_data
 
@@ -657,7 +657,7 @@ class LocIndexerPatchingSQL:
                                DagNodeDetails("to {}".format(columns), columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(backend_result))
+                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
         else:
             result = original(self, *args, **kwargs)
 
@@ -697,7 +697,7 @@ class SeriesPatchingSQL:
                                operator_context,
                                DagNodeDetails(None, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
-            add_dag_node(dag_node, [], update_hist.sql_update_backend_result(backend_result))
+            add_dag_node(dag_node, [], update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 

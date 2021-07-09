@@ -14,7 +14,7 @@ ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
 # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
 mapping = DfToStringMapping()
 pipeline_container = SQLQueryContainer(ROOT_DIR_TO_SQL)
-update_hist = SQLHistogramUpdater(mapping, pipeline_container)
+update_hist = SQLHistogramUpdater()
 
 
 class SQLLogic:
