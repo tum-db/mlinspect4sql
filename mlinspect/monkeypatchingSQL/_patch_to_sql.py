@@ -616,7 +616,7 @@ class DataFrameGroupByPatchingSQL:
                        f"GROUP BY {groupby_string}"
 
             cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=tb1_ti.tracking_cols,
+                                                           tracking_cols=[],
                                                            operation_type=OperatorType.GROUP_BY_AGG,
                                                            main_op=True)
 

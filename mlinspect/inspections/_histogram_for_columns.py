@@ -36,10 +36,10 @@ class HistogramForColumns(Inspection):
         self._operator_type = inspection_input.operator_context.operator
 
         if isinstance(inspection_input, InspectionInputUnaryOperator):
-            sensitive_columns_present = []
+            sensitive_columns_present = []  # list of bool for columns present in the pandas.DataFrame
             sensitive_columns_index = []
             for column in self.sensitive_columns:
-                column_present = column in inspection_input.input_columns.fields
+                column_present = column in inspection_input.input_columns.fields  # The bool
                 sensitive_columns_present.append(column_present)
                 column_index = inspection_input.input_columns.get_index_of_column(column)
                 sensitive_columns_index.append(column_index)

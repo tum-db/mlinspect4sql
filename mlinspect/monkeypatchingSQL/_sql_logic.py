@@ -5,6 +5,7 @@ from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpT
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 from ._sql_dag_handling import SQLHistogramUpdater
 
+
 ROOT_DIR = get_project_root()
 ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
 

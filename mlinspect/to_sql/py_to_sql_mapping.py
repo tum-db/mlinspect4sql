@@ -122,3 +122,25 @@ class DfToStringMapping:
     def get_columns_no_track(self, name: str) -> list:
         ti = self.get_ti_from_name(name)
         return ti.get_non_tracking_cols()
+
+    def get_columns_track(self, name: str) -> list:
+        ti = self.get_ti_from_name(name)
+        return ti.tracking_cols
+
+    def get_ctid_of_col(self, column):
+        """
+        Returns:
+            the name of the ctid column of the table from which the passed column came.
+        """
+        for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if "with" not in x]:
+            if column in orig_ti.get_non_tracking_cols():
+                # This is the original table form where "column" came from.
+                ctid_l = orig_ti.tracking_cols
+                assert len(ctid_l) == 1
+                return orig_t, ctid_l[0]
+        return None, None
+
+    def is_projection(self, name: str) -> bool:
+        ti = self.get_ti_from_name(name)
+        op_tree = ti.origin_context
+        return bool(op_tree) and op_tree.op == ""

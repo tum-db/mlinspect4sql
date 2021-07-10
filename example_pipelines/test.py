@@ -139,11 +139,11 @@ if __name__ == "__main__":
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    #
-    # t0 = time.time()
-    # example_one(to_sql=True, dbms_connector=dbms_connector)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    t0 = time.time()
+    example_one(to_sql=True, dbms_connector=dbms_connector)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
