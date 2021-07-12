@@ -8,7 +8,6 @@ import gorilla
 import pandas
 import pathlib
 
-from ._sql_logic import SQLLogic, mapping, pipeline_container, update_hist
 from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
@@ -18,7 +17,6 @@ from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func
     get_dag_node_for_id, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
-sql_logic = SQLLogic()
 
 
 @gorilla.patches(pandas)
@@ -69,7 +67,7 @@ class PandasPatchingSQL:
             if len(args) >= 3:
                 raise NotImplementedError
 
-            table_name = pathlib.Path(path_to_csv).stem + "_" + str(sql_logic.get_unique_id())
+            table_name = pathlib.Path(path_to_csv).stem + "_" + str(singleton.sql_logic.get_unique_id())
 
             # we need to add the ct_id columns to the original table:
             tracking_column = f"{table_name}_ctid"
@@ -79,18 +77,20 @@ class PandasPatchingSQL:
                                                                    delimiter=sep, header=(header == 1))
 
             # print(sql_code + "\n")
-            pipeline_container.write_to_init_file(sql_code)
+            singleton.pipeline_container.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=[tracking_column],
-                                                           operation_type=OperatorType.DATA_SOURCE,
-                                                           main_op=False,
-                                                           cte_name=table_name)
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=col_names)
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=[tracking_column],
+                                                                     operation_type=OperatorType.DATA_SOURCE,
+                                                                     main_op=False,
+                                                                     cte_name=table_name)
+
+            # print(sql_code + "\n")
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=col_names)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context, [], result)
@@ -103,9 +103,10 @@ class PandasPatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result,
-                                                               curr_sql_expr_name=cte_name,
-                                                               curr_sql_expr_columns=col_names))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=col_names))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -146,7 +147,8 @@ class DataFramePatchingSQL:
                                DagNodeDetails(None, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -184,7 +186,8 @@ class DataFramePatchingSQL:
                                DagNodeDetails("dropna", list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -245,7 +248,7 @@ class DataFramePatchingSQL:
             result = backend_result.annotated_dfobject.result_data
             # TO_SQL: ###############################################################################################
             tb1 = self
-            tb1_name, tb1_ti = mapping.get_name_and_ti(tb1)
+            tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
             source = args[0]
             columns_tracking = tb1_ti.tracking_cols
             if isinstance(source, str):  # Projection to Series
@@ -262,11 +265,11 @@ class DataFramePatchingSQL:
                 columns_without_tracking = tb1_ti.get_non_tracking_cols()
             else:
                 raise NotImplementedError()
-            if not mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
+            if not singleton.mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
 
                 if isinstance(source, pandas.Series):
-                    name, ti = mapping.get_name_and_ti(source)
-                    tables, column, tracking_columns = sql_logic.get_origin_series(ti.origin_context)
+                    name, ti = singleton.mapping.get_name_and_ti(source)
+                    tables, column, tracking_columns = singleton.sql_logic.get_origin_series(ti.origin_context)
                     if len(tables) == 1:
                         sql_code = f"SELECT * \n" \
                                    f"FROM {tables[0]} \n" \
@@ -274,32 +277,36 @@ class DataFramePatchingSQL:
                     else:
                         raise NotImplementedError  # TODO: column wise
                     # sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
-                    #            f"FROM {sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
-                    #            f"{sql_logic.create_indexed_table(mapping.get_name(source))} as tb2\n" \
+                    #            f"FROM {singleton.sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
+                    #            f"{singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(source))} as tb2\n" \
                     #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
 
                 else:
 
                     if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
                         pass
-                        # for c in sql_logic.get_tracking_cols_raw(self.columns.values):
+                        # for c in singleton.sql_logic.get_tracking_cols_raw(self.columns.values):
                         #     result[c] = "placeholder"
                     else:
                         source = [source]
                     sql_code = f"SELECT {', '.join(source + columns_tracking)}\n" \
                                f"FROM {tb1_name}"
 
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=columns_tracking,
-                                                           operation_type=operation_type,
-                                                           main_op=False,
-                                                           origin_context=origin_context)
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=columns_tracking,
+                                                                     operation_type=operation_type,
+                                                                     main_op=False,
+                                                                     origin_context=origin_context)
+
+            # print(sql_code + "\n")
+
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result,
-                                                               curr_sql_expr_name=cte_name,
-                                                               curr_sql_expr_columns=columns_without_tracking))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=columns_without_tracking))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -344,7 +351,7 @@ class DataFramePatchingSQL:
             # that it is more verbose, but on the other side its simpler, more elegant and dosn't require to go over
             # the statements twice.
             tb1 = self  # Table where the new column is set, or the old one overwritten.
-            tb1_name, tb1_ti = mapping.get_name_and_ti(tb1)
+            tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
 
             new_name = args[0]
             tb2 = args[1]  # the target
@@ -355,10 +362,10 @@ class DataFramePatchingSQL:
             if not isinstance(tb2, pandas.Series) and not isinstance(tb2, pandas.DataFrame):
                 # we are assigning some constant.
                 sql_code = f"SELECT *, {tb2} AS {new_name}\n" \
-                           f"FROM {mapping.get_name(tb1)}"
+                           f"FROM {singleton.mapping.get_name(tb1)}"
             else:
-                tb2_name, tb2_ti = mapping.get_name_and_ti(tb2)
-                tables, column, tracking_columns = sql_logic.get_origin_series(tb2_ti.origin_context)
+                tb2_name, tb2_ti = singleton.mapping.get_name_and_ti(tb2)
+                tables, column, tracking_columns = singleton.sql_logic.get_origin_series(tb2_ti.origin_context)
 
                 if len(tables) == 1 and tb1_name == tables[0]:
                     # We can avoid an Window function:
@@ -370,19 +377,19 @@ class DataFramePatchingSQL:
                     # final_tracking_columns = list(set(tracking_columns) | set(tb1_ti.tracking_cols))
                     # sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
                     #            f"tb2.{tb2.name} AS {new_name}\n" \
-                    #            f"FROM {sql_logic.create_indexed_table(mapping.get_name(tb1))} AS tb1, " \
-                    #            f"{sql_logic.create_indexed_table(mapping.get_name(tb2))} AS tb2 \n" \
+                    #            f"FROM {singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(tb1))} AS tb1, " \
+                    #            f"{singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(tb2))} AS tb2 \n" \
                     #            f"WHERE tb1.row_number = tb2.row_number"
 
             # Here we need to take "self", as the result of __setitem__ will be None.
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result=self,
-                                                           tracking_cols=tb1_ti.tracking_cols,
-                                                           operation_type=OperatorType.PROJECTION_MODIFY,
-                                                           main_op=True,
-                                                           origin_context=None)  # TODO
-
-            columns_without_tracking = sql_logic.get_non_tracking_cols_raw(self.columns.values)
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result=self,
+                                                                     tracking_cols=tb1_ti.tracking_cols,
+                                                                     operation_type=OperatorType.PROJECTION_MODIFY,
+                                                                     main_op=True,
+                                                                     origin_context=None)  # TODO
+            # print(sql_code + "\n")
+            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(self.columns.values)
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
 
             # TO_SQL DONE! ##########################################################################################
             dag_node = DagNode(op_id,
@@ -391,9 +398,10 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result,
-                                                               curr_sql_expr_name=cte_name,
-                                                               curr_sql_expr_columns=columns_without_tracking))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=columns_without_tracking))
 
             assert hasattr(self, "_mlinspect_annotation")
             return result
@@ -427,7 +435,8 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -490,8 +499,8 @@ class DataFramePatchingSQL:
             if isinstance(merge_column, list):
                 merge_column = merge_column[0]
 
-            tb1_name, tb1_ti = mapping.get_name_and_ti(tb1)
-            tb2_name, tb2_ti = mapping.get_name_and_ti(tb2)
+            tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
+            tb2_name, tb2_ti = singleton.mapping.get_name_and_ti(tb2)
             tb1_columns = list(tb1.columns.values) + tb1_ti.tracking_cols
             tb2_columns = [x for x in list(tb2.columns.values) + tb2_ti.tracking_cols if
                            x not in tb1_columns]  # remove duplicates!
@@ -506,13 +515,16 @@ class DataFramePatchingSQL:
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.{merge_column} = tb2.{merge_column}"
 
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=list(
-                                                               set(tb1_ti.tracking_cols + tb2_ti.tracking_cols)),
-                                                           operation_type=OperatorType.JOIN, main_op=True)
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=list(
+                                                                         set(tb1_ti.tracking_cols + tb2_ti.tracking_cols)),
+                                                                     operation_type=OperatorType.JOIN, main_op=True)
 
-            columns_without_tracking = sql_logic.get_non_tracking_cols_raw(list(tb1_columns) + list(tb2_columns))
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
+            # print(sql_code + "\n")
+
+            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(
+                list(tb1_columns) + list(tb2_columns))
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
@@ -520,9 +532,11 @@ class DataFramePatchingSQL:
                                operator_context,
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
-            backend_result = update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result,
-                                                                   curr_sql_expr_name=cte_name,
-                                                                   curr_sql_expr_columns=columns_without_tracking)
+            backend_result = singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                             singleton.pipeline_container,
+                                                                             backend_result,
+                                                                             curr_sql_expr_name=cte_name,
+                                                                             curr_sql_expr_columns=columns_without_tracking)
             add_dag_node(dag_node, [input_info_a.dag_node, input_info_b.dag_node], backend_result)
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
@@ -587,14 +601,14 @@ class DataFrameGroupByPatchingSQL:
             result = original(self, *args, **kwargs)
             # TO_SQL: ###############################################################################################
             tb1 = self.obj
-            tb1_name, tb1_ti = mapping.get_name_and_ti(tb1)
+            tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
 
             groupby_columns = self.grouper.names
             agg_params = [x[0] for x in kwargs.values()]
             new_col_names = list(kwargs.keys())  # The name of the new column containing the aggregation
             agg_funcs = [x[1] for x in kwargs.values()]
 
-            if not groupby_columns:  # if groupby_columns is empty we are dealing with a mapping or function.
+            if not groupby_columns:  # if groupby_columns is empty we are dealing with a singleton.mapping or function.
                 raise NotImplementedError
 
             # map pandas aggregation function to SQL (the the ones that differ):
@@ -615,13 +629,16 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {tb1_name}\n" \
                        f"GROUP BY {groupby_string}"
 
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=[],
-                                                           operation_type=OperatorType.GROUP_BY_AGG,
-                                                           main_op=True)
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=[],
+                                                                     operation_type=OperatorType.GROUP_BY_AGG,
+                                                                     main_op=True)
 
-            columns_without_tracking = sql_logic.get_non_tracking_cols_raw(result.columns.values) + groupby_columns
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
+            # print(sql_code + "\n")
+
+            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(
+                result.columns.values) + groupby_columns
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context, input_infos, result)
@@ -637,9 +654,10 @@ class DataFrameGroupByPatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result,
-                                                               curr_sql_expr_name=cte_name,
-                                                               curr_sql_expr_columns=columns_without_tracking))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=columns_without_tracking))
             new_return_value = backend_result.annotated_dfobject.result_data
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
@@ -650,7 +668,7 @@ class DataFrameGroupByPatchingSQL:
                     not hasattr(new_return_value, "_mlinspect_dag_node"):
                 new_return_value._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
-            mapping.update_pandas_obj(result, new_return_value)
+            singleton.mapping.update_pandas_obj(result, new_return_value)
 
             return new_return_value
 
@@ -700,7 +718,8 @@ class LocIndexerPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [input_info.dag_node],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -749,7 +768,8 @@ class SeriesPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [],
-                         update_hist.sql_update_backend_result(mapping, pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
+                                                                         singleton.pipeline_container, backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -781,9 +801,9 @@ class SeriesPatchingSQL:
             else:
                 raise NotImplementedError
 
-            name, ti = mapping.get_name_and_ti(self)
+            name, ti = singleton.mapping.get_name_and_ti(self)
             new_syntax_tree = OpTree(op="IN", left=ti.origin_context, right=f"({where_in_block})")
-            tables, column, tracking_columns = sql_logic.get_origin_series(new_syntax_tree)
+            tables, column, tracking_columns = singleton.sql_logic.get_origin_series(new_syntax_tree)
             if len(tables) == 1 and ti.origin_context.op == "":  # TODO: add correct ENUM -> improve syntax tree.
                 sql_code = f"SELECT {column}, {', '.join(tracking_columns)}\n" \
                            f"FROM {tables[0]}"
@@ -791,12 +811,15 @@ class SeriesPatchingSQL:
                 # TODO: row wise
                 raise NotImplementedError
 
-            cte_name, sql_code = sql_logic.finish_sql_call(sql_code, lineno, result,
-                                                           tracking_cols=ti.tracking_cols,
-                                                           operation_type=OperatorType.SELECTION,
-                                                           main_op=True,
-                                                           origin_context=new_syntax_tree)
-            pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=[self.name])
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=ti.tracking_cols,
+                                                                     operation_type=OperatorType.SELECTION,
+                                                                     main_op=True,
+                                                                     origin_context=new_syntax_tree)
+
+            # print(sql_code + "\n")
+
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=[self.name])
             return result
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
@@ -915,7 +938,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("=", self.eq(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("=", self.eq(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -927,7 +950,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(">", self.gt(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series(">", self.gt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -939,7 +962,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(">=", self.ge(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series(">=", self.ge(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -951,7 +974,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("<", self.lt(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("<", self.lt(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -963,7 +986,7 @@ class SeriesPatchingSQL:
         left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series("<=", self.le(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("<=", self.le(right), self, right, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -1022,7 +1045,7 @@ class SeriesPatchingSQL:
             result = original(self=left, other=right)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)
+            return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)
 
         return execute_inspections
 

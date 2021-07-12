@@ -72,8 +72,8 @@ class NoBiasIntroducedFor(Check):
         # pylint: disable=too-many-locals
 
         # TO_SQL: ###############################################################################################
-        if to_sql:
-            no_bias_introduced_sql_evaluate_total(self.sensitive_columns)
+        # if to_sql:
+        #     no_bias_introduced_sql_evaluate_total(self.sensitive_columns)
         # TO_SQL DONE! ##########################################################################################
 
         dag = inspection_result.dag

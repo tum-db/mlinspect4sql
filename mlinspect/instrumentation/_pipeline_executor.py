@@ -2,6 +2,7 @@
 Instrument and executes the pipeline
 """
 import ast
+import pathlib
 from typing import Iterable, List
 
 import gorilla
@@ -19,6 +20,10 @@ from ..checks._check import Check
 from ..inspections import InspectionResult
 from ..inspections._inspection import Inspection
 from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
+from mlinspect.to_sql._sql_logic import SQLLogic
+from mlinspect.to_sql.sql_query_container import SQLQueryContainer
+from mlinspect.to_sql._sql_dag_handling import SQLHistogramUpdater
+from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping
 
 
 class PipelineExecutor:
@@ -41,9 +46,15 @@ class PipelineExecutor:
     inspection_results = InspectionResult(networkx.DiGraph(), dict())
     inspections = []
     custom_monkey_patching = []
+    # to SQL related attributes:
     to_sql = False
     sql_one_run = False
     dbms_connector = None
+    mapping = None
+    pipeline_container = None
+    update_hist = None
+    sql_logic = None
+    root_dir_to_sql = ""
 
     def run(self, *,
             notebook_path: str or None = None,
@@ -65,13 +76,30 @@ class PipelineExecutor:
 
         # Add all SQL related attributes:
         self.to_sql = to_sql
-        self.sql_one_run = sql_one_run
-        self.dbms_connector = dbms_connector
+        if self.to_sql:
+            self.sql_one_run = sql_one_run
+            self.dbms_connector = dbms_connector
+
+            self.root_dir_to_sql = pathlib.Path(__file__).resolve().parent.parent / "to_sql/generated_code"
+
+            # Empty the "to_sql_output" folder if necessary:
+            [f.unlink() for f in self.root_dir_to_sql.glob("*.sql") if f.is_file()]
+
+            # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. to SQL-table repr.!
+            self.mapping = DfToStringMapping()
+            self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql)
+            self.update_hist = SQLHistogramUpdater(self.dbms_connector)
+            self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container)
 
         if reset_state:
             # reset_state=False should only be used internally for performance experiments etc!
             # It does not ensure the same inspections are still used as args etc.
             self.reset()
+            [f.unlink() for f in self.root_dir_to_sql.glob("*.sql") if f.is_file()]
+            self.mapping = DfToStringMapping()
+            self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql)
+            self.update_hist = SQLHistogramUpdater(self.dbms_connector)
+            self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container)
 
         if inspections is None:
             inspections = []
@@ -106,11 +134,12 @@ class PipelineExecutor:
 
         modified_code = astor.to_source(parsed_modified_ast)
 
-        if self.to_sql:
-            print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n-> Files can be found under mlinspect/to_sql/generated_code")
+        # if self.to_sql:
+        #     print("#" * 10 + " SQL-CODE " + "#" * 10 + "\n-> Files can be found under mlinspect/to_sql/generated_code")
 
         # Do the monkey patching and the inspection:
         exec(compile(modified_code, filename=self.source_code_path, mode="exec"), PipelineExecutor.script_scope)
+        print("Exec done!")
         return
 
     def get_next_op_id(self):

@@ -1,7 +1,7 @@
 from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
-from dbms_connector import Connector
+from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 import psycopg2
-
+import pandas as pd
 
 class PostgresqlConnector(Connector):
     def __init__(self, dbname, user, password, port, host):
@@ -21,13 +21,13 @@ class PostgresqlConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
+            self.cur.execute(q)
             try:
-                self.cur.execute(q)
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
 
-        return results
+        return [pd.DataFrame(r) for r in results]
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         exe_times = []
@@ -46,13 +46,14 @@ class PostgresqlConnector(Connector):
         print(f"Done in {time}!") if verbose else 0
         return time
 
-    def add_csv(self, path_to_csv: str, table_name: str, null_symbol: str, delimiter: str, header: bool, *args,
+    def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
         """ See parent. """
         col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
-                                                                             null_symbol=null_symbol,
+                                                                             null_symbols=null_symbols,
                                                                              delimiter=delimiter,
                                                                              header=header)
+        self.run(f"DROP TABLE IF EXISTS {table_name};")
         self.run(sql_code)
         return col_names, sql_code
 

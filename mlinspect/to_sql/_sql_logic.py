@@ -6,21 +6,13 @@ from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 from ._sql_dag_handling import SQLHistogramUpdater
 
 
-ROOT_DIR = get_project_root()
-ROOT_DIR_TO_SQL = ROOT_DIR / "mlinspect" / "to_sql" / "generated_code"
-
-# Empty the "to_sql_output" folder if necessary:
-[f.unlink() for f in ROOT_DIR_TO_SQL.glob("*") if f.is_file()]
-
-# This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. their SQL-table representation!
-mapping = DfToStringMapping()
-pipeline_container = SQLQueryContainer(ROOT_DIR_TO_SQL)
-update_hist = SQLHistogramUpdater()
-
-
 class SQLLogic:
     first_with = True
     id = 1
+
+    def __init__(self, mapping, pipeline_container):
+        self.mapping = mapping
+        self.pipeline_container = pipeline_container
 
     def wrap_in_with(self, sql_code, lineno, with_block_name=""):
         """
@@ -51,8 +43,8 @@ class SQLLogic:
         columns_t = []
         origin_context = []
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
-            name_l, ti_l = mapping.get_name_and_ti(left)
-            name_r, ti_r = mapping.get_name_and_ti(right)
+            name_l, ti_l = self.mapping.get_name_and_ti(left)
+            name_r, ti_r = self.mapping.get_name_and_ti(right)
 
             origin_context = OpTree(op=operator, left=ti_l.origin_context, right=ti_r.origin_context)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
@@ -71,7 +63,7 @@ class SQLLogic:
                 select_block = select_block + f"r.{', r.'.join(set(ti_r.tracking_cols))}"
 
         elif isinstance(left, pandas.Series):
-            name_l, ti_l = mapping.get_name_and_ti(left)
+            name_l, ti_l = self.mapping.get_name_and_ti(left)
             origin_context = OpTree(op=operator, left=ti_l.origin_context, right=right)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
             select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
@@ -81,7 +73,7 @@ class SQLLogic:
 
         else:
             assert (isinstance(right, pandas.Series))
-            name_r, ti_r = mapping.get_name_and_ti(right)
+            name_r, ti_r = self.mapping.get_name_and_ti(right)
             origin_context = OpTree(op=operator, left=left, right=ti_r.origin_context)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
             select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
@@ -98,7 +90,7 @@ class SQLLogic:
                                                   operation_type=OperatorType.BIN_OP,
                                                   main_op=True,
                                                   origin_context=origin_context)
-        pipeline_container.add_statement_to_pipe(cte_name, sql_code, [rename])
+        self.pipeline_container.add_statement_to_pipe(cte_name, sql_code, [rename])
         return result
 
     def get_origin_series(self, origin_context):
@@ -146,7 +138,7 @@ class SQLLogic:
                                    operation_type=operation_type,
                                    main_op=main_op,
                                    origin_context=origin_context)
-        mapping.add(final_cte_name, mapping_result)
+        self.mapping.add(final_cte_name, mapping_result)
         # print(sql_code + "\n")
         return final_cte_name, sql_code
 
@@ -261,7 +253,7 @@ class SQLLogic:
 
         # Write the code for each column of interest to the corresponding file:
         for i in column_names:
-            pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
+            self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
 
     @staticmethod
     def create_indexed_table(table_name):

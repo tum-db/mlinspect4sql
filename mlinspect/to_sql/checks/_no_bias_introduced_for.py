@@ -2,10 +2,10 @@
 The NoBiasIntroducedFor check for SQL
 """
 import pandas
-from mlinspect.monkeypatchingSQL._sql_logic import SQLLogic, mapping
+from mlinspect.to_sql._sql_logic import SQLLogic
 
 
-def no_bias_introduced_sql_evaluate_total(sensitive_columns):
+def no_bias_introduced_sql_evaluate_total(sensitive_columns, mapping):
     # TO_SQL: ###############################################################################################
     # TODO: maybe remove optional rename
     print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +

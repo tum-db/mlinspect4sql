@@ -15,7 +15,7 @@ class Connector(abc.ABC):
     @abc.abstractmethod
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs) -> (list, str):
-        """ Has to correctly add the passed csv to the DBMS under the passed Name.
+        """ Has to correctly add the passed csv to the DBMS under the passed Name. Implement DROP of old if necessary.
         Args:
             path_to_csv(str):
             table_name(str): the name under which the table will be accessed.

@@ -10,6 +10,7 @@ from mlinspect.checks import NoBiasIntroducedFor, NoIllegalFeatures
 from demo.feature_overview.no_missing_embeddings import NoMissingEmbeddings
 from inspect import cleandoc
 from example_pipelines.healthcare import custom_monkeypatching
+from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConnector
 import time
 from IPython.display import display
 from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
@@ -18,7 +19,7 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 # import tensorflow as tf
 # tf.logging.set_verbosity(tf.logging.ERROR)
 
-def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None):
+def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None, reset=False):
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
 
     inspector_result = PipelineInspector \
@@ -32,9 +33,9 @@ def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None):
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset)
     else:
-        inspector_result = inspector_result.execute()
+        inspector_result = inspector_result.execute(reset_state=reset)
 
     if despite:
         extracted_dag = inspector_result.dag
@@ -131,19 +132,24 @@ def example_two():
 
 if __name__ == "__main__":
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    dbms_connector = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+    dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                     umbra_dir=umbra_path)
 
-    t0 = time.time()
-    example_one(to_sql=False)
-    t1 = time.time()
-    print("\nTime spend with original: " + str(t1 - t0))
+    dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
+                                         host="localhost")
+    # t0 = time.time()
+    # example_one(to_sql=False)
+    # t1 = time.time()
+    # print("\nTime spend with original: " + str(t1 - t0))
 
-
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector)
+    example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
+    t0 = time.time()
+    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")

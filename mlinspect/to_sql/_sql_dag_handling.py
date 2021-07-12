@@ -3,16 +3,16 @@ For the SQL run we want to make the inspections be performend on the DBMS, this 
  and collect the resulting Info from our SQL-Queries.
 """
 import pandas
-from mlinspect.backends._backend import AnnotatedDfObject, BackendResult
+from mlinspect.backends._backend import BackendResult
 from mlinspect.inspections._histogram_for_columns import HistogramForColumns
-from mlinspect.instrumentation._pipeline_executor import singleton
 
 INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
 
 class SQLHistogramUpdater:
-    def __init__(self):
+    def __init__(self, dbms_connector):
         self.current_hist = {}
+        self.dbms_connector = dbms_connector
 
     def sql_update_backend_result(self, mapping, pipeline_container, backend_result: BackendResult,
                                   curr_sql_expr_name="",
@@ -59,7 +59,7 @@ class SQLHistogramUpdater:
                     if sc in curr_sql_expr_columns:
 
                         pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
-                        sc_hist_result = singleton.dbms_connector.run(
+                        sc_hist_result = self.dbms_connector.run(
                             pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                         new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                         zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
@@ -87,7 +87,7 @@ class SQLHistogramUpdater:
                                                      f"JOIN {optional_original_table} tb_orig " \
                                                      f"ON tb_curr.{optional_ctid}=tb_orig.{optional_ctid} " \
                                                      f"GROUP BY {sc};"
-                                sc_hist_result = singleton.dbms_connector.run(
+                                sc_hist_result = self.dbms_connector.run(
                                     pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                                 new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                                 zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
@@ -96,18 +96,19 @@ class SQLHistogramUpdater:
 
                     else:
                         pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
-                        sc_hist_result = singleton.dbms_connector.run(
+                        sc_hist_result = self.dbms_connector.run(
                             pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                         new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                         zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
                         self.current_hist[sc] = new_dict[sc]
-                        # print(new_dict[sc])
+
 
                 else:
                     raise NotImplementedError
 
             # Update the annotation:
             old_dat_node_annotations[annotation] = new_dict
+            # print(new_dict)
 
         return backend_result
 
