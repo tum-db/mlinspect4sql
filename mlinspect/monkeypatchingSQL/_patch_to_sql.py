@@ -103,8 +103,7 @@ class PandasPatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result,
+                         singleton.update_hist.sql_update_backend_result(backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=col_names))
 
@@ -147,8 +146,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(None, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -186,8 +184,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails("dropna", list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -303,8 +300,7 @@ class DataFramePatchingSQL:
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result,
+                         singleton.update_hist.sql_update_backend_result(backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
 
@@ -398,8 +394,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result,
+                         singleton.update_hist.sql_update_backend_result(backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
 
@@ -435,8 +430,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -525,16 +519,16 @@ class DataFramePatchingSQL:
             columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(
                 list(tb1_columns) + list(tb2_columns))
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
+
             # TO_SQL DONE! ##########################################################################################
+
             description = "on '{}'".format(kwargs['on'])
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
                                operator_context,
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
-            backend_result = singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                             singleton.pipeline_container,
-                                                                             backend_result,
+            backend_result = singleton.update_hist.sql_update_backend_result(backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=columns_without_tracking)
             add_dag_node(dag_node, [input_info_a.dag_node, input_info_b.dag_node], backend_result)
@@ -654,8 +648,7 @@ class DataFrameGroupByPatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result,
+                         singleton.update_hist.sql_update_backend_result(backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
             new_return_value = backend_result.annotated_dfobject.result_data
@@ -718,8 +711,7 @@ class LocIndexerPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -768,8 +760,7 @@ class SeriesPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(singleton.mapping,
-                                                                         singleton.pipeline_container, backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \

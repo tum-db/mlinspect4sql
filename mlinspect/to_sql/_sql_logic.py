@@ -215,8 +215,7 @@ class SQLLogic:
                          f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} " \
                          f"is NULL)\n )"
 
-    @staticmethod
-    def ratio_track(origin_dict, column_names, current_dict, only_code=False):
+    def ratio_track(self, origin_dict, column_names, current_dict, only_code=False):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 

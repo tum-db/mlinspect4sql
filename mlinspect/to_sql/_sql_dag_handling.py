@@ -10,18 +10,30 @@ INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
 
 class SQLHistogramUpdater:
-    def __init__(self, dbms_connector):
+    def __init__(self, dbms_connector, mapping, pipeline_container, one_run):
+        """
+        Args:
+            dbms_connector:
+            mapping:
+            pipeline_container:
+            one_run(bool): In case this is set, the "NoBiasIntroduced" inspection will happen once and full in SQL.
+                So nothing needs to be done here.
+        """
         self.current_hist = {}
         self.dbms_connector = dbms_connector
+        self.mapping = mapping
+        self.pipeline_container = pipeline_container
+        self.one_run = one_run
 
-    def sql_update_backend_result(self, mapping, pipeline_container, backend_result: BackendResult,
+    def sql_update_backend_result(self, backend_result: BackendResult,
                                   curr_sql_expr_name="",
                                   curr_sql_expr_columns=None):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
         """
         # print("\n\n" + "#" * 20)
-
+        if self.one_run:
+            return backend_result
         if curr_sql_expr_columns is None:
             curr_sql_expr_columns = []
 
@@ -60,7 +72,7 @@ class SQLHistogramUpdater:
 
                         pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
                         sc_hist_result = self.dbms_connector.run(
-                            pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
+                            self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                         new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                         zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
                         self.current_hist[sc] = new_dict[sc]
@@ -72,13 +84,13 @@ class SQLHistogramUpdater:
                 elif is_unary_operator or is_nary_operator:
 
                     if sc not in curr_sql_expr_columns:  # TODO: add check of ctid.
-                        optional_original_table, optional_ctid = mapping.get_ctid_of_col(sc)
+                        optional_original_table, optional_ctid = self.mapping.get_ctid_of_col(sc)
 
-                        if bool(optional_ctid) and optional_ctid not in mapping.get_columns_track(curr_sql_expr_name):
+                        if bool(optional_ctid) and optional_ctid not in self.mapping.get_columns_track(curr_sql_expr_name):
                             new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
                             continue
                         else:  # The attribute still exists TODO
-                            if mapping.is_projection(curr_sql_expr_name):
+                            if self.mapping.is_projection(curr_sql_expr_name):
                                 new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
                                 continue
                             else:
@@ -88,7 +100,7 @@ class SQLHistogramUpdater:
                                                      f"ON tb_curr.{optional_ctid}=tb_orig.{optional_ctid} " \
                                                      f"GROUP BY {sc};"
                                 sc_hist_result = self.dbms_connector.run(
-                                    pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
+                                    self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                                 new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                                 zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
                                 self.current_hist[sc] = new_dict[sc]
@@ -97,7 +109,7 @@ class SQLHistogramUpdater:
                     else:
                         pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
                         sc_hist_result = self.dbms_connector.run(
-                            pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
+                            self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                         new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
                                         zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
                         self.current_hist[sc] = new_dict[sc]
@@ -142,9 +154,9 @@ class SQLHistogramUpdater:
     #
     #     return backend_result
 
-    def __get_origin_table(self, mapping, column_name):
+    def __get_origin_table(self, column_name):
         origin_of_sc = ""
-        for m in reversed(mapping.mapping):  # we reverse because of the adding order -> faster match
+        for m in reversed(self.mapping.mapping):  # we reverse because of the adding order -> faster match
             table_name = m[0]
             table_info = m[1]
             table = table_info.data_object
@@ -156,9 +168,9 @@ class SQLHistogramUpdater:
                     origin_of_sc = table_name
         return origin_of_sc
 
-    def __get_last_table(self, mapping, column_name):
+    def __get_last_table(self, column_name):
         current_table_sc = ""
-        for m in mapping.mapping:  # we reverse because of the adding order -> faster match
+        for m in self.mapping.mapping:  # we reverse because of the adding order -> faster match
             table_name = m[0]
             table_info = m[1]
             table = table_info.data_object
