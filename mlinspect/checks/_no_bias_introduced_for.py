@@ -17,7 +17,7 @@ from mlinspect.inspections._inspection import Inspection
 from mlinspect.inspections._inspection_input import OperatorType, FunctionInfo
 from mlinspect.instrumentation._dag_node import DagNode
 from mlinspect.inspections._inspection_result import InspectionResult
-from mlinspect.to_sql.checks._no_bias_introduced_for import no_bias_introduced_sql_evaluate_total
+from mlinspect.to_sql.checks_and_inspections_sql._no_bias_introduced_for import SQLNoBiasIntroducedFor
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
@@ -67,13 +67,16 @@ class NoBiasIntroducedFor(Check):
         """The inspections required for the check"""
         return [HistogramForColumns(self.sensitive_columns)]
 
-    def evaluate(self, inspection_result: InspectionResult, to_sql: bool) -> CheckResult:
+    def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
         """Evaluate the check"""
         # pylint: disable=too-many-locals
 
         # TO_SQL: ###############################################################################################
-        # if to_sql:
-        #     no_bias_introduced_sql_evaluate_total(self.sensitive_columns)
+        if hasattr(self, "_use_sql_result") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
+                hasattr(self, "dbms_connector") and self._use_sql_result:
+            nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
+            res = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns)
+            return NoBiasIntroducedForResult(self, None, None, None)
         # TO_SQL DONE! ##########################################################################################
 
         dag = inspection_result.dag

@@ -48,7 +48,7 @@ class Check(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def evaluate(self, inspection_result: InspectionResult, to_sql: bool) -> CheckResult:
+    def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
         """Evaluate the check"""
         raise NotImplementedError
 

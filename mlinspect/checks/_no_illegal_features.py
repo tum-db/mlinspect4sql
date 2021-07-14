@@ -43,7 +43,7 @@ class NoIllegalFeatures(Check):
         """The id of the Constraints"""
         return tuple(self.additional_illegal_feature_names)
 
-    def evaluate(self, inspection_result: InspectionResult, to_sql:bool) -> CheckResult:
+    def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
         """Evaluate the check"""
         # TODO: Make this robust and add extensive testing
         dag = inspection_result.dag

@@ -22,8 +22,9 @@ from ..inspections._inspection import Inspection
 from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 from mlinspect.to_sql._sql_logic import SQLLogic
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
-from mlinspect.to_sql._sql_dag_handling import SQLHistogramUpdater
+from mlinspect.to_sql.checks_and_inspections_sql._histogram_for_columns import SQLHistogramForColumns
 from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping
+from mlinspect.checks._no_bias_introduced_for import NoBiasIntroducedFor
 
 
 class PipelineExecutor:
@@ -90,8 +91,8 @@ class PipelineExecutor:
             # This mapping allows to keep track of the pandas.DataFrame and pandas.Series w.r.t. to SQL-table repr.!
             self.mapping = DfToStringMapping()
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql)
-            self.update_hist = SQLHistogramUpdater(self.dbms_connector, self.mapping, self.pipeline_container,
-                                                   self.sql_one_run)
+            self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
+                                                      self.sql_one_run)
             self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container)
 
         if reset_state:
@@ -101,8 +102,8 @@ class PipelineExecutor:
             [f.unlink() for f in self.root_dir_to_sql.glob("*.sql") if f.is_file()]
             self.mapping = DfToStringMapping()
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql)
-            self.update_hist = SQLHistogramUpdater(self.dbms_connector, self.mapping, self.pipeline_container,
-                                                   self.sql_one_run)
+            self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
+                                                      self.sql_one_run)
             self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container)
 
         if inspections is None:
@@ -113,8 +114,15 @@ class PipelineExecutor:
             custom_monkey_patching = []
 
         check_inspections = set()
+
         for check in checks:
             check_inspections.update(check.required_inspections)
+            if isinstance(check, NoBiasIntroducedFor):
+                check._use_sql_result = self.to_sql and self.sql_one_run
+                check.mapping = self.mapping
+                check.pipeline_container = self.pipeline_container
+                check.dbms_connector = self.dbms_connector
+
         all_inspections = list(set(inspections).union(check_inspections))
         self.inspections = all_inspections
         self.track_code_references = track_code_references
@@ -122,7 +130,8 @@ class PipelineExecutor:
 
         # Here the modified code is created and run:
         self.run_inspections(notebook_path, python_code, python_path)
-        check_to_results = dict((check, check.evaluate(self.inspection_results, self.to_sql)) for check in checks)
+        check_to_results = dict(
+            (check, check.evaluate(self.inspection_results)) for check in checks)
         return InspectorResult(self.inspection_results.dag, self.inspection_results.dag_node_to_inspection_results,
                                check_to_results, to_sql_pipe_result=self.pipeline_result)
 

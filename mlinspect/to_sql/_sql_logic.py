@@ -3,7 +3,6 @@ from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
 from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
-from ._sql_dag_handling import SQLHistogramUpdater
 
 
 class SQLLogic:
@@ -189,15 +188,22 @@ class SQLLogic:
                f"),\n"
 
     @staticmethod
-    def __lookup_table(table_orig, table_new, column_name):
+    def __lookup_table(table_orig, table_new, column_name, ctid_col=None):
         """
         Creates the lookup_table to cope with possible projections.
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
+        table_new_done = table_new
+        if ctid_col:
+            table_new_done = f"(SELECT {column_name}, {ctid_col} " \
+                         f"FROM {table_new} tb_curr " \
+                         f"JOIN {table_orig} tb_orig " \
+                         f"ON tb_curr.{ctid_col}=tb_orig.{ctid_col})"
+
         return f"lookup_{column_name}_{table_new} AS (\n" \
                f"\tSELECT distinct orig.{column_name} AS original_label, curr.{column_name} AS current_label\n" \
-               f"\tFROM {table_orig} orig,  {table_new} curr\n" \
+               f"\tFROM {table_orig} orig,  {table_new_done} curr\n" \
                f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
                f"),\n"
 
@@ -215,7 +221,8 @@ class SQLLogic:
                          f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} " \
                          f"is NULL)\n )"
 
-    def ratio_track(self, origin_dict, column_names, current_dict, only_code=False):
+    @staticmethod
+    def ratio_track(origin_dict, column_names, current_dict, join_dict):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
@@ -224,7 +231,7 @@ class SQLLogic:
             column_names: The column names of which we want to have the ratio comparison
             current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
                 new ratio we want to check.
-            only_code:
+            join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
         Return:
              None -> see stdout
 
@@ -233,26 +240,25 @@ class SQLLogic:
         """
         sql_code = {cn: "" for cn in column_names}
         last_cte_names = {cn: "" for cn in column_names}
+
         for i in column_names:
+            ctid_col = None
             table_orig = origin_dict[i]
-            sql_code[i] += SQLLogic.__lookup_table(table_orig, table_new=current_dict[i], column_name=i)
-        for i in column_names:
-            table_orig = origin_dict[i]
+            if i in current_dict.keys():
+                table_curr = current_dict[i]
+            else:
+                table_curr, ctid_col = join_dict[i]
+            sql_code[i] += SQLLogic.__lookup_table(table_orig, table_new=table_curr, column_name=i, ctid_col=ctid_col)
             sql_code[i] += SQLLogic.__column_ratio_original(table_orig, column_name=i)
-        for i in column_names:
-            table_orig = origin_dict[i]
-            sql_code[i] += SQLLogic.__column_ratio_current(table_orig, table_new=current_dict[i], column_name=i)
-        for i in column_names:
-            cte_name, sql_code_addition = SQLLogic.__overview_table(table_new=current_dict[i], column_name=i)
+            sql_code[i] += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i)
+            cte_name, sql_code_addition = SQLLogic.__overview_table(table_new=table_curr, column_name=i)
             last_cte_names[i] = cte_name
             sql_code[i] += sql_code_addition
 
-        if only_code:
-            return last_cte_names, sql_code
-
-        # Write the code for each column of interest to the corresponding file:
-        for i in column_names:
-            self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
+        # # Write the code for each column of interest to the corresponding file:
+        # for i in column_names:
+        #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
+        return last_cte_names, sql_code
 
     @staticmethod
     def create_indexed_table(table_name):

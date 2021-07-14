@@ -84,11 +84,6 @@ class DfToStringMapping:
         _, ti = self.get_ti(old_obj)
         ti.data_object = new_obj
 
-    # def update_name_at_df(self, df, new_name):
-    #     old_name = self.get_name(df)
-    #     index = self.mapping.index((old_name, df))
-    #     self.mapping[index] = (new_name, df)
-
     def get_ti_from_name(self, name_to_find: str) -> TableInfo:
         return next(ti for (n, ti) in self.mapping if n == name_to_find)
 
@@ -144,3 +139,17 @@ class DfToStringMapping:
         ti = self.get_ti_from_name(name)
         op_tree = ti.origin_context
         return bool(op_tree) and op_tree.op == ""
+
+    def get_origin_table(self, column_name: str) -> str:
+        for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if "with" not in x]:
+            table = orig_ti.data_object
+            if isinstance(table, pandas.Series) and column_name == table.name:  # one column .csv
+                return orig_t
+            elif isinstance(table,
+                            pandas.DataFrame) and column_name in table.columns.values:  # TODO: substitute by "contains_col" fucntion in TableInfo!
+                return orig_t
+        raise ValueError
+
+    def get_latest_name_cols(self):
+        entry = self.mapping[0]
+        return entry[0], entry[1].get_non_tracking_cols()

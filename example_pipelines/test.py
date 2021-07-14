@@ -33,7 +33,8 @@ def example_one(to_sql, despite=True, sql_one_run=True, dbms_connector=None, res
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset,
+                                                           sql_one_run=sql_one_run)
     else:
         inspector_result = inspector_result.execute(reset_state=reset)
 
@@ -133,22 +134,22 @@ def example_two():
 if __name__ == "__main__":
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
     dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                    umbra_dir=umbra_path)
+                                      umbra_dir=umbra_path)
 
     dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
-                                         host="localhost")
+                                           host="localhost")
     # t0 = time.time()
     # example_one(to_sql=False)
     # t1 = time.time()
     # print("\nTime spend with original: " + str(t1 - t0))
 
-    t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True)
+    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=True)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
