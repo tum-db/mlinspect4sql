@@ -7,6 +7,8 @@ import time
 import fcntl
 import os
 import pandas as pd
+import tempfile
+import csv
 
 
 class UmbraConnector(Connector):
@@ -44,8 +46,8 @@ class UmbraConnector(Connector):
         fcntl.fcntl(self.server.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
         time.sleep(0.1)  # wait for the server to start
-        conn = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
-        self.cur = conn.cursor()
+        self.connection = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
+        self.cur = self.connection.cursor()
 
     # Destructor:
     def __del__(self):
@@ -92,11 +94,25 @@ class UmbraConnector(Connector):
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
         """ See parent. """
-        col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
-                                                                             null_symbols=null_symbols,
-                                                                             delimiter=delimiter,
-                                                                             header=header)
-        self.run(sql_code)
+        # create the index column:
+        _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
+        try:
+            with open(path_to_csv, 'r') as csvinput:
+                with open(path_to_tmp, 'w') as csvoutput:
+                    writer = csv.writer(csvoutput)
+                    csv_reader = csv.reader(csvinput)
+                    if header:
+                        writer.writerow(next(csv_reader) + ["index_mlinspect"])
+                    for i, row in enumerate(csv_reader):
+                        writer.writerow(row + [str(i)])
+            col_names, sql_code = CreateTablesFromCSVs(path_to_tmp).get_sql_code(table_name=table_name,
+                                                                                 null_symbols=null_symbols,
+                                                                                 delimiter=delimiter,
+                                                                                 header=header)
+            self.run(sql_code)
+            self.run(f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);")
+        finally:
+            os.remove(path_to_tmp)  # do cleanup
         return col_names, sql_code
 
 

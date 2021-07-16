@@ -30,7 +30,8 @@ class CreateTablesFromCSVs:
         if schema["missingValues"][0] != "":
             raise ValueError(f"Unfortunately not all columns could be parsed -> {schema['missingValues'][0]}")
 
-        col_names = [x["name"] for x in schema["fields"]]
+        # Also the column names need to be quoted to avoid getting a keywortd as "end"
+        col_names = [f"\"{x['name']}\"" for x in schema["fields"]]
 
         # return types as str -> except 'string' is replaced by varchar(100) to comply with umbra
         types = []
@@ -43,7 +44,8 @@ class CreateTablesFromCSVs:
                 types.append(value['type'])
         return col_names, types
 
-    def get_sql_code(self, table_name, null_symbols=None, delimiter=",", header=True, drop_old=False):
+    def get_sql_code(self, table_name, null_symbols=None, delimiter=",", header=True, drop_old=False,
+                     add_mlinspect_serial=False):
         if null_symbols is None:
             null_symbols = ["?"]
         names, data_types = self._get_schema_from_csv()
@@ -51,7 +53,11 @@ class CreateTablesFromCSVs:
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
 
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
-            [i + " " + j for i, j in zip(names, data_types)]) + "\n)"
+            [i + " " + j for i, j in zip(names, data_types)])
+        if add_mlinspect_serial:
+            create_table += ",\nindex_mlinspect SERIAL PRIMARY KEY\n)"
+        else:
+            create_table += "\n)"
 
         if len(null_symbols) != 1:
             raise NotImplementedError("Currently only ONE null symbol supported!")

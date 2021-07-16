@@ -55,7 +55,7 @@ class TableInfo:
     def get_non_tracking_cols(self) -> list:
         if self.is_se():
             return [self.data_object.name]
-        return list(set(self.data_object.columns.values))
+        return list(f"\"{x}\"" for x in set(self.data_object.columns.values))
 
     def is_df(self) -> bool:
         return isinstance(self.data_object, pandas.DataFrame)

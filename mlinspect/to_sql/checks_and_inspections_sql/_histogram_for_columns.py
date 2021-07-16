@@ -63,7 +63,7 @@ class SQLHistogramForColumns:
             # 2) They were removed by a selection => compare original ctid with the ones present here.
 
             for sc in sensitive_columns:  # update the values based on current table.
-
+                sc = f"\"{sc}\"" # To match the SQL column naming!
                 if is_input_data_source:
 
                     if sc in curr_sql_expr_columns:

@@ -75,8 +75,25 @@ class NoBiasIntroducedFor(Check):
         if hasattr(self, "_use_sql_result") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
                 hasattr(self, "dbms_connector") and self._use_sql_result:
             nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
-            res = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns)
-            return NoBiasIntroducedForResult(self, None, None, None)
+            sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
+                                                                  threshold=self.min_allowed_relative_ratio_change)
+            full_sql_code = self.pipeline_container.get_pipe_without_selection() + ",\n" + sql_code
+
+            result = self.dbms_connector.run(full_sql_code)
+
+            col_stat = dict()
+            node = list(inspection_result.dag.nodes)[-1]
+            for col, stat in zip(self.sensitive_columns, list(result[0])):
+                col_stat[col] = BiasDistributionChange(dag_node=node, acceptable_change=bool(stat),
+                                                       min_relative_ratio_change=0.0,
+                                                       before_and_after_df=pandas.DataFrame([]))
+            if sum(result[0][0]):
+                status = CheckStatus.SUCCESS
+            else:
+                status = CheckStatus.FAILURE
+
+            bias_distribution_change = {node: col_stat}
+            return NoBiasIntroducedForResult(self, status, "", bias_distribution_change)
         # TO_SQL DONE! ##########################################################################################
 
         dag = inspection_result.dag

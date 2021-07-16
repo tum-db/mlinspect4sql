@@ -70,7 +70,7 @@ class PandasPatchingSQL:
             table_name = pathlib.Path(path_to_csv).stem + "_" + str(singleton.sql_logic.get_unique_id())
 
             # we need to add the ct_id columns to the original table:
-            tracking_column = f"{table_name}_ctid"
+            tracking_column = f"\"{table_name}_ctid\""
             # result[tracking_column] = "placeholder"
 
             col_names, sql_code = singleton.dbms_connector.add_csv(path_to_csv, table_name, null_symbols=na_values,
@@ -262,32 +262,31 @@ class DataFramePatchingSQL:
                 columns_without_tracking = tb1_ti.get_non_tracking_cols()
             else:
                 raise NotImplementedError()
-            if not singleton.mapping.contains(result):  # Only create SQL-Table if it doesn't already exist.
 
-                if isinstance(source, pandas.Series):
-                    name, ti = singleton.mapping.get_name_and_ti(source)
-                    tables, column, tracking_columns = singleton.sql_logic.get_origin_series(ti.origin_context)
-                    if len(tables) == 1:
-                        sql_code = f"SELECT * \n" \
-                                   f"FROM {tables[0]} \n" \
-                                   f"WHERE {column}"
-                    else:
-                        raise NotImplementedError  # TODO: column wise
-                    # sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
-                    #            f"FROM {singleton.sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
-                    #            f"{singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(source))} as tb2\n" \
-                    #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
-
+            if isinstance(source, pandas.Series):
+                name, ti = singleton.mapping.get_name_and_ti(source)
+                tables, column, tracking_columns = singleton.sql_logic.get_origin_series(ti.origin_context)
+                if len(tables) == 1:
+                    sql_code = f"SELECT * \n" \
+                               f"FROM {tables[0]} \n" \
+                               f"WHERE {column}"
                 else:
+                    raise NotImplementedError  # TODO: column wise
+                # sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
+                #            f"FROM {singleton.sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
+                #            f"{singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(source))} as tb2\n" \
+                #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
 
-                    if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
-                        pass
-                        # for c in singleton.sql_logic.get_tracking_cols_raw(self.columns.values):
-                        #     result[c] = "placeholder"
-                    else:
-                        source = [source]
-                    sql_code = f"SELECT {', '.join(source + columns_tracking)}\n" \
-                               f"FROM {tb1_name}"
+            else:
+
+                if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
+                    pass
+                    # for c in singleton.sql_logic.get_tracking_cols_raw(self.columns.values):
+                    #     result[c] = "placeholder"
+                else:
+                    source = [source]
+                sql_code = f"SELECT {', '.join(source + columns_tracking)}\n" \
+                           f"FROM {tb1_name}"
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=columns_tracking,
@@ -926,10 +925,10 @@ class SeriesPatchingSQL:
     def patched__eq__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__eq__') """
         original = gorilla.get_original_attribute(pandas.Series, '__eq__')
-        left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("=", self.eq(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("=", self.eq(right_se), self, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -938,10 +937,10 @@ class SeriesPatchingSQL:
     def patched__gt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__gt__') """
         original = gorilla.get_original_attribute(pandas.Series, '__gt__')
-        left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">", self.gt(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series(">", self.gt(right_se), self, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -950,10 +949,10 @@ class SeriesPatchingSQL:
     def patched__ge__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ge__') """
         original = gorilla.get_original_attribute(pandas.Series, '__ge__')
-        left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">=", self.ge(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series(">=", self.ge(right_se), self, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -962,10 +961,10 @@ class SeriesPatchingSQL:
     def patched__lt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__lt__') """
         original = gorilla.get_original_attribute(pandas.Series, '__lt__')
-        left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<", self.lt(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("<", self.lt(right_se), self, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -974,10 +973,10 @@ class SeriesPatchingSQL:
     def patched__le__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__le__') """
         original = gorilla.get_original_attribute(pandas.Series, '__le__')
-        left, right = SeriesPatchingSQL.__help_set_right_compare(self, args)
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<=", self.le(right), self, right, lineno)
+            return singleton.sql_logic.handle_operation_series("<=", self.le(right_se), self, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 

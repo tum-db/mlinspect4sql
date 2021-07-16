@@ -11,12 +11,12 @@ class PostgresqlConnector(Connector):
             2) assert it is running: "sudo netstat -lntup | grep '5433\\|5432'"
         """
         super().__init__(dbname, user, password, port, host)
-        self.conn = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
-        self.cur = self.conn.cursor()
+        self.connection = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
+        self.cur = self.connection.cursor()
 
     def __del__(self):
-        print(self.conn)
-        self.conn.close()
+        print(self.connection)
+        self.connection.close()
 
     def run(self, sql_query):
         results = []
@@ -52,9 +52,11 @@ class PostgresqlConnector(Connector):
         col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
                                                                              null_symbols=null_symbols,
                                                                              delimiter=delimiter,
-                                                                             header=header)
+                                                                             header=header,
+                                                                             add_mlinspect_serial=True)
         self.run(f"DROP TABLE IF EXISTS {table_name};")
         self.run(sql_code)
+        self.run(f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);")
         return col_names, sql_code
 
 

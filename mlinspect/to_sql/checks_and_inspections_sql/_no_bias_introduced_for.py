@@ -23,10 +23,10 @@ class SQLNoBiasIntroducedFor:
         self.mapping = mapping
         self.pipeline_container = pipeline_container
 
-    def no_bias_introduced_sql_evaluate_total(self, sensitive_columns):
+    def no_bias_introduced_sql_evaluate_total(self, sensitive_columns, threshold, only_passed=True): # TODO: only_passed also allow to return the query result!!
         # TO_SQL: ###############################################################################################
-        print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
-              "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
+        # print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
+        #       "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
         origin_dict = {}
         current_dict = {}
         to_join_dict = {}
@@ -43,12 +43,14 @@ class SQLNoBiasIntroducedFor:
                     break
                 else:
                     # check if a possible ratio over the ctid could be calculated:
-                    optional_original_table, optional_ctid = self.mapping.get_ctid_of_col(sc)
+                    _, optional_ctid = self.mapping.get_ctid_of_col(sc)
                     if bool(optional_ctid) and optional_ctid in ti.tracking_cols:
-                        to_join_dict[sc] = (optional_original_table, optional_ctid)
+                        to_join_dict[sc] = (name, optional_ctid)
                         break
                     raise ValueError("NoBiasIntroducedFor: column not present in pipeline!")
-        sql_code = SQLLogic.ratio_track(origin_dict, sensitive_columns, current_dict, to_join_dict)
-        print(sql_code)
-        # TO_SQL DONE! ##########################################################################################
+        sql_code = SQLLogic.ratio_track(origin_dict, sensitive_columns, current_dict, to_join_dict, threshold,
+                                        only_passed=only_passed)
 
+        return sql_code
+
+        # TO_SQL DONE! ##########################################################################################

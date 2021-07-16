@@ -160,55 +160,30 @@ class SQLLogic:
         return [x for x in columns if "ctid" not in x]
 
     @staticmethod
-    def __column_ratio_original(table_orig, column_name):
-        return f"original_ratio_{column_name} AS (\n" \
-               f"\tSELECT i.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_orig})) AS ratio\n" \
-               f"\tFROM {table_orig} i\n" \
-               f"\tGROUP BY i.{column_name}\n" \
+    def __column_ratio(table, column_name, prefix=""):
+        return f"{prefix}_ratio_{column_name} AS (\n" \
+               f"\tSELECT {column_name}, (count(*) * 1.0 / (select count(*) FROM {table})) AS ratio\n" \
+               f"\tFROM {table} \n" \
+               f"\tGROUP BY {column_name}\n" \
                "),\n"
 
     @staticmethod
-    def __column_ratio_current(table_orig, table_new, column_name):
+    def __column_ratio_current(table_orig, table_new, column_name, prefix, ctid_col=None):
         """
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
-        return f"current_ratio_{column_name} AS (\n" \
-               f"\tSELECT orig.{column_name}, (\n" \
-               f"\t\t(SELECT count(*)\n" \
-               f"\t\tFROM (\n" \
-               f"\t\t\tSELECT lookup.original_label\n" \
-               f"\t\t\tFROM lookup_{column_name}_{table_new} lookup, {table_new} curr\n" \
-               f"\t\t\tWHERE lookup.current_label = curr.{column_name} and " \
-               f"orig.{column_name} = lookup.original_label or" \
-               f"(lookup.current_label is NULL and orig.{column_name} is NULL and curr.{column_name} is NULL)) temp\n" \
-               f"\t\t) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
-               f"\tFROM {table_orig} orig,  {table_new} curr, lookup_{column_name}_{table_new} lookup\n" \
-               f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
-               f"\tGROUP BY orig.{column_name}\n" \
-               f"),\n"
-
-    @staticmethod
-    def __lookup_table(table_orig, table_new, column_name, ctid_col=None):
-        """
-        Creates the lookup_table to cope with possible projections.
-        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
-        Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
-        """
-        table_new_done = table_new
         if ctid_col:
-            table_new_done = f"(SELECT {column_name}, {ctid_col} " \
-                         f"FROM {table_new} tb_curr " \
-                         f"JOIN {table_orig} tb_orig " \
-                         f"ON tb_curr.{ctid_col}=tb_orig.{ctid_col})"
-
-        return f"lookup_{column_name}_{table_new} AS (\n" \
-               f"\tSELECT distinct orig.{column_name} AS original_label, curr.{column_name} AS current_label\n" \
-               f"\tFROM {table_orig} orig,  {table_new_done} curr\n" \
-               f"\tWHERE curr.{table_orig}_ctid = orig.{table_orig}_ctid\n" \
-               f"),\n"
+            return f"{prefix}_ratio_{column_name} AS (\n" \
+                   f"\tSELECT tb_orig.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
+                   f"\tFROM {table_new} tb_curr " \
+                   f"JOIN {table_orig} tb_orig " \
+                   f"ON tb_curr.{ctid_col}=tb_orig.{ctid_col}\n" \
+                   f"\tGROUP BY tb_orig.{column_name}\n" \
+                   "),\n"
+        return SQLLogic.__column_ratio(table_new, column_name, prefix)
 
     @staticmethod
-    def __overview_table(table_new, column_name):
+    def __overview_table(table_new, column_name, prefix_original="original", prefix_current="current"):
         """
         Creates the lookup_table to cope with possible projections.
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
@@ -216,13 +191,29 @@ class SQLLogic:
         """
         cte_name = f"overview_{column_name}_{table_new}"
         return cte_name, f"{cte_name} AS (\n" \
-                         f"\tSELECT n.* , o.ratio AS ratio_original \n" \
-                         f"\tFROM current_ratio_{column_name} n right JOIN original_ratio_{column_name} o " \
-                         f"ON o.{column_name} = n.{column_name} or (o.{column_name} is NULL and n.{column_name} " \
-                         f"is NULL)\n )"
+                         f"\tSELECT n.{column_name}, n.ratio AS ratio_new, o.ratio AS ratio_original \n" \
+                         f"\tFROM {prefix_current}_ratio_{column_name} n " \
+                         f"RIGHT JOIN {prefix_original}_ratio_{column_name} o " \
+                         f"ON o.{column_name} = n.{column_name})"
 
     @staticmethod
-    def ratio_track(origin_dict, column_names, current_dict, join_dict):
+    def __no_bias(table_new, column_name, threshold, prefix_original="original", prefix_current="current"):
+        """
+        Creates the lookup_table to cope with possible projections.
+        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
+        Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
+        """
+        cte_name = f"overview_{column_name}_{table_new}"
+        return cte_name, f"{cte_name} AS (\n" \
+                         f"\tSELECT SUM(CASE WHEN ABS(n.ratio - o.ratio) < ABS({threshold}) THEN 1 ELSE 0 END) " \
+                         f"= count(*) AS " \
+                         f"no_bias_introduced_flag\n" \
+                         f"\tFROM {prefix_current}_ratio_{column_name} n " \
+                         f"RIGHT JOIN {prefix_original}_ratio_{column_name} o " \
+                         f"ON o.{column_name} = n.{column_name}\n),\n"
+
+    @staticmethod
+    def ratio_track(origin_dict, column_names, current_dict, join_dict, threshold, only_passed=True):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
@@ -232,14 +223,15 @@ class SQLLogic:
             current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
                 new ratio we want to check.
             join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
+            threshold: Threshold for which the bias is considered not a problem.
         Return:
              None -> see stdout
 
         Note:
         supports column renaming -> in case the dict contains one.
         """
-        sql_code = {cn: "" for cn in column_names}
-        last_cte_names = {cn: "" for cn in column_names}
+        sql_code = ""
+        last_cte_names = []
 
         for i in column_names:
             ctid_col = None
@@ -248,17 +240,32 @@ class SQLLogic:
                 table_curr = current_dict[i]
             else:
                 table_curr, ctid_col = join_dict[i]
-            sql_code[i] += SQLLogic.__lookup_table(table_orig, table_new=table_curr, column_name=i, ctid_col=ctid_col)
-            sql_code[i] += SQLLogic.__column_ratio_original(table_orig, column_name=i)
-            sql_code[i] += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i)
-            cte_name, sql_code_addition = SQLLogic.__overview_table(table_new=table_curr, column_name=i)
-            last_cte_names[i] = cte_name
-            sql_code[i] += sql_code_addition
+            sql_code += SQLLogic.__column_ratio(table_orig, column_name=i, prefix="original")
+            sql_code += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i,
+                                                        prefix="current", ctid_col=ctid_col)
+            cte_name, sql_code_addition = SQLLogic.__no_bias(table_new=table_curr, column_name=i, threshold=threshold)
 
+            sql_code += sql_code_addition
+            last_cte_names.append(cte_name)
+
+        sql_code = sql_code[:-2] # remove the last comma!
         # # Write the code for each column of interest to the corresponding file:
         # for i in column_names:
         #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
-        return last_cte_names, sql_code
+
+        if only_passed:
+            sql_code += "\nSELECT "
+            from_block = ""
+            for n in last_cte_names:
+                sql_code += f"{n}.no_bias_introduced_flag, "
+                from_block += f"{n}, "
+            sql_code = sql_code[:-2]
+            from_block = from_block[:-2]
+            sql_code += f"\nFROM {from_block};"
+        else:
+            raise NotImplementedError
+
+        return sql_code
 
     @staticmethod
     def create_indexed_table(table_name):
