@@ -72,8 +72,8 @@ class NoBiasIntroducedFor(Check):
         # pylint: disable=too-many-locals
 
         # TO_SQL: ###############################################################################################
-        if hasattr(self, "_use_sql_result") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
-                hasattr(self, "dbms_connector") and self._use_sql_result:
+        if hasattr(self, "_sql_one_run") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
+                hasattr(self, "dbms_connector") and self._sql_one_run:
             nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
             sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
                                                                   threshold=self.min_allowed_relative_ratio_change)
@@ -133,6 +133,9 @@ class NoBiasIntroducedFor(Check):
         Compute histograms for a dag node like a join and a concrete sensitive column like race
         """
         # pylint: disable=too-many-locals, too-many-arguments
+        if hasattr(self, "_to_sql"):
+            column = f"\"{column}\""
+
         after_map = histograms[node][column]
         after_df = DataFrame(after_map.items(), columns=["sensitive_column_value", "count_after"])
 

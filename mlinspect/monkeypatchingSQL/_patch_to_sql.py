@@ -18,7 +18,6 @@ from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
 
-
 @gorilla.patches(pandas)
 class PandasPatchingSQL:
     """ Patches for pandas """
@@ -70,7 +69,7 @@ class PandasPatchingSQL:
             table_name = pathlib.Path(path_to_csv).stem + "_" + str(singleton.sql_logic.get_unique_id())
 
             # we need to add the ct_id columns to the original table:
-            tracking_column = f"\"{table_name}_ctid\""
+            tracking_column = f"{table_name}_ctid"
             # result[tracking_column] = "placeholder"
 
             col_names, sql_code = singleton.dbms_connector.add_csv(path_to_csv, table_name, null_symbols=na_values,
@@ -80,13 +79,13 @@ class PandasPatchingSQL:
             singleton.pipeline_container.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
-            sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
+            sql_code = f"SELECT *, ctid AS \"{table_name}_ctid\"\n" \
                        f"FROM {table_name}"
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=[tracking_column],
+                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.DATA_SOURCE,
-                                                                     main_op=False,
                                                                      cte_name=table_name)
 
             # print(sql_code + "\n")
@@ -250,16 +249,18 @@ class DataFramePatchingSQL:
             columns_tracking = tb1_ti.tracking_cols
             if isinstance(source, str):  # Projection to Series
                 operation_type = OperatorType.PROJECTION
-                origin_context = OpTree(op="", table=tb1_name, columns=[source], tracking_columns=columns_tracking)
-                columns_without_tracking = [source]
+                columns_without_tracking = [f"\"{source}\""]
+                origin_context = OpTree(op="", table=tb1_name, columns=columns_without_tracking,
+                                        tracking_columns=columns_tracking)
             elif isinstance(source, list) and isinstance(args[0][0], str):  # Projection to DF
                 operation_type = OperatorType.PROJECTION
-                origin_context = OpTree(op="", table=tb1_name, columns=source, tracking_columns=columns_tracking)
-                columns_without_tracking = source
+                columns_without_tracking = [f"\"{x}\"" for x in source]
+                origin_context = OpTree(op="", table=tb1_name, columns=columns_without_tracking,
+                                        tracking_columns=columns_tracking)
             elif isinstance(source, pandas.Series):  # Selection
                 operation_type = OperatorType.SELECTION
                 origin_context = None
-                columns_without_tracking = tb1_ti.get_non_tracking_cols()
+                columns_without_tracking = tb1_ti.non_tracking_cols
             else:
                 raise NotImplementedError()
 
@@ -278,20 +279,13 @@ class DataFramePatchingSQL:
                 #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
 
             else:
-
-                if isinstance(source, list):  # Add tracking cols, if result is pandas.DataFrame:
-                    pass
-                    # for c in singleton.sql_logic.get_tracking_cols_raw(self.columns.values):
-                    #     result[c] = "placeholder"
-                else:
-                    source = [source]
-                sql_code = f"SELECT {', '.join(source + columns_tracking)}\n" \
+                sql_code = f"SELECT {', '.join(columns_without_tracking + columns_tracking)}\n" \
                            f"FROM {tb1_name}"
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=columns_tracking,
+                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=operation_type,
-                                                                     main_op=False,
                                                                      origin_context=origin_context)
 
             # print(sql_code + "\n")
@@ -379,11 +373,11 @@ class DataFramePatchingSQL:
             # Here we need to take "self", as the result of __setitem__ will be None.
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result=self,
                                                                      tracking_cols=tb1_ti.tracking_cols,
+                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.PROJECTION_MODIFY,
-                                                                     main_op=True,
                                                                      origin_context=None)  # TODO
             # print(sql_code + "\n")
-            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(self.columns.values)
+            columns_without_tracking = tb1_ti.non_tracking_cols
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
 
             # TO_SQL DONE! ##########################################################################################
@@ -469,10 +463,14 @@ class DataFramePatchingSQL:
             # Attention: If two columns are merged and column names overlap between the two merge partner tables the
             # columns are renamed .._x and .._y => if this affects the ctid columns we can remove one, as they are the
             # same.
-            x_ctid_columns = [x for x in result.columns.values if "ctid_x" in x]
-            result = result.drop(x_ctid_columns, axis=1)
-            for y in [y for y in result.columns.values if "ctid_y" in y]:
-                result = result.rename(columns={y: y.split("_y")[0]})
+
+            # TODO: check if needed:
+            # x_ctid_columns = [x for x in result.columns.values if "ctid_x" in x]
+            # result = result.drop(x_ctid_columns, axis=1)
+            #
+            #
+            # for y in [y for y in result.columns.values if "ctid_y" in y]:
+            #     result = result.rename(columns={y: y.split("_y")[0]})
 
             tb1 = self
             tb2 = args[0]
@@ -494,8 +492,8 @@ class DataFramePatchingSQL:
 
             tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
             tb2_name, tb2_ti = singleton.mapping.get_name_and_ti(tb2)
-            tb1_columns = list(tb1.columns.values) + tb1_ti.tracking_cols
-            tb2_columns = [x for x in list(tb2.columns.values) + tb2_ti.tracking_cols if
+            tb1_columns = list(tb1_ti.non_tracking_cols) + tb1_ti.tracking_cols
+            tb2_columns = [x for x in list(tb2_ti.non_tracking_cols) + tb2_ti.tracking_cols if
                            x not in tb1_columns]  # remove duplicates!
             # Attention: we need to select all columns, just using * can result in a doubled column!
             if merge_column == "":  # Cross product:
@@ -506,17 +504,17 @@ class DataFramePatchingSQL:
                 sql_code = f"SELECT tb1.{', tb1.'.join(tb1_columns)}, tb2.{', tb2.'.join(tb2_columns)}\n" \
                            f"FROM {tb1_name} tb1 \n" \
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
-                           f" ON tb1.{merge_column} = tb2.{merge_column}"
+                           f" ON tb1.\"{merge_column}\" = tb2.\"{merge_column}\""
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=list(
                                                                          set(tb1_ti.tracking_cols + tb2_ti.tracking_cols)),
-                                                                     operation_type=OperatorType.JOIN, main_op=True)
+                                                                     non_tracking_cols_addition=[],
+                                                                     operation_type=OperatorType.JOIN)
 
             # print(sql_code + "\n")
 
-            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(
-                list(tb1_columns) + list(tb2_columns))
+            columns_without_tracking = tb1_ti.non_tracking_cols + tb2_ti.non_tracking_cols
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
 
             # TO_SQL DONE! ##########################################################################################
@@ -601,7 +599,7 @@ class DataFrameGroupByPatchingSQL:
             new_col_names = list(kwargs.keys())  # The name of the new column containing the aggregation
             agg_funcs = [x[1] for x in kwargs.values()]
 
-            if not groupby_columns:  # if groupby_columns is empty we are dealing with a singleton.mapping or function.
+            if not groupby_columns:  # if groupby_columns is empty we are dealing with a function.
                 raise NotImplementedError
 
             # map pandas aggregation function to SQL (the the ones that differ):
@@ -613,10 +611,16 @@ class DataFrameGroupByPatchingSQL:
                 elif f == "var":
                     agg_funcs[i] = "variance"
 
-            groupby_string = ', '.join(groupby_columns)
             selection_string = []
             for p, n, f in zip(agg_params, new_col_names, agg_funcs):
-                selection_string.append(f"{f.upper()}({p}) AS {n}")
+                selection_string.append(f"{f.upper()}(\"{p}\") AS \"{n}\"")
+
+            if len(groupby_columns) == 1:
+                groupby_string = f"\"{groupby_columns[0]}\""
+                non_tracking_cols_addition = [groupby_string]
+            else:
+                non_tracking_cols_addition = [f"\"{x}\"" for x in groupby_columns]
+                groupby_string = ', '.join(non_tracking_cols_addition)
 
             sql_code = f"SELECT {groupby_string}, {', '.join(selection_string)} \n" \
                        f"FROM {tb1_name}\n" \
@@ -624,13 +628,12 @@ class DataFrameGroupByPatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=[],
-                                                                     operation_type=OperatorType.GROUP_BY_AGG,
-                                                                     main_op=True)
+                                                                     non_tracking_cols_addition=non_tracking_cols_addition,
+                                                                     operation_type=OperatorType.GROUP_BY_AGG)
 
             # print(sql_code + "\n")
 
-            columns_without_tracking = singleton.sql_logic.get_non_tracking_cols_raw(
-                result.columns.values) + groupby_columns
+            columns_without_tracking = [f"\"{x}\"" for x in list(result.columns.values) + groupby_columns]
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
 
@@ -803,8 +806,8 @@ class SeriesPatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
                                                                      tracking_cols=ti.tracking_cols,
+                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.SELECTION,
-                                                                     main_op=True,
                                                                      origin_context=new_syntax_tree)
 
             # print(sql_code + "\n")

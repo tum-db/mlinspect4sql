@@ -7,6 +7,7 @@ from mlinspect.backends._backend import BackendResult
 from mlinspect.inspections._histogram_for_columns import HistogramForColumns
 from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
+from mlinspect.inspections._inspection_input import OperatorType
 
 # Keep updates like this? INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
@@ -54,7 +55,7 @@ class SQLHistogramForColumns:
                 continue
 
             new_dict = {}
-            sensitive_columns = annotation.sensitive_columns
+            sensitive_columns = [f"\"{x}\"" for x in annotation.sensitive_columns]
 
             # If a sensitive column is not in a table, this can have three reasons:
             # 1) This table has nothing to do with the others => the ctids of the original tables containing our
@@ -63,7 +64,7 @@ class SQLHistogramForColumns:
             # 2) They were removed by a selection => compare original ctid with the ones present here.
 
             for sc in sensitive_columns:  # update the values based on current table.
-                sc = f"\"{sc}\"" # To match the SQL column naming!
+
                 if is_input_data_source:
 
                     if sc in curr_sql_expr_columns:
@@ -80,23 +81,29 @@ class SQLHistogramForColumns:
 
                 elif is_unary_operator or is_nary_operator:
 
-                    if sc not in curr_sql_expr_columns:  # TODO: add check of ctid.
+                    if sc not in curr_sql_expr_columns:
                         optional_original_table, optional_ctid = self.mapping.get_ctid_of_col(sc)
 
-                        if bool(optional_ctid) and optional_ctid not in self.mapping.get_columns_track(
-                                curr_sql_expr_name):
+
+
+                        if bool(optional_ctid) and \
+                                optional_ctid not in self.mapping.get_columns_track(curr_sql_expr_name):
+
                             new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
                             continue
-                        else:  # The attribute still exists TODO
+
+
+
+                        else:  # The attribute still exists
                             if self.mapping.is_projection(curr_sql_expr_name):
                                 new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
                                 continue
                             else:
-                                pipe_code_addition = f"SELECT {sc}, count(*) " \
+                                pipe_code_addition = f"SELECT tb_orig.{sc}, count(*) " \
                                                      f"FROM {curr_sql_expr_name} tb_curr " \
                                                      f"JOIN {optional_original_table} tb_orig " \
                                                      f"ON tb_curr.{optional_ctid}=tb_orig.{optional_ctid} " \
-                                                     f"GROUP BY {sc};"
+                                                     f"GROUP BY tb_orig.{sc};"
                                 sc_hist_result = self.dbms_connector.run(
                                     self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
                                 new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
@@ -116,7 +123,6 @@ class SQLHistogramForColumns:
 
             # Update the annotation:
             old_dat_node_annotations[annotation] = new_dict
-            # print(new_dict)
 
         return backend_result
 

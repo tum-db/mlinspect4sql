@@ -85,9 +85,9 @@ class SQLLogic:
                    f"{where_block}"
 
         cte_name, sql_code = self.finish_sql_call(sql_code, lineno, result,
-                                                  tracking_cols=self.get_tracking_cols_raw(tracking_columns),
+                                                  tracking_cols=tracking_columns,
+                                                  non_tracking_cols_addition=[rename],
                                                   operation_type=OperatorType.BIN_OP,
-                                                  main_op=True,
                                                   origin_context=origin_context)
         self.pipeline_container.add_statement_to_pipe(cte_name, sql_code, [rename])
         return result
@@ -129,13 +129,17 @@ class SQLLogic:
         new_content = f"({content_l} {op} {content_r})"
         return new_table, new_content, new_tracking_columns
 
-    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, operation_type, main_op, origin_context=None,
+    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, non_tracking_cols_addition, operation_type, origin_context=None,
                         cte_name=""):
         final_cte_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=cte_name)
+        if isinstance(result, pandas.Series):
+            non_tracking_cols = f"\"{result.name}\""
+        else:
+            non_tracking_cols = [f"\"{x}\"" for x in result.columns.values] + non_tracking_cols_addition
         mapping_result = TableInfo(data_object=result,
                                    tracking_cols=tracking_cols,
+                                   non_tracking_cols=non_tracking_cols,
                                    operation_type=operation_type,
-                                   main_op=main_op,
                                    origin_context=origin_context)
         self.mapping.add(final_cte_name, mapping_result)
         # print(sql_code + "\n")
@@ -153,10 +157,12 @@ class SQLLogic:
 
     @staticmethod
     def get_tracking_cols_raw(columns):
+        raise NotImplementedError
         return [x for x in columns if "ctid" in x]
 
     @staticmethod
     def get_non_tracking_cols_raw(columns):
+        raise NotImplementedError
         return [x for x in columns if "ctid" not in x]
 
     @staticmethod

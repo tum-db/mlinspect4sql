@@ -35,27 +35,21 @@ class TableInfo:
 
     Parameters:
         data_object (None): Can be pandas.DataFrame or pandas.Series
-        tracking_cols (list): All the columns relevant for tracking in this object
+        tracking_cols (list): All the columns relevant for tracking in this object#
+        non_tracking_cols (list): All the columns, can differ from the ones of the pandas object f.e. with groupby.
         operation_type (OperatorType): We need this to reduce the amount of checks we need to do, when f.e. looking
             for a problem that only occurs ofter certain operations.
-        main_op (bool): Distinguishes between sub- and main-operations. This distinction is nice to have for SQL,
-            because it further allows to skip certain checks. | df1[..] = df2 * 3 -> assign is main, * is sub
         origin_context(list): Is empty if the current operation created a new table, otherwise
             (f.e. binop or projection) this ordered list contains the applied operations and sources.
     """
     data_object: any
     tracking_cols: list
+    non_tracking_cols: list
     operation_type: OperatorType
-    main_op: bool
     origin_context: OpTree  # Will be added for Projections and binary operations
 
     def __hash__(self):
         return hash(self.data_object)
-
-    def get_non_tracking_cols(self) -> list:
-        if self.is_se():
-            return [self.data_object.name]
-        return list(f"\"{x}\"" for x in set(self.data_object.columns.values))
 
     def is_df(self) -> bool:
         return isinstance(self.data_object, pandas.DataFrame)
@@ -116,7 +110,7 @@ class DfToStringMapping:
 
     def get_columns_no_track(self, name: str) -> list:
         ti = self.get_ti_from_name(name)
-        return ti.get_non_tracking_cols()
+        return ti.non_tracking_cols
 
     def get_columns_track(self, name: str) -> list:
         ti = self.get_ti_from_name(name)
@@ -128,7 +122,7 @@ class DfToStringMapping:
             the name of the ctid column of the table from which the passed column came.
         """
         for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if "with" not in x]:
-            if column in orig_ti.get_non_tracking_cols():
+            if column in orig_ti.non_tracking_cols:
                 # This is the original table form where "column" came from.
                 ctid_l = orig_ti.tracking_cols
                 assert len(ctid_l) == 1
@@ -152,4 +146,4 @@ class DfToStringMapping:
 
     def get_latest_name_cols(self):
         entry = self.mapping[0]
-        return entry[0], entry[1].get_non_tracking_cols()
+        return entry[0], entry[1].non_tracking_cols

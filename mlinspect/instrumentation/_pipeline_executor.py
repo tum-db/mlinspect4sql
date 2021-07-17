@@ -117,8 +117,9 @@ class PipelineExecutor:
 
         for check in checks:
             check_inspections.update(check.required_inspections)
-            if isinstance(check, NoBiasIntroducedFor):
-                check._use_sql_result = self.to_sql and self.sql_one_run
+            if isinstance(check, NoBiasIntroducedFor) and self.to_sql:
+                check._to_sql = self.to_sql
+                check._sql_one_run = self.sql_one_run
                 check.mapping = self.mapping
                 check.pipeline_container = self.pipeline_container
                 check.dbms_connector = self.dbms_connector

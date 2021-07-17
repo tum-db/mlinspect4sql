@@ -38,7 +38,7 @@ class SQLNoBiasIntroducedFor:
             origin_dict[sc] = self.mapping.get_origin_table(sc)
             for (name, ti) in self.mapping.mapping:
 
-                if sc in ti.get_non_tracking_cols():  # check if part of "normal" columns
+                if sc in ti.non_tracking_cols:  # check if part of "normal" columns
                     current_dict[sc] = name
                     break
                 else:
