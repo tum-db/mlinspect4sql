@@ -108,7 +108,8 @@ class UmbraConnector(Connector):
             col_names, sql_code = CreateTablesFromCSVs(path_to_tmp).get_sql_code(table_name=table_name,
                                                                                  null_symbols=null_symbols,
                                                                                  delimiter=delimiter,
-                                                                                 header=header)
+                                                                                 header=header,
+                                                                                 add_mlinspect_serial=False)
             self.run(sql_code)
             self.run(f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);")
         finally:

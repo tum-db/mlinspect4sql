@@ -176,10 +176,10 @@ def full_compas():
     # t1 = time.time()
     # print("\nTime spend with original: " + str(t1 - t0))
 
-    t0 = time.time()
-    example_compas(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_compas(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
     example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=True)

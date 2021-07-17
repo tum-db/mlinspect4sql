@@ -38,9 +38,9 @@ class SQLLogic:
         rename = f"op_{self.get_unique_id()}"
         result.name = rename  # don't forget to set pandas object name!
         where_block = ""
-        from_block = ""
-        columns_t = []
-        origin_context = []
+
+
+
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
             name_l, ti_l = self.mapping.get_name_and_ti(left)
             name_r, ti_r = self.mapping.get_name_and_ti(right)
@@ -63,6 +63,8 @@ class SQLLogic:
 
         elif isinstance(left, pandas.Series):
             name_l, ti_l = self.mapping.get_name_and_ti(left)
+            if isinstance(right, str):
+                right = f"\'{right}\'"
             origin_context = OpTree(op=operator, left=ti_l.origin_context, right=OpTree(op=str(right), is_const=True))
             tables, column, tracking_columns = self.get_origin_series(origin_context)
             select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
@@ -72,6 +74,8 @@ class SQLLogic:
 
         else:
             assert (isinstance(right, pandas.Series))
+            if isinstance(left, str):
+                left = f"\'{left}\'"
             name_r, ti_r = self.mapping.get_name_and_ti(right)
             origin_context = OpTree(op=operator, left=OpTree(op=str(left), is_const=True), right=ti_r.origin_context)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
