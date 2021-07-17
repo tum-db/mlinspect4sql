@@ -416,6 +416,23 @@ class DataFramePatchingSQL:
             result = original(input_infos[0].result_data, *args, **kwargs)
             backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
+
+
+            # TO_SQL: ###############################################################################################
+            if len(args) != 2:
+                raise NotImplementedError
+
+            to_replace = args[0] # From this
+            value = args[1] # to this
+            name, ti = singleton.mapping.get_name_and_ti(self)
+            string_columns = []
+            non_string_columns = ti.tracking_cols
+            sql_code = f"SELECT *, {tb2} AS {new_name}\n" \
+                       f"FROM {singleton.mapping.get_name(tb1)}"
+            print("Here")
+            # TO_SQL DONE! ##########################################################################################
+
+
             if isinstance(args[0], dict):
                 raise NotImplementedError("TODO: Add support for replace with dicts")
             description = "Replace '{}' with '{}'".format(args[0], args[1])
@@ -567,6 +584,10 @@ class DataFramePatchingSQL:
             return result
 
         return execute_patched_func_no_op_id(original, execute_inspections, self, *args, **kwargs)
+
+    @staticmethod
+    def __get_datatype(pandas_object, column):
+        pass
 
 
 @gorilla.patches(pandas.core.groupby.generic.DataFrameGroupBy)
@@ -1068,4 +1089,6 @@ class SeriesPatchingSQL:
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
             right = pandas.Series([right]).repeat(left.size)  #
         return left, right.reset_index(drop=True)
+
+
 
