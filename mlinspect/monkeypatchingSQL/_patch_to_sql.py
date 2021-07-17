@@ -425,11 +425,17 @@ class DataFramePatchingSQL:
             to_replace = args[0] # From this
             value = args[1] # to this
             name, ti = singleton.mapping.get_name_and_ti(self)
-            string_columns = []
-            non_string_columns = ti.tracking_cols
-            sql_code = f"SELECT *, {tb2} AS {new_name}\n" \
-                       f"FROM {singleton.mapping.get_name(tb1)}"
-            print("Here")
+            string_columns = [x for x in ti.non_tracking_cols if self[x.split("\"")[1]].dtype.name == "object"]
+            if len(string_columns) != 0:
+                non_string_columns = ti.tracking_cols
+
+                select_list = []
+                if len(string_columns) == 1
+                for s in string_columns:
+                    f", REGEXP_REPLACE({s},\'\\b{to_replace}\\b\',\'{value}\') AS {s}"
+                sql_code = f"SELECT *, {2} AS {2}\n" \
+                           f"FROM {name}"
+                print("Here")
             # TO_SQL DONE! ##########################################################################################
 
 
