@@ -190,5 +190,5 @@ def full_compas():
 
 
 if __name__ == "__main__":
-    full_healthcare()
-    # full_compas()
+    # full_healthcare()
+    full_compas()

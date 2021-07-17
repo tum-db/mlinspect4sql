@@ -55,7 +55,7 @@ class CreateTablesFromCSVs:
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
             [i + " " + j for i, j in zip(names, data_types)])
         if add_mlinspect_serial:
-            create_table += ",\nindex_mlinspect SERIAL PRIMARY KEY\n)"
+            create_table += ",\n\tindex_mlinspect SERIAL PRIMARY KEY\n)"
         else:
             create_table += "\n)"
 

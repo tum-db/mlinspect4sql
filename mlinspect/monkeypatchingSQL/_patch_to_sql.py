@@ -943,7 +943,8 @@ class SeriesPatchingSQL:
         left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">", self.gt(right_se), self, args[0], lineno)
+            result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
+            return singleton.sql_logic.handle_operation_series(">", result, left, right_se, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -955,7 +956,8 @@ class SeriesPatchingSQL:
         left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">=", self.ge(right_se), self, args[0], lineno)
+            result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
+            return singleton.sql_logic.handle_operation_series(">=", result, left, right_se, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -967,7 +969,8 @@ class SeriesPatchingSQL:
         left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<", self.lt(right_se), self, args[0], lineno)
+            result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
+            return singleton.sql_logic.handle_operation_series("<", result, left, right_se, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -979,7 +982,8 @@ class SeriesPatchingSQL:
         left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<=", self.le(right_se), self, args[0], lineno)
+            result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
+            return singleton.sql_logic.handle_operation_series("<=", result, left, right_se, lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -1053,3 +1057,18 @@ class SeriesPatchingSQL:
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
             right = pandas.Series([right]).repeat(left.size)  #
         return left, right
+
+    @staticmethod
+    def __workaround_notimplementedtype(left, right, curr_result):
+        """
+        This problem seems to appear, when the indexes of the left or the right are not increasing like 1, 2, 3, ...
+        an example is the compas data set.
+        This workaround solves the problem, where the gorilla.get_original_attribute(self, '__xx__') with xx being
+        a comparison, returned a "NotImplemented" when called.
+        The problem that arises is that comparing two series with f.e. "le" lets the result be double the length. Here
+        we fix this.
+        """
+        assert(len(left) == len(right))
+        if len(left) != len(curr_result):
+            return curr_result[len(left):]
+        return curr_result
