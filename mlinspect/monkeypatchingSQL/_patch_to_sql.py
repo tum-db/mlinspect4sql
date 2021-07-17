@@ -90,6 +90,8 @@ class PandasPatchingSQL:
 
             # print(sql_code + "\n")
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=col_names)
+
+            result.reset_index(drop=True, inplace=True)
             # TO_SQL DONE! ##########################################################################################
 
             backend_result = PandasBackend.after_call(operator_context, [], result)
@@ -924,6 +926,18 @@ class SeriesPatchingSQL:
     ################
     # COMPARISONS:
     ################
+    @gorilla.name('__ne__')
+    @gorilla.settings(allow_hit=True)
+    def patched__ne__(self, *args, **kwargs):
+        """ Patch for ('pandas.core.series', '__ne__') """
+        original = gorilla.get_original_attribute(pandas.Series, '__ne__')
+        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            return singleton.sql_logic.handle_operation_series("!=", self.ne(right_se), self, args[0], lineno)
+
+        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+
     @gorilla.name('__eq__')
     @gorilla.settings(allow_hit=True)
     def patched__eq__(self, *args, **kwargs):
@@ -1057,7 +1071,7 @@ class SeriesPatchingSQL:
         right = args[0]
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
             right = pandas.Series([right]).repeat(left.size)  #
-        return left, right
+        return left, right.reset_index(drop=True)
 
     @staticmethod
     def __workaround_notimplementedtype(left, right, curr_result):

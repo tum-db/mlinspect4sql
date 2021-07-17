@@ -146,10 +146,10 @@ def full_healthcare():
 
     dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
                                            host="localhost")
-    # t0 = time.time()
-    # example_one(to_sql=False)
-    # t1 = time.time()
-    # print("\nTime spend with original: " + str(t1 - t0))
+    t0 = time.time()
+    example_one(to_sql=False)
+    t1 = time.time()
+    print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
     example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=False)
@@ -181,10 +181,10 @@ def full_compas():
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=True)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=True)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
