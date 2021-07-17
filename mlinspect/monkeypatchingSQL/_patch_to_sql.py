@@ -377,7 +377,7 @@ class DataFramePatchingSQL:
                                                                      tracking_cols=tb1_ti.tracking_cols,
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.PROJECTION_MODIFY,
-                                                                     origin_context=None)  # TODO
+                                                                     origin_context=None)
             # print(sql_code + "\n")
             columns_without_tracking = tb1_ti.non_tracking_cols
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
@@ -419,6 +419,8 @@ class DataFramePatchingSQL:
 
 
             # TO_SQL: ###############################################################################################
+            # Here we need to replace all possible occurrences of the specific args[0] with the args[1].
+            # ONLY WHOLE WORD!
             if len(args) != 2:
                 raise NotImplementedError
 
@@ -427,15 +429,23 @@ class DataFramePatchingSQL:
             name, ti = singleton.mapping.get_name_and_ti(self)
             string_columns = [x for x in ti.non_tracking_cols if self[x.split("\"")[1]].dtype.name == "object"]
             if len(string_columns) != 0:
-                non_string_columns = ti.tracking_cols
+                non_string_columns = ti.tracking_cols + list(set(ti.non_tracking_cols) - set(string_columns))
 
                 select_list = []
-                if len(string_columns) == 1
                 for s in string_columns:
-                    f", REGEXP_REPLACE({s},\'\\b{to_replace}\\b\',\'{value}\') AS {s}"
-                sql_code = f"SELECT *, {2} AS {2}\n" \
+                    select_list.append(f"REGEXP_REPLACE({s},\'\\b{to_replace}\\b\',\'{value}\') AS {s}")
+
+                sql_code = f"SELECT {', '.join(non_string_columns)}{',' if len(non_string_columns) > 0 else ''} " \
+                           f"{', '.join(select_list)}\n" \
                            f"FROM {name}"
-                print("Here")
+                columns_without_tracking = ti.non_tracking_cols
+                cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result=self,
+                                                                         tracking_cols=ti.tracking_cols,
+                                                                         non_tracking_cols_addition=columns_without_tracking,
+                                                                         operation_type=OperatorType.PROJECTION_MODIFY,
+                                                                         origin_context=None)
+                # print(sql_code + "\n")
+                singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
 
 

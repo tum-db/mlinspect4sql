@@ -40,6 +40,8 @@ class CreateTablesFromCSVs:
                 types.append('float')
             elif value['type'] == 'string':
                 types.append("varchar(100)")
+            elif value['type'] == 'date':
+                types.append("varchar(100)")
             else:
                 types.append(value['type'])
         return col_names, types
