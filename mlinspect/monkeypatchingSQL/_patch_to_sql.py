@@ -79,7 +79,7 @@ class PandasPatchingSQL:
             singleton.pipeline_container.write_to_init_file(sql_code)
 
             # We need to instantly add the ctid to the tables:
-            sql_code = f"SELECT *, ctid AS \"{table_name}_ctid\"\n" \
+            sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
@@ -250,13 +250,13 @@ class DataFramePatchingSQL:
             if isinstance(source, str):  # Projection to Series
                 operation_type = OperatorType.PROJECTION
                 columns_without_tracking = [f"\"{source}\""]
-                origin_context = OpTree(op="", table=tb1_name, columns=columns_without_tracking,
-                                        tracking_columns=columns_tracking)
+                origin_context = OpTree(op="", non_tracking_columns=columns_without_tracking,
+                                        tracking_columns=columns_tracking, origin_table=tb1_name)
             elif isinstance(source, list) and isinstance(args[0][0], str):  # Projection to DF
                 operation_type = OperatorType.PROJECTION
                 columns_without_tracking = [f"\"{x}\"" for x in source]
-                origin_context = OpTree(op="", table=tb1_name, columns=columns_without_tracking,
-                                        tracking_columns=columns_tracking)
+                origin_context = OpTree(op="", non_tracking_columns=columns_without_tracking,
+                                        tracking_columns=columns_tracking, origin_table=tb1_name)
             elif isinstance(source, pandas.Series):  # Selection
                 operation_type = OperatorType.SELECTION
                 origin_context = None
@@ -795,7 +795,8 @@ class SeriesPatchingSQL:
                 raise NotImplementedError
 
             name, ti = singleton.mapping.get_name_and_ti(self)
-            new_syntax_tree = OpTree(op="IN", left=ti.origin_context, right=f"({where_in_block})")
+            new_syntax_tree = OpTree(op="IN", left=ti.origin_context,
+                                     right=OpTree(op=f"({where_in_block})", is_const=True))
             tables, column, tracking_columns = singleton.sql_logic.get_origin_series(new_syntax_tree)
             if len(tables) == 1 and ti.origin_context.op == "":  # TODO: add correct ENUM -> improve syntax tree.
                 sql_code = f"SELECT {column}, {', '.join(tracking_columns)}\n" \
@@ -944,7 +945,7 @@ class SeriesPatchingSQL:
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
-            return singleton.sql_logic.handle_operation_series(">", result, left, right_se, lineno)
+            return singleton.sql_logic.handle_operation_series(">", result, left, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -957,7 +958,7 @@ class SeriesPatchingSQL:
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
-            return singleton.sql_logic.handle_operation_series(">=", result, left, right_se, lineno)
+            return singleton.sql_logic.handle_operation_series(">=", result, left, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -970,7 +971,7 @@ class SeriesPatchingSQL:
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
-            return singleton.sql_logic.handle_operation_series("<", result, left, right_se, lineno)
+            return singleton.sql_logic.handle_operation_series("<", result, left, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -983,7 +984,7 @@ class SeriesPatchingSQL:
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             result = SeriesPatchingSQL.__workaround_notimplementedtype(left, right_se, self.le(right_se))
-            return singleton.sql_logic.handle_operation_series("<=", result, left, right_se, lineno)
+            return singleton.sql_logic.handle_operation_series("<=", result, left, args[0], lineno)
 
         return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -1068,7 +1069,7 @@ class SeriesPatchingSQL:
         The problem that arises is that comparing two series with f.e. "le" lets the result be double the length. Here
         we fix this.
         """
-        assert(len(left) == len(right))
+        assert (len(left) == len(right))
         if len(left) != len(curr_result):
             return curr_result[len(left):]
         return curr_result

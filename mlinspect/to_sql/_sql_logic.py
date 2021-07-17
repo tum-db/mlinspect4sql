@@ -63,7 +63,7 @@ class SQLLogic:
 
         elif isinstance(left, pandas.Series):
             name_l, ti_l = self.mapping.get_name_and_ti(left)
-            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=right)
+            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=OpTree(op=str(right), is_const=True))
             tables, column, tracking_columns = self.get_origin_series(origin_context)
             select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
             from_block = tables[0]
@@ -73,7 +73,7 @@ class SQLLogic:
         else:
             assert (isinstance(right, pandas.Series))
             name_r, ti_r = self.mapping.get_name_and_ti(right)
-            origin_context = OpTree(op=operator, left=left, right=ti_r.origin_context)
+            origin_context = OpTree(op=operator, left=OpTree(op=str(left), is_const=True), right=ti_r.origin_context)
             tables, column, tracking_columns = self.get_origin_series(origin_context)
             select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
             from_block = tables[0]
@@ -100,13 +100,13 @@ class SQLLogic:
 
         Note: Currently only supporting a single origin! -> TODO: has to be solved with row-wise operations see: create_indexed_table.
         """
-        if not isinstance(origin_context, OpTree):
-            return [], origin_context, []
+        if origin_context.is_const:
+            return [], origin_context.op, []
         op = origin_context.op
         if op == "":
             # We are dealing with a projection:
-            table = origin_context.table  # format: [(table1, [col1, ...]), ...]
-            columns = origin_context.columns
+            table = origin_context.origin_table  # format: [(table1, [col1, ...]), ...]
+            columns = origin_context.non_tracking_columns
             tracking_columns = origin_context.tracking_columns
             if not len(columns) == 1:
                 raise NotImplementedError  # Only Series supported as of now.

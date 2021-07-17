@@ -10,22 +10,20 @@ class OpTree:
     This class is devoted to help optimize the query by un-nesting row-wise operations.
     """
 
-    def __init__(self, op="", columns=None, tracking_columns=None, table="", left=None, right=None):
-
-        if tracking_columns is None:
-            tracking_columns = []
-
-        if columns is None:
-            columns = []
-
+    def __init__(self, op="", non_tracking_columns=None, tracking_columns=None, origin_table="", left=None, right=None,
+                 is_const=False):
         self.op = op
-        self.columns = columns
-        self.tracking_columns = tracking_columns
-        self.table = table
+        self.non_tracking_columns = [] if not non_tracking_columns else non_tracking_columns
+        self.tracking_columns = [] if not tracking_columns else tracking_columns
+        self.origin_table = origin_table
         self.left = left
         self.right = right
+        self.is_const = is_const
 
-    def is_leaf(self):
+    def is_projection(self):
+        return self.op == ""
+
+    def resolve(self):
         return self.left is None and self.right is None
 
 
