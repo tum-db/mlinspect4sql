@@ -114,12 +114,14 @@ class DfToStringMapping:
         ti = self.get_ti_from_name(name)
         return ti.tracking_cols
 
-    def get_ctid_of_col(self, column):
+    def get_ctid_of_col(self, column: str, current_ctid_s: list) -> str:
         """
         Returns:
             the name of the ctid column of the table from which the passed column came.
         """
-        for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if "with" not in x]:
+        raise NotImplementedError
+        for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if
+                                "with" not in x and ti.tracking_cols[0] in current_ctid_s]:
             if column in orig_ti.non_tracking_cols:
                 # This is the original table form where "column" came from.
                 ctid_l = orig_ti.tracking_cols
@@ -132,15 +134,19 @@ class DfToStringMapping:
         op_tree = ti.origin_context
         return bool(op_tree) and op_tree.op == ""
 
-    def get_origin_table(self, column_name: str) -> str:
-        for orig_t, orig_ti in [(x, ti) for (x, ti) in self.mapping if "with" not in x]:
-            table = orig_ti.data_object
-            if isinstance(table, pandas.Series) and column_name == table.name:  # one column .csv
-                return orig_t
-            elif isinstance(table,
-                            pandas.DataFrame) and column_name in table.columns.values:  # TODO: substitute by "contains_col" fucntion in TableInfo!
-                return orig_t
-        raise ValueError
+    def get_origin_table(self, column_name: str, current_ctid_s: list) -> (str, str):
+        """
+        Returns:
+             (<origin table>, <ctid>), from which the column originated. If not fround (None, None).
+        """
+        origin_tup = [(x, ti) for (x, ti) in self.mapping if "with" not in x and ti.tracking_cols[0] in current_ctid_s]
+        if len(origin_tup) == 0:
+            return None, None
+        # In case multiple ctid were present, find the origin of the passed column:
+        for orig_t, orig_ti in origin_tup:
+            if column_name in orig_ti.non_tracking_cols:
+                return orig_t, orig_ti.tracking_cols[0]
+        assert False
 
     def get_latest_name_cols(self):
         entry = self.mapping[0]

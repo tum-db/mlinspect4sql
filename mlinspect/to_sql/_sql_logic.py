@@ -39,8 +39,6 @@ class SQLLogic:
         result.name = rename  # don't forget to set pandas object name!
         where_block = ""
 
-
-
         if isinstance(left, pandas.Series) and isinstance(right, pandas.Series):
             name_l, ti_l = self.mapping.get_name_and_ti(left)
             name_r, ti_r = self.mapping.get_name_and_ti(right)
@@ -133,7 +131,8 @@ class SQLLogic:
         new_content = f"({content_l} {op} {content_r})"
         return new_table, new_content, new_tracking_columns
 
-    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, non_tracking_cols_addition, operation_type, origin_context=None,
+    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, non_tracking_cols_addition, operation_type,
+                        origin_context=None,
                         cte_name=""):
         final_cte_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=cte_name)
         if isinstance(result, pandas.Series):
@@ -234,6 +233,8 @@ class SQLLogic:
                 new ratio we want to check.
             join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
             threshold: Threshold for which the bias is considered not a problem.
+            only_passed(bool): Returns just true or false, representing if a bias with the given threshold
+                was introduced.
         Return:
              None -> see stdout
 
@@ -258,7 +259,7 @@ class SQLLogic:
             sql_code += sql_code_addition
             last_cte_names.append(cte_name)
 
-        sql_code = sql_code[:-2] # remove the last comma!
+        sql_code = sql_code[:-2]  # remove the last comma!
         # # Write the code for each column of interest to the corresponding file:
         # for i in column_names:
         #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
