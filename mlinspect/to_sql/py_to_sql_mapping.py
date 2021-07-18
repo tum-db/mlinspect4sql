@@ -141,7 +141,7 @@ class DfToStringMapping:
         """
         origin_tup = [(x, ti) for (x, ti) in self.mapping if "with" not in x and ti.tracking_cols[0] in current_ctid_s]
         if len(origin_tup) == 0:
-            return None, None
+            return None, None # in case there ist no origin -> f.e. col added
         # In case multiple ctid were present, find the origin of the passed column:
         for orig_t, orig_ti in origin_tup:
             if column_name in orig_ti.non_tracking_cols:

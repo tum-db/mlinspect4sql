@@ -293,6 +293,9 @@ class SQLLogic:
 
     @staticmethod
     def ratio_track_final_selection(sql_ratio_obj_names: list):
+        """
+        Despite the sql code result looking scary, each table only contains EXACTLY 1 value.
+        """
         sql_code = "\nSELECT "
         from_block = ""
         for n in sql_ratio_obj_names:
@@ -301,6 +304,7 @@ class SQLLogic:
         sql_code = sql_code[:-2]
         from_block = from_block[:-2]
         sql_code += f"\nFROM {from_block};\n"
+        return sql_code
 
     @staticmethod
     def create_indexed_table(table_name):

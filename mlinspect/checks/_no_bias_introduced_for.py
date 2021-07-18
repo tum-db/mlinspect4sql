@@ -74,6 +74,7 @@ class NoBiasIntroducedFor(Check):
         # TO_SQL: ###############################################################################################
         if hasattr(self, "_sql_one_run") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
                 hasattr(self, "dbms_connector") and self._sql_one_run:
+            # TODO: ATTENTION ONLY ONE CHECK BEFORE AND AFTER!!
             nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
             sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
                                                                   threshold=self.min_allowed_relative_ratio_change)

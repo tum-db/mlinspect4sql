@@ -48,13 +48,13 @@ class SQLNoBiasIntroducedFor:
                     sql_code_final += sql_code
                 else:
                     # check if a possible ratio over the ctid could be calculated:
-                    _, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                    origin_table, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
                     if bool(origin_ctid):
                         cte_name, sql_code = SQLLogic.ratio_track(origin_table, name, sc, threshold=threshold,
                                                                   join_ctid=origin_ctid)
                         sql_obj_final.append(cte_name)
                         sql_code_final += sql_code
 
-        return sql_code_final + "\n" + SQLLogic.ratio_track_final_selection(sql_obj_final)
+        return sql_code_final[:-2] + "\n" + SQLLogic.ratio_track_final_selection(sql_obj_final)
 
         # TO_SQL DONE! ##########################################################################################

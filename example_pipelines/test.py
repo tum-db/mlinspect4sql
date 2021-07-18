@@ -139,7 +139,7 @@ def example_adult_complex():
         .execute(to_sql=True)
 
 
-def full_healthcare():
+def full_healthcare(one_pass=False):
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
     dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                       umbra_dir=umbra_path)
@@ -152,37 +152,37 @@ def full_healthcare():
     print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=False)
+    example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=False)
+    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-def full_compas():
+def full_compas(one_pass=False):
     umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
     dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                       umbra_dir=umbra_path)
 
     dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
                                            host="localhost")
-    # t0 = time.time()
-    # example_compas(to_sql=False)
-    # t1 = time.time()
-    # print("\nTime spend with original: " + str(t1 - t0))
-
-    # t0 = time.time()
-    # example_compas(to_sql=True, dbms_connector=dbms_connector_u, reset=True)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    example_compas(to_sql=False)
+    t1 = time.time()
+    print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
-    example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=True)
+    example_compas(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    t0 = time.time()
+    example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
@@ -190,5 +190,5 @@ def full_compas():
 
 
 if __name__ == "__main__":
-    # full_healthcare()
+    # full_healthcare(one_pass=True)
     full_compas()
