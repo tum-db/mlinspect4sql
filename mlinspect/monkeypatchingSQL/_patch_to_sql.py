@@ -17,6 +17,22 @@ from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func
     get_dag_node_for_id, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
+pandas.options.mode.chained_assignment = None  # default='warn'
+
+
+# Because gorillas is not able to provide the original function of comparisons e.g. (==, <, ...). It actually
+# return "<method-wrapper '__eq__' of type object at 0x21b4970>" instead
+# of a "<function pandas.core.arraylike.OpsMixin.__eq__(self, other)>" which is useless for our purposes, as
+# it can't be called, we need to backup the original pandas comparison functions:
+
+backup_eq = pandas.Series.__eq__
+backup_ne = pandas.Series.__ne__
+backup_lt = pandas.Series.__lt__
+backup_le = pandas.Series.__le__
+backup_gt = pandas.Series.__gt__
+backup_ge = pandas.Series.__ge__
+
+
 
 @gorilla.patches(pandas)
 class PandasPatchingSQL:
@@ -417,15 +433,14 @@ class DataFramePatchingSQL:
             backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
 
-
             # TO_SQL: ###############################################################################################
             # Here we need to replace all possible occurrences of the specific args[0] with the args[1].
             # ONLY WHOLE WORD!
             if len(args) != 2:
                 raise NotImplementedError
 
-            to_replace = args[0] # From this
-            value = args[1] # to this
+            to_replace = args[0]  # From this
+            value = args[1]  # to this
             name, ti = singleton.mapping.get_name_and_ti(self)
             string_columns = [x for x in ti.non_tracking_cols if self[x.split("\"")[1]].dtype.name == "object"]
             if len(string_columns) != 0:
@@ -447,7 +462,6 @@ class DataFramePatchingSQL:
                 # print(sql_code + "\n")
                 singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
-
 
             if isinstance(args[0], dict):
                 raise NotImplementedError("TODO: Add support for replace with dicts")
@@ -967,73 +981,43 @@ class SeriesPatchingSQL:
     @gorilla.settings(allow_hit=True)
     def patched__ne__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ne__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__ne__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("!=", self.ne(right_se), self, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("!=", self, args, backup_ne, rop=True)
+        return execute_patched_func(backup_ne, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__eq__')
-    @gorilla.settings(allow_hit=True)
+    @gorilla.settings(allow_hit=True, store_hit=True)
     def patched__eq__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__eq__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__eq__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("=", self.eq(right_se), self, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("==", self, args, backup_eq, rop=True)
+        return execute_patched_func(backup_eq, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__gt__')
     @gorilla.settings(allow_hit=True)
     def patched__gt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__gt__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__gt__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">", self.le(right_se), left, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">", self, args, backup_gt, rop=True)
+        return execute_patched_func(backup_gt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__ge__')
     @gorilla.settings(allow_hit=True)
     def patched__ge__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ge__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__ge__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(">=", self.le(right_se), left, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">=", self, args, backup_ge, rop=True)
+        return execute_patched_func(backup_ge, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__lt__')
     @gorilla.settings(allow_hit=True)
     def patched__lt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__lt__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__lt__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<", self.le(right_se), left, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<", self, args, backup_lt, rop=True)
+        return execute_patched_func(backup_lt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__le__')
     @gorilla.settings(allow_hit=True)
     def patched__le__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__le__') """
-        original = gorilla.get_original_attribute(pandas.Series, '__le__')
-        left, right_se = SeriesPatchingSQL.__help_set_right_compare(self, args)
-
-        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series("<=", self.le(right_se), left, args[0], lineno)
-
-        return execute_patched_func(original, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<=", self, args, backup_le, rop=True)
+        return execute_patched_func(backup_le, execute_inspections, self, *args, **kwargs)
 
     ################
     # LOGICAL OPS:
@@ -1105,6 +1089,3 @@ class SeriesPatchingSQL:
         if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
             right = pandas.Series([right]).repeat(left.size)  #
         return left, right.reset_index(drop=True)
-
-
-

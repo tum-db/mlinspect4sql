@@ -40,6 +40,7 @@ def execute_patched_func(original_func, execute_inspections_func, *args, **kwarg
 
     if caller_filename != singleton.source_code_path:
         result = original_func(*args, **kwargs)
+        # print(f"{args, kwargs}")
     elif singleton.track_code_references:
         call_ast_node = ast.Call(lineno=singleton.lineno_next_call_or_subscript,
                                  col_offset=singleton.col_offset_next_call_or_subscript,
