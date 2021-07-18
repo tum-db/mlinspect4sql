@@ -43,17 +43,17 @@ class SQLNoBiasIntroducedFor:
             for (name, ti) in self.mapping.mapping:
 
                 if sc in ti.non_tracking_cols:  # check if part of "normal" columns
-                    origin_dict[sc] = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                    origin_table, _ = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                    origin_dict[sc] = origin_table
                     current_dict[sc] = name
                     sql_code_final += SQLLogic.ratio_track(origin_dict, [sc], current_dict, to_join_dict,
                                                            threshold, only_passed=only_passed)
                 else:
                     # check if a possible ratio over the ctid could be calculated:
-                    _, optional_ctid = self.mapping.get_ctid_of_col(sc, ti.tracking_cols)
-                    if bool(optional_ctid) and optional_ctid in ti.tracking_cols:
-                        to_join_dict[sc] = (name, optional_ctid)
-                        sql_code_final += SQLLogic.ratio_track(origin_dict, [sc], current_dict,
-                                                               to_join_dict,
+                    _, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                    if bool(origin_ctid):
+                        to_join_dict[sc] = (name, origin_ctid)
+                        sql_code_final += SQLLogic.ratio_track(origin_dict, [sc], current_dict, to_join_dict,
                                                                threshold, only_passed=only_passed)
 
         return sql_code_final

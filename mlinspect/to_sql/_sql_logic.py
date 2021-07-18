@@ -149,27 +149,8 @@ class SQLLogic:
         return final_cte_name, sql_code
 
     @staticmethod
-    def get_tracking_cols(columns, table_name=""):
-        addition = ""
-        if table_name != "":
-            addition = table_name + "."
-        columns_track = SQLLogic.get_tracking_cols_raw(columns)
-        if columns_track:
-            return ", " + addition + f', {addition}'.join(SQLLogic.get_tracking_cols_raw(columns))
-        return ""
-
-    @staticmethod
-    def get_tracking_cols_raw(columns):
-        raise NotImplementedError
-        return [x for x in columns if "ctid" in x]
-
-    @staticmethod
-    def get_non_tracking_cols_raw(columns):
-        raise NotImplementedError
-        return [x for x in columns if "ctid" not in x]
-
-    @staticmethod
     def __column_ratio(table, column_name, prefix=""):
+        column_name = column_name.replace("\"", "")
         return f"{prefix}_ratio_{column_name} AS (\n" \
                f"\tSELECT {column_name}, (count(*) * 1.0 / (select count(*) FROM {table})) AS ratio\n" \
                f"\tFROM {table} \n" \
@@ -182,7 +163,8 @@ class SQLLogic:
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
         if ctid_col:
-            return f"{prefix}_ratio_{column_name} AS (\n" \
+            column_name_title = column_name.replace("\"", "")
+            return f"{prefix}_ratio_{column_name_title} AS (\n" \
                    f"\tSELECT tb_orig.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
                    f"\tFROM {table_new} tb_curr " \
                    f"JOIN {table_orig} tb_orig " \
@@ -198,6 +180,7 @@ class SQLLogic:
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
+        column_name = column_name.replace("\"", "")
         cte_name = f"overview_{column_name}_{table_new}"
         return cte_name, f"{cte_name} AS (\n" \
                          f"\tSELECT n.{column_name}, n.ratio AS ratio_new, o.ratio AS ratio_original \n" \
@@ -212,7 +195,8 @@ class SQLLogic:
         (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
-        cte_name = f"overview_{column_name}_{table_new}"
+        column_name_title = column_name.replace("\"", "")
+        cte_name = f"overview_{column_name_title}_{table_new}"
         return cte_name, f"{cte_name} AS (\n" \
                          f"\tSELECT SUM(CASE WHEN ABS(n.ratio - o.ratio) < ABS({threshold}) THEN 1 ELSE 0 END) " \
                          f"= count(*) AS " \
@@ -272,7 +256,7 @@ class SQLLogic:
                 from_block += f"{n}, "
             sql_code = sql_code[:-2]
             from_block = from_block[:-2]
-            sql_code += f"\nFROM {from_block};"
+            sql_code += f"\nFROM {from_block};\n"
         else:
             raise NotImplementedError
 
