@@ -300,15 +300,15 @@ def full_adult_complex(one_pass=False):
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # example_adult_complex(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
-    #
-    # t0 = time.time()
-    # example_adult_complex(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    t0 = time.time()
+    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
@@ -316,5 +316,5 @@ def full_adult_complex(one_pass=False):
 if __name__ == "__main__":
     # full_healthcare(one_pass=False)
     # full_compas(one_pass=False)
-    full_adult_simple(one_pass=False)
-    # full_adult_complex(one_pass=False)
+    # full_adult_simple(one_pass=False)
+    full_adult_complex(one_pass=False)

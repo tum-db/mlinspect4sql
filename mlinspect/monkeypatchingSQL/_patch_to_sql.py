@@ -19,11 +19,11 @@ from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
-
 # Because gorillas is not able to provide the original function of comparisons e.g. (==, <, ...). It actually
 # return "<method-wrapper '__eq__' of type object at 0x21b4970>" instead
 # of a "<function pandas.core.arraylike.OpsMixin.__eq__(self, other)>" which is useless for our purposes, as
-# it can't be called, we need to backup the original pandas comparison functions:
+# it can't be called, we need to backup the original pandas comparison functions.
+# more info: https://stackoverflow.com/questions/10401935/python-method-wrapper-type
 
 backup_eq = pandas.Series.__eq__
 backup_ne = pandas.Series.__ne__
@@ -31,7 +31,6 @@ backup_lt = pandas.Series.__lt__
 backup_le = pandas.Series.__le__
 backup_gt = pandas.Series.__gt__
 backup_ge = pandas.Series.__ge__
-
 
 
 @gorilla.patches(pandas)
@@ -195,13 +194,37 @@ class DataFramePatchingSQL:
                 raise NotImplementedError("TODO: Support inplace dropna")
             backend_result = PandasBackend.after_call(operator_context, input_infos, result)
             result = backend_result.annotated_dfobject.result_data
+
+            # TO_SQL: ###############################################################################################
+            # Cant use "DELETE", as not table, nee to do a selection.
+
+            name, ti = singleton.mapping.get_name_and_ti(self)
+            columns_without_tracking = ti.non_tracking_cols
+
+            sql_code = f"SELECT *\n" \
+                       f"FROM {name} \n" \
+                       f"WHERE NOT ({' OR '.join([f'{x} IS NULL' for x in columns_without_tracking])})"
+
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+                                                                     tracking_cols=ti.tracking_cols,
+                                                                     non_tracking_cols_addition=columns_without_tracking,
+                                                                     operation_type=OperatorType.SELECTION)
+
+            # print(sql_code + "\n")
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, ti.non_tracking_cols)
+
+            # TO_SQL DONE! ##########################################################################################
+
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
                                operator_context,
                                DagNodeDetails("dropna", list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=columns_without_tracking
+                                                                         ))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
@@ -472,7 +495,10 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result))
+                         singleton.update_hist.sql_update_backend_result(backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=columns_without_tracking
+                                                                         ))
 
             # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
