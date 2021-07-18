@@ -433,7 +433,7 @@ class DataFramePatchingSQL:
 
                 select_list = []
                 for s in string_columns:
-                    select_list.append(f"REGEXP_REPLACE({s},\'\\b{to_replace}\\b\',\'{value}\') AS {s}")
+                    select_list.append(f"REGEXP_REPLACE({s},\'\\y{to_replace}\\y\',\'{value}\') AS {s}")
 
                 sql_code = f"SELECT {', '.join(non_string_columns)}{',' if len(non_string_columns) > 0 else ''} " \
                            f"{', '.join(select_list)}\n" \
