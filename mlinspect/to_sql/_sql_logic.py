@@ -150,6 +150,9 @@ class SQLLogic:
 
     @staticmethod
     def __column_ratio(table, column_name, prefix=""):
+        """
+        Here the query for the original ratio of the values inside the passed column is provided.
+        """
         column_name = column_name.replace("\"", "")
         return f"{prefix}_ratio_{column_name} AS (\n" \
                f"\tSELECT {column_name}, (count(*) * 1.0 / (select count(*) FROM {table})) AS ratio\n" \
@@ -158,26 +161,22 @@ class SQLLogic:
                "),\n"
 
     @staticmethod
-    def __column_ratio_current(table_orig, table_new, column_name, prefix, ctid_col=None):
+    def __column_ratio_current(table_orig, table_new, column_name, prefix, join_ctid):
         """
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
-        if ctid_col:
-            column_name_title = column_name.replace("\"", "")
-            return f"{prefix}_ratio_{column_name_title} AS (\n" \
-                   f"\tSELECT tb_orig.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
-                   f"\tFROM {table_new} tb_curr " \
-                   f"JOIN {table_orig} tb_orig " \
-                   f"ON tb_curr.{ctid_col}=tb_orig.{ctid_col}\n" \
-                   f"\tGROUP BY tb_orig.{column_name}\n" \
-                   "),\n"
-        return SQLLogic.__column_ratio(table_new, column_name, prefix)
+        column_name_title = column_name.replace("\"", "")
+        return f"{prefix}_ratio_{column_name_title} AS (\n" \
+               f"\tSELECT tb_orig.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
+               f"\tFROM {table_new} tb_curr " \
+               f"JOIN {table_orig} tb_orig " \
+               f"ON tb_curr.{join_ctid}=tb_orig.{join_ctid}\n" \
+               f"\tGROUP BY tb_orig.{column_name}\n" \
+               "),\n"
 
     @staticmethod
-    def __overview_table(table_new, column_name, prefix_original="original", prefix_current="current"):
+    def __overview_ratio(table_new, column_name, prefix_original="original", prefix_current="current"):
         """
-        Creates the lookup_table to cope with possible projections.
-        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
         column_name = column_name.replace("\"", "")
@@ -189,10 +188,8 @@ class SQLLogic:
                          f"ON o.{column_name} = n.{column_name})"
 
     @staticmethod
-    def __no_bias(table_new, column_name, threshold, prefix_original="original", prefix_current="current"):
+    def __overview_bias(table_new, column_name, threshold, prefix_original="original", prefix_current="current"):
         """
-        Creates the lookup_table to cope with possible projections.
-        (Attention: Does not respect renaming of columns - as mlinspect doesn't)
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
         column_name_title = column_name.replace("\"", "")
@@ -201,66 +198,109 @@ class SQLLogic:
                          f"\tSELECT SUM(CASE WHEN ABS(n.ratio - o.ratio) < ABS({threshold}) THEN 1 ELSE 0 END) " \
                          f"= count(*) AS " \
                          f"no_bias_introduced_flag\n" \
-                         f"\tFROM {prefix_current}_ratio_{column_name} n " \
-                         f"RIGHT JOIN {prefix_original}_ratio_{column_name} o " \
+                         f"\tFROM {prefix_current}_ratio_{column_name_title} n " \
+                         f"RIGHT JOIN {prefix_original}_ratio_{column_name_title} o " \
                          f"ON o.{column_name} = n.{column_name}\n),\n"
 
+    # @staticmethod
+    # def ratio_track(origin_dict, column_names, current_dict, join_dict, threshold, only_passed=True):
+    #     """
+    #     Creates the full query for the overview of the change in ratio of a certain attribute.
+    #
+    #     Args:
+    #         origin_dict: Dictionary with all the origin tables of the single attributes.
+    #         column_names: The column names of which we want to have the ratio comparison
+    #         current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
+    #             new ratio we want to check.
+    #         join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
+    #         threshold: Threshold for which the bias is considered not a problem.
+    #         only_passed(bool): Returns just true or false, representing if a bias with the given threshold
+    #             was introduced.
+    #     Return:
+    #          None -> see stdout
+    #
+    #     Note:
+    #     supports column renaming -> in case the dict contains one.
+    #     """
+    #     sql_code = ""
+    #     last_cte_names = []
+    #
+    #     for i in column_names:
+    #         ctid_col = None
+    #         table_orig = origin_dict[i]
+    #         if i in current_dict.keys():
+    #             table_curr = current_dict[i]
+    #         else:
+    #             table_curr, ctid_col = join_dict[i]
+    #         sql_code += SQLLogic.__column_ratio(table_orig, column_name=i, prefix="original")
+    #         sql_code += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i,
+    #                                                     prefix="current", ctid_col=ctid_col)
+    #         cte_name, sql_code_addition = SQLLogic.__no_bias(table_new=table_curr, column_name=i, threshold=threshold)
+    #
+    #         sql_code += sql_code_addition
+    #         last_cte_names.append(cte_name)
+    #
+    #     sql_code = sql_code[:-2]  # remove the last comma!
+    #     # # Write the code for each column of interest to the corresponding file:
+    #     # for i in column_names:
+    #     #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
+    #
+    #     if only_passed:
+    #         sql_code += "\nSELECT "
+    #         from_block = ""
+    #         for n in last_cte_names:
+    #             sql_code += f"{n}.no_bias_introduced_flag, "
+    #             from_block += f"{n}, "
+    #         sql_code = sql_code[:-2]
+    #         from_block = from_block[:-2]
+    #         sql_code += f"\nFROM {from_block};\n"
+    #     else:
+    #         raise NotImplementedError
+    #
+    #     return sql_code
+
     @staticmethod
-    def ratio_track(origin_dict, column_names, current_dict, join_dict, threshold, only_passed=True):
+    def ratio_track(origin_table: str, current_table: str, column_name: str, threshold: float, join_ctid: str = None):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
         Args:
-            origin_dict: Dictionary with all the origin tables of the single attributes.
-            column_names: The column names of which we want to have the ratio comparison
-            current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
-                new ratio we want to check.
-            join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
+            origin_table:
+            current_table:
+            column_name:
+            join_ctid: If a join needs to be performed to make the comparison.
             threshold: Threshold for which the bias is considered not a problem.
-            only_passed(bool): Returns just true or false, representing if a bias with the given threshold
-                was introduced.
+            only_passed(bool): makes the query just return true or false, representing if a bias with the given
+                threshold was introduced.
         Return:
-             None -> see stdout
-
+            (<sql_code>, <new_object_name>) the generated code, as well as
         Note:
         supports column renaming -> in case the dict contains one.
         """
-        sql_code = ""
-        last_cte_names = []
 
-        for i in column_names:
-            ctid_col = None
-            table_orig = origin_dict[i]
-            if i in current_dict.keys():
-                table_curr = current_dict[i]
-            else:
-                table_curr, ctid_col = join_dict[i]
-            sql_code += SQLLogic.__column_ratio(table_orig, column_name=i, prefix="original")
-            sql_code += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i,
-                                                        prefix="current", ctid_col=ctid_col)
-            cte_name, sql_code_addition = SQLLogic.__no_bias(table_new=table_curr, column_name=i, threshold=threshold)
+        sql_code = SQLLogic.__column_ratio(origin_table, column_name=column_name, prefix="original")
 
-            sql_code += sql_code_addition
-            last_cte_names.append(cte_name)
-
-        sql_code = sql_code[:-2]  # remove the last comma!
-        # # Write the code for each column of interest to the corresponding file:
-        # for i in column_names:
-        #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
-
-        if only_passed:
-            sql_code += "\nSELECT "
-            from_block = ""
-            for n in last_cte_names:
-                sql_code += f"{n}.no_bias_introduced_flag, "
-                from_block += f"{n}, "
-            sql_code = sql_code[:-2]
-            from_block = from_block[:-2]
-            sql_code += f"\nFROM {from_block};\n"
+        if join_ctid:
+            sql_code += SQLLogic.__column_ratio_current(origin_table, table_new=current_table, column_name=column_name,
+                                                        prefix="current", join_ctid=join_ctid)
         else:
-            raise NotImplementedError
+            sql_code += SQLLogic.__column_ratio(current_table, column_name=column_name, prefix="current")
 
-        return sql_code
+        cte_name, sql_code_addition = SQLLogic.__overview_bias(table_new=current_table, column_name=column_name,
+                                                               threshold=threshold)
+
+        return cte_name, sql_code + sql_code_addition
+
+    @staticmethod
+    def ratio_track_final_selection(sql_ratio_obj_names: list):
+        sql_code = "\nSELECT "
+        from_block = ""
+        for n in sql_ratio_obj_names:
+            sql_code += f"{n}.no_bias_introduced_flag, "
+            from_block += f"{n}, "
+        sql_code = sql_code[:-2]
+        from_block = from_block[:-2]
+        sql_code += f"\nFROM {from_block};\n"
 
     @staticmethod
     def create_indexed_table(table_name):

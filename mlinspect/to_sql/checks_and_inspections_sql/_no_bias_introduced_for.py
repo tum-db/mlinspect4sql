@@ -31,31 +31,30 @@ class SQLNoBiasIntroducedFor:
 
         sensitive_columns = [f"\"{x}\"" for x in sensitive_columns]
         sql_code_final = ""
+        sql_obj_final = []  # The sql objects (cte, view) containing the bias result.
         for sc in sensitive_columns:
             """
             For each sc we need to find the most "recent" SQL object(CTE or VIEW), that contains either the column, or
             the ctid that allows to measure the column ratio!  
             """
-            origin_dict = {}
-            current_dict = {}
-            to_join_dict = {}
 
             for (name, ti) in self.mapping.mapping:
 
                 if sc in ti.non_tracking_cols:  # check if part of "normal" columns
                     origin_table, _ = self.mapping.get_origin_table(sc, ti.tracking_cols)
-                    origin_dict[sc] = origin_table
-                    current_dict[sc] = name
-                    sql_code_final += SQLLogic.ratio_track(origin_dict, [sc], current_dict, to_join_dict,
-                                                           threshold, only_passed=only_passed)
+
+                    cte_name, sql_code = SQLLogic.ratio_track(origin_table, name, sc, threshold=threshold)
+                    sql_obj_final.append(cte_name)
+                    sql_code_final += sql_code
                 else:
                     # check if a possible ratio over the ctid could be calculated:
                     _, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
                     if bool(origin_ctid):
-                        to_join_dict[sc] = (name, origin_ctid)
-                        sql_code_final += SQLLogic.ratio_track(origin_dict, [sc], current_dict, to_join_dict,
-                                                               threshold, only_passed=only_passed)
+                        cte_name, sql_code = SQLLogic.ratio_track(origin_table, name, sc, threshold=threshold,
+                                                                  join_ctid=origin_ctid)
+                        sql_obj_final.append(cte_name)
+                        sql_code_final += sql_code
 
-        return sql_code_final
+        return sql_code_final + "\n" + SQLLogic.ratio_track_final_selection(sql_obj_final)
 
         # TO_SQL DONE! ##########################################################################################
