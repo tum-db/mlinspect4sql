@@ -1042,7 +1042,7 @@ class SeriesPatchingSQL:
     @gorilla.settings(allow_hit=True)
     def patched__le__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__le__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("<=", self, args, backup_le, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<=", self, args, backup_le, rop=False)
         return execute_patched_func(backup_le, execute_inspections, self, *args, **kwargs)
 
     ################
@@ -1098,6 +1098,8 @@ class SeriesPatchingSQL:
         else:
             right = args[0]
             result = original(self=left, other=right)
+
+        print()
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)

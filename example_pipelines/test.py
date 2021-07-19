@@ -232,6 +232,7 @@ def full_healthcare(one_pass=False):
 
 
 def full_compas(one_pass=False):
+
     t0 = time.time()
     example_compas(to_sql=False, reset=True)
     t1 = time.time()
