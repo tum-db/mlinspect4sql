@@ -164,7 +164,8 @@ def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=
 
 
 def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector=None, reset=False):
-    ADULT_COMPLEX_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex", "adult_complex.py")
+    ADULT_COMPLEX_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex",
+                                         "adult_complex.py")
 
     inspector_result = PipelineInspector \
         .on_pipeline_from_py_file(ADULT_COMPLEX_FILE_PY) \
@@ -212,12 +213,6 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
 
 
 def full_healthcare(one_pass=False):
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                      umbra_dir=umbra_path)
-
-    dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
-                                           host="localhost")
     t0 = time.time()
     example_one(to_sql=False, reset=True)
     t1 = time.time()
@@ -237,12 +232,6 @@ def full_healthcare(one_pass=False):
 
 
 def full_compas(one_pass=False):
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                      umbra_dir=umbra_path)
-
-    dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
-                                           host="localhost")
     t0 = time.time()
     example_compas(to_sql=False, reset=True)
     t1 = time.time()
@@ -262,13 +251,6 @@ def full_compas(one_pass=False):
 
 
 def full_adult_simple(one_pass=False):
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                      umbra_dir=umbra_path)
-
-    dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
-                                           port=5432,
-                                           host="localhost")
     t0 = time.time()
     example_adult_simple(to_sql=False, reset=True)
     t1 = time.time()
@@ -288,13 +270,6 @@ def full_adult_simple(one_pass=False):
 
 
 def full_adult_complex(one_pass=False):
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                      umbra_dir=umbra_path)
-
-    dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
-                                           port=5432,
-                                           host="localhost")
     t0 = time.time()
     example_adult_complex(to_sql=False, reset=True)
     t1 = time.time()
@@ -312,6 +287,14 @@ def full_adult_complex(one_pass=False):
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
+
+umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+                                  umbra_dir=umbra_path)
+
+dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
+                                       port=5432,
+                                       host="localhost")
 
 if __name__ == "__main__":
     # full_healthcare(one_pass=False)
