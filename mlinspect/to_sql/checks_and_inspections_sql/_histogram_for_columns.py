@@ -70,8 +70,7 @@ class SQLHistogramForColumns:
                     pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
                     sc_hist_result = self.dbms_connector.run(
                         self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
-                    new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
-                                    zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
+                    new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
                     self.current_hist[sc] = new_dict[sc]
                     continue
                 elif is_input_data_source:

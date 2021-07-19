@@ -12,10 +12,10 @@ from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binariz
 
 from mlinspect.utils import get_project_root
 
-train_file = os.path.join(str(get_project_root()), "example_pipelines", "compas", "compas_train.csv")
+train_file = os.path.join(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/compas_train_generated_10000.csv")
 train_data = pd.read_csv(train_file, na_values='', index_col=0)
 
-test_file = os.path.join(str(get_project_root()), "example_pipelines", "compas", "compas_test.csv")
+test_file = os.path.join(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/compas_test_generated_10000.csv")
 test_data = pd.read_csv(test_file, na_values='', index_col=0)
 
 train_data = train_data[

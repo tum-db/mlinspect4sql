@@ -22,6 +22,7 @@ class UmbraConnector(Connector):
             3) Optional: Create User
             3) create a db file with: "./bin/sql -createdb <dbname>"
             4) Start server (with data base): "./build/server /path/to/<dbname> -port=5433 -address=localhost"
+                Start server (with new base): "./build/server "" -port=5433 -address=localhost"
             5) Confirm it is running: "sudo netstat -lntup | grep '5433\\|5432'"
             6) Connect with arguments below: - In terminal: "psql -h /tmp -p 5433 -U postgres"
                 db_name: "healthcare_benchmark"
@@ -56,8 +57,6 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            if "REGEXP_REPLACE" in q:
-                q = q.replace("\\y", "\\b")
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())

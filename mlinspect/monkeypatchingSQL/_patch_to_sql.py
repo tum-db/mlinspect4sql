@@ -471,7 +471,7 @@ class DataFramePatchingSQL:
 
                 select_list = []
                 for s in string_columns:
-                    select_list.append(f"REGEXP_REPLACE({s},\'\\y{to_replace}\\y\',\'{value}\') AS {s}")
+                    select_list.append(f"REGEXP_REPLACE({s},\'^{to_replace}$\',\'{value}\') AS {s}")
 
                 sql_code = f"SELECT {', '.join(non_string_columns)}{',' if len(non_string_columns) > 0 else ''} " \
                            f"{', '.join(select_list)}\n" \
@@ -1007,35 +1007,35 @@ class SeriesPatchingSQL:
     @gorilla.settings(allow_hit=True)
     def patched__ne__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ne__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("!=", self, args, backup_ne, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("!=", self, args, backup_ne, rop=False)
         return execute_patched_func(backup_ne, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__eq__')
-    @gorilla.settings(allow_hit=True, store_hit=True)
+    @gorilla.settings(allow_hit=True)
     def patched__eq__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__eq__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("==", self, args, backup_eq, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("==", self, args, backup_eq, rop=False)
         return execute_patched_func(backup_eq, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__gt__')
     @gorilla.settings(allow_hit=True)
     def patched__gt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__gt__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper(">", self, args, backup_gt, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">", self, args, backup_gt, rop=False)
         return execute_patched_func(backup_gt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__ge__')
     @gorilla.settings(allow_hit=True)
     def patched__ge__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ge__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper(">=", self, args, backup_ge, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">=", self, args, backup_ge, rop=False)
         return execute_patched_func(backup_ge, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__lt__')
     @gorilla.settings(allow_hit=True)
     def patched__lt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__lt__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("<", self, args, backup_lt, rop=True)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<", self, args, backup_lt, rop=False)
         return execute_patched_func(backup_lt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__le__')
@@ -1103,15 +1103,3 @@ class SeriesPatchingSQL:
             return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)
 
         return execute_inspections
-
-    @staticmethod
-    def __help_set_right_compare(left, args):
-        """
-        Helps to transform the value to which is compared to a pandas.Series if needed.
-        For example "ds1 < 3" => "ds1 < ds_of_3"
-        """
-        assert (len(args) == 1)
-        right = args[0]
-        if not isinstance(right, pandas.Series):  # => need transformation, to avoid self call
-            right = pandas.Series([right]).repeat(left.size)  #
-        return left, right.reset_index(drop=True)
