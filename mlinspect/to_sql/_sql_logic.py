@@ -1,30 +1,36 @@
 import pandas
-from mlinspect.utils import get_project_root
 from mlinspect.inspections._inspection_input import OperatorType
-from mlinspect.to_sql.py_to_sql_mapping import TableInfo, DfToStringMapping, OpTree
-from mlinspect.to_sql.sql_query_container import SQLQueryContainer
+from mlinspect.to_sql.py_to_sql_mapping import TableInfo, OpTree, sql_obj_prefix
+from mlinspect.to_sql._mode import SQLObjRep
 
 
 class SQLLogic:
     first_with = True
     id = 1
 
-    def __init__(self, mapping, pipeline_container):
+    def __init__(self, mapping, pipeline_container, dbms_connector, sql_obj):
         self.mapping = mapping
         self.pipeline_container = pipeline_container
+        self.sql_obj = sql_obj
+        self.dbms_connector = dbms_connector
 
-    def wrap_in_with(self, sql_code, lineno, with_block_name=""):
+    def wrap_in_sql_obj(self, sql_code, lineno, block_name=""):
         """
-        Wrappes the passed sql code in a WITH... AS block. Takes into account, that WITH only needs to be used once.
+        Wraps the passed sql code in a WITH... AS or VIEW block. Takes into account, that WITH only needs to be
+        used once.
         """
-        if with_block_name == "":
-            with_block_name = f"with_{lineno}_{self.get_unique_id()}"
+        if block_name == "":
+            block_name = f"{sql_obj_prefix}_{lineno}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
-        sql_code = f"{with_block_name} AS (\n\t{sql_code}\n)"
-        if self.first_with:
-            sql_code = "WITH " + sql_code
-            self.first_with = False
-        return with_block_name, sql_code
+        if self.sql_obj.mode == SQLObjRep.CTE:
+            sql_code = f"{block_name} AS (\n\t{sql_code}\n)"
+            if self.first_with:
+                sql_code = "WITH " + sql_code
+                self.first_with = False
+        elif self.sql_obj.mode == SQLObjRep.VIEW:
+            sql_code = f"CREATE VIEW {block_name} AS (\n\t{sql_code}\n);\n"
+
+        return block_name, sql_code
 
     def get_unique_id(self):
         self.id += 1
@@ -134,7 +140,7 @@ class SQLLogic:
     def finish_sql_call(self, sql_code, lineno, result, tracking_cols, non_tracking_cols_addition, operation_type,
                         origin_context=None,
                         cte_name=""):
-        final_cte_name, sql_code = self.wrap_in_with(sql_code, lineno, with_block_name=cte_name)
+        final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, lineno, block_name=cte_name)
         if isinstance(result, pandas.Series):
             non_tracking_cols = f"\"{result.name}\""
         else:
@@ -145,6 +151,10 @@ class SQLLogic:
                                    operation_type=operation_type,
                                    origin_context=origin_context)
         self.mapping.add(final_cte_name, mapping_result)
+
+        if self.sql_obj.mode == SQLObjRep.VIEW:
+            self.dbms_connector.run(sql_code)  # Create the view.
+
         # print(sql_code + "\n")
         return final_cte_name, sql_code
 

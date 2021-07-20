@@ -56,7 +56,7 @@ class PostgresqlConnector(Connector):
                                                                              add_mlinspect_serial=True)
 
         create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
-        self.run(f"DROP TABLE IF EXISTS {table_name};")
+        self.run(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
         self.run(sql_code)
         self.run(create_index)
         return col_names, sql_code + "\n" + create_index

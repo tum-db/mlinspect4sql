@@ -19,7 +19,7 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 # import tensorflow as tf
 # tf.logging.set_verbosity(tf.logging.ERROR)
 
-def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, reset=False):
+def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, mode=None, materialize=None):
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
 
     inspector_result = PipelineInspector \
@@ -33,10 +33,9 @@ def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, re
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset,
-                                                           sql_one_run=sql_one_run)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode, materialize=materialize)
     else:
-        inspector_result = inspector_result.execute(reset_state=reset)
+        inspector_result = inspector_result.execute()
 
     if despite:
         extracted_dag = inspector_result.dag
@@ -68,7 +67,7 @@ def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, re
                 print(distribution_change.before_and_after_df.to_markdown())
 
 
-def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, reset=False):
+def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, mode=None):
     COMPAS_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "compas", "compas.py")
 
     inspector_result = PipelineInspector \
@@ -80,10 +79,9 @@ def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, 
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset,
-                                                           sql_one_run=sql_one_run)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
     else:
-        inspector_result = inspector_result.execute(reset_state=reset)
+        inspector_result = inspector_result.execute()
 
     if despite:
         extracted_dag = inspector_result.dag
@@ -115,7 +113,7 @@ def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, 
                 print(distribution_change.before_and_after_df.to_markdown())
 
 
-def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=None, reset=False):
+def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=None, mode=None):
     ADULT_SIMPLE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_simple", "adult_simple.py")
 
     inspector_result = PipelineInspector \
@@ -128,10 +126,9 @@ def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset,
-                                                           sql_one_run=sql_one_run)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
     else:
-        inspector_result = inspector_result.execute(reset_state=reset)
+        inspector_result = inspector_result.execute()
 
     if despite:
         extracted_dag = inspector_result.dag
@@ -163,7 +160,7 @@ def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=
                 print(distribution_change.before_and_after_df.to_markdown())
 
 
-def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector=None, reset=False):
+def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector=None, mode=None):
     ADULT_COMPLEX_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex",
                                          "adult_complex.py")
 
@@ -177,10 +174,9 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, reset_state=reset,
-                                                           sql_one_run=sql_one_run)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
     else:
-        inspector_result = inspector_result.execute(reset_state=reset)
+        inspector_result = inspector_result.execute()
 
     if despite:
         extracted_dag = inspector_result.dag
@@ -212,77 +208,76 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
                 print(distribution_change.before_and_after_df.to_markdown())
 
 
-def full_healthcare(one_pass=False):
+def full_healthcare(one_pass=False, mode="", materialize=None):
     t0 = time.time()
-    example_one(to_sql=False, reset=True)
+    example_one(to_sql=False)
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
+    example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
+    example_one(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-def full_compas(one_pass=False):
-
+def full_compas(one_pass=False, mode=""):
     t0 = time.time()
-    example_compas(to_sql=False, reset=True)
+    example_compas(to_sql=False)
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # example_compas(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    example_compas(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_compas(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
+    example_compas(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-def full_adult_simple(one_pass=False):
+def full_adult_simple(one_pass=False, mode=""):
     t0 = time.time()
-    example_adult_simple(to_sql=False, reset=True)
+    example_adult_simple(to_sql=False)
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
-    example_adult_simple(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
+    example_adult_simple(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_adult_simple(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
+    example_adult_simple(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-def full_adult_complex(one_pass=False):
+def full_adult_complex(one_pass=False, mode=""):
     t0 = time.time()
-    example_adult_complex(to_sql=False, reset=True)
+    example_adult_complex(to_sql=False)
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
-    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_u, reset=True, sql_one_run=one_pass)
+    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_p, reset=True, sql_one_run=one_pass)
+    example_adult_complex(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
@@ -298,7 +293,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    # full_healthcare(one_pass=False)
-    full_compas(one_pass=False)
-    # full_adult_simple(one_pass=False)
-    # full_adult_complex(one_pass=False)
+    full_healthcare(one_pass=False, mode="VIEW", materialize=True)
+    # full_compas(one_pass=False, mode="CTE")
+    # full_adult_simple(one_pass=False, mode="VIEW")
+    # full_adult_complex(one_pass=False, mode="CTE")

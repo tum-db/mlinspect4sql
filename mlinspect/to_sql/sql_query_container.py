@@ -1,13 +1,16 @@
 import os
+from mlinspect.to_sql._mode import SQLObjRep, SQLMode
 
 
 class SQLQueryContainer:
     """ Container class that holds the entire pipeline up until current code.
     """
 
-    def __init__(self, root_dir_to_sql, write_to_file=True):
+    def __init__(self, root_dir_to_sql, sql_obj: SQLMode, write_to_file=True):
         self.pipeline_query = []
         self.write_to_file = write_to_file
+
+        self.sql_obj = sql_obj
 
         # Filenames of the files that will work as container for the pipeline translation.
         self.file_path_pipe = root_dir_to_sql / "pipeline.sql"
@@ -15,7 +18,8 @@ class SQLQueryContainer:
         self.root_dir_to_sql = root_dir_to_sql
 
     def get_pipe_without_selection(self):
-        return ",\n".join(self.pipeline_query[:-1]).strip()
+        assert self.sql_obj.mode == SQLObjRep.CTE  # only then this op makes sense
+        return f",\n".join(self.pipeline_query[:-1]).strip()
 
     def add_statement_to_pipe(self, last_cte_name, sql_code, cols_to_keep):
         """
@@ -45,19 +49,40 @@ class SQLQueryContainer:
         if len(file_name.split(".")) == 1:
             file_name = file_name + ".sql"
         path = self.root_dir_to_sql / file_name
-        SQLQueryContainer.__del_select_line(path)
+        SQLQueryContainer.__del_select_line(path, self.sql_obj.mode == SQLObjRep.CTE)
         with path.open(mode="a")as file:
             file.write(sql_code)
         SQLQueryContainer.__add_select_line(path, last_cte_name)
 
     def __write_to_pipe_query(self, last_cte_name, sql_code, cols_to_keep):
-        SQLQueryContainer.__del_select_line(self.file_path_pipe)
+        SQLQueryContainer.__del_select_line(self.file_path_pipe, self.sql_obj.mode == SQLObjRep.CTE)
         with self.file_path_pipe.open(mode="a") as file:
             file.write(sql_code)
         return SQLQueryContainer.__add_select_line(self.file_path_pipe, last_cte_name, cols_to_keep)
 
+    def get_last_query_materialize(self, sql_obj_to_materialize, cols_to_keep):
+        """
+        This function return the code and sql_obj name to materialize the passed view, by creating a materialized one
+        and changing the name in the mapping to the new one.
+        """
+        assert (self.sql_obj.mode == SQLObjRep.VIEW and self.sql_obj.materialize)  # only then this op makes sense
+        for i, query in enumerate(self.pipeline_query):
+            creation_stmt = query.split("AS")[0]
+            if sql_obj_to_materialize in creation_stmt:  # This is the statements, that created the view.
+                if "MATERIALIZED" in creation_stmt:
+                    return None
+                new_name = sql_obj_to_materialize + "_materialized"
+                new_view_query = query.replace("CREATE VIEW", "CREATE MATERIALIZED VIEW")
+                new_view_query = new_view_query.replace(sql_obj_to_materialize, new_name)
+                self.pipeline_query[i] = new_view_query
+
+                self.__write_to_pipe_query(new_name, sql_code=new_view_query, cols_to_keep=cols_to_keep)
+
+                return new_view_query, new_name
+        assert False
+
     @staticmethod
-    def __del_select_line(path, add_comma=True):
+    def __del_select_line(path, add_comma):
         """
         Delestes the last line and add a comma (",")
         Note:

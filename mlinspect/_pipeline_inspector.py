@@ -78,7 +78,7 @@ class PipelineInspectorBuilder:
         self.monkey_patching_modules.append(module)
         return self
 
-    def execute(self, reset_state=False) -> InspectorResult:
+    def execute(self) -> InspectorResult:
         """
         Instrument and execute the pipeline
         """
@@ -87,12 +87,16 @@ class PipelineInspectorBuilder:
                              python_code=self.python_code,
                              inspections=self.inspections,
                              checks=self.checks,
-                             reset_state=reset_state,
                              custom_monkey_patching=self.monkey_patching_modules)
 
-    def execute_in_sql(self, dbms_connector, sql_one_run=False, reset_state=False) -> InspectorResult:
+    def execute_in_sql(self, dbms_connector: Connector, sql_one_run=False, mode="CTE", materialize=False) -> InspectorResult:
         """
         Instrument and execute the pipeline
+        Args:
+            dbms_connector(Connector): API for operating the DBMS.
+            sql_one_run(bool): Only one inspection of entire pipeline. Faster, but does not pinpoint error.
+            mode(str): Available: "CTE" or "VIEW"
+            materialize(bool): If the mode is "VIEW" this option will tell the DBMS to materialize the interim result.
         """
         assert(isinstance(dbms_connector, Connector))
         return singleton.run(notebook_path=self.notebook_path,
@@ -100,9 +104,9 @@ class PipelineInspectorBuilder:
                              python_code=self.python_code,
                              inspections=self.inspections,
                              checks=self.checks,
-                             reset_state=reset_state,
                              custom_monkey_patching=self.monkey_patching_modules,
-                             to_sql=True, sql_one_run=sql_one_run, dbms_connector=dbms_connector)
+                             to_sql=True, sql_one_run=sql_one_run, dbms_connector=dbms_connector,
+                             mode=mode, materialize=materialize)
 
 
 class PipelineInspector:

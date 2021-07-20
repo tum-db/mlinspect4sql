@@ -101,7 +101,7 @@ class PandasPatchingSQL:
                                                                      tracking_cols=[tracking_column],
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.DATA_SOURCE,
-                                                                     cte_name=table_name)
+                                                                     cte_name=table_name + "_ctid")
 
             # print(sql_code + "\n")
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=col_names)
@@ -1098,8 +1098,6 @@ class SeriesPatchingSQL:
         else:
             right = args[0]
             result = original(self=left, other=right)
-
-        print()
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
             return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)

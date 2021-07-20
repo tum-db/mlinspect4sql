@@ -5,15 +5,17 @@ For the SQL run we want to make the inspections be performed on the DBMS, this c
 import pandas
 from mlinspect.backends._backend import BackendResult
 from mlinspect.inspections._histogram_for_columns import HistogramForColumns
-from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping
+from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping, is_operation_sql_obj
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 from mlinspect.inspections._inspection_input import OperatorType
+from mlinspect.to_sql._mode import SQLObjRep
 
 
 # Keep updates like this? INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
 class SQLHistogramForColumns:
-    def __init__(self, dbms_connector, mapping: DfToStringMapping, pipeline_container: SQLQueryContainer, one_run):
+    def __init__(self, dbms_connector, mapping: DfToStringMapping, pipeline_container: SQLQueryContainer, one_run,
+                 sql_obj):
         """
         Args:
             dbms_connector:
@@ -27,12 +29,17 @@ class SQLHistogramForColumns:
         self.mapping = mapping
         self.pipeline_container = pipeline_container
         self.one_run = one_run
+        self.sql_obj = sql_obj
 
     def sql_update_backend_result(self, backend_result: BackendResult,
                                   curr_sql_expr_name="",
                                   curr_sql_expr_columns=None):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
+
+        Note:
+            The sql_obj from wich we want to know the ratio, will be the ones materialized, as they are part of the
+            entire query.
         """
         # print("\n\n" + "#" * 20)
 
@@ -47,7 +54,10 @@ class SQLHistogramForColumns:
         old_dat_node_annotations = backend_result.dag_node_annotation
 
         # is_unary_operator = len(curr_sql_expr_columns) == 1
-        is_input_data_source = "with" not in curr_sql_expr_name
+        is_input_data_source = not is_operation_sql_obj(curr_sql_expr_name)
+        if is_input_data_source:
+            # Don't read from the first sql_obj, but from the origin:
+            curr_sql_expr_name = curr_sql_expr_name.replace("_ctid", "")  # This is the data_source table.
         # is_nary_operator = len(curr_sql_expr_columns) > 1
 
         for annotation in old_dat_node_annotations.keys():  # iterate in search for HistColumn inspections
@@ -67,10 +77,11 @@ class SQLHistogramForColumns:
             for sc in sensitive_columns:  # update the values based on current table.
 
                 if sc in curr_sql_expr_columns:
-                    pipe_code_addition = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
-                    sc_hist_result = self.dbms_connector.run(
-                        self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
-                    new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
+                    query = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
+                    new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
+                                                                              curr_sql_expr_name=curr_sql_expr_name,
+                                                                              curr_sql_expr_columns=curr_sql_expr_columns,
+                                                                              init=is_input_data_source)
                     self.current_hist[sc] = new_dict[sc]
                     continue
                 elif is_input_data_source:
@@ -86,16 +97,16 @@ class SQLHistogramForColumns:
                     continue
 
                 # In the case the ctid is contained, we need to join:
-                pipe_code_addition = f"SELECT tb_orig.{sc}, count(*) " \
-                                     f"FROM {curr_sql_expr_name} tb_curr " \
-                                     f"JOIN {origin_table} tb_orig " \
-                                     f"ON tb_curr.{original_ctid}=tb_orig.{original_ctid} " \
-                                     f"GROUP BY tb_orig.{sc};"
+                query = f"SELECT tb_orig.{sc}, count(*) " \
+                        f"FROM {curr_sql_expr_name} tb_curr " \
+                        f"JOIN {origin_table} tb_orig " \
+                        f"ON tb_curr.{original_ctid}=tb_orig.{original_ctid} " \
+                        f"GROUP BY tb_orig.{sc};"
 
-                sc_hist_result = self.dbms_connector.run(
-                    self.pipeline_container.get_pipe_without_selection() + "\n" + pipe_code_addition)[0]
-                new_dict[sc] = {float("nan") if str(x) == "None" else str(x): y for x, y in
-                                zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}
+                new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
+                                                                          curr_sql_expr_name=curr_sql_expr_name,
+                                                                          curr_sql_expr_columns=curr_sql_expr_columns,
+                                                                          init=is_input_data_source)
                 self.current_hist[sc] = new_dict[sc]
 
             # Update the annotation:
@@ -103,19 +114,46 @@ class SQLHistogramForColumns:
 
         return backend_result
 
+    def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False):
+        """
+        Note:
+            the reason that this function returns a tuple, is that if the view is materialized, it is saved under a
+            different name, this means, that we need to update the used name.
+        """
+        new_name = curr_sql_expr_name
+        if self.sql_obj.mode == SQLObjRep.CTE:
+            sc_hist_result = self.dbms_connector.run(
+                self.pipeline_container.get_pipe_without_selection() + "\n" + query
+            )[0]
+        else:
 
-def __get_last_table(self, column_name):
-    current_table_sc = ""
-    for m in self.mapping.mapping:  # we reverse because of the adding order -> faster match
-        table_name = m[0]
-        table_info = m[1]
-        table = table_info.data_object
-        if (isinstance(table, pandas.DataFrame) and column_name in table.columns.values) or \
-                (isinstance(table, pandas.Series) and column_name == table.name):
-            current_table_sc = table_name
-            break
-    return current_table_sc
+            if self.sql_obj.materialize and not init:
+                query_update = self.pipeline_container.get_last_query_materialize(curr_sql_expr_name,
+                                                                                  curr_sql_expr_columns)
 
-@staticmethod
-def __have_match(list1, list2):
-    return (set(list1) - set(list2)) == {}
+                if query_update:  # assert not null => materialized query was not added yet!
+                    new_view_query, new_name = query_update
+                    self.mapping.update_name(curr_sql_expr_name, new_name)
+                    # Add to the query to additionally access the materialized sql_obj.:
+                    query = new_view_query + "\n" + query.replace(curr_sql_expr_name, new_name)
+
+            sc_hist_result = self.dbms_connector.run(query)[0]
+
+        return {float("nan") if str(x) == "None" else
+                str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}, new_name
+
+    # def __get_last_table(self, column_name):
+    #     current_table_sc = ""
+    #     for m in self.mapping.mapping:  # we reverse because of the adding order -> faster match
+    #         table_name = m[0]
+    #         table_info = m[1]
+    #         table = table_info.data_object
+    #         if (isinstance(table, pandas.DataFrame) and column_name in table.columns.values) or \
+    #                 (isinstance(table, pandas.Series) and column_name == table.name):
+    #             current_table_sc = table_name
+    #             break
+    #     return current_table_sc
+    #
+    # @staticmethod
+    # def __have_match(list1, list2):
+    #     return (set(list1) - set(list2)) == {}

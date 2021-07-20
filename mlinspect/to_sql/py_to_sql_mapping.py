@@ -4,6 +4,13 @@ from mlinspect.inspections._inspection_input import OperatorType
 from dataclasses import dataclass
 import pandas
 
+sql_obj_prefix = "block"
+
+
+def is_operation_sql_obj(name):
+    length = len(sql_obj_prefix)
+    return len(name) > length and name[:length] == sql_obj_prefix
+
 
 class OpTree:
     """
@@ -76,6 +83,10 @@ class DfToStringMapping:
         _, ti = self.get_ti(old_obj)
         ti.data_object = new_obj
 
+    def update_name(self, old_name, new_name):
+        index = [x for (x, ti) in self.mapping].index(old_name)
+        self.mapping[index] = new_name, self.mapping[index][1]
+
     def get_ti_from_name(self, name_to_find: str) -> TableInfo:
         return next(ti for (n, ti) in self.mapping if n == name_to_find)
 
@@ -139,9 +150,10 @@ class DfToStringMapping:
         Returns:
              (<origin table>, <ctid>), from which the column originated. If not fround (None, None).
         """
-        origin_tup = [(x, ti) for (x, ti) in self.mapping if "with" not in x and ti.tracking_cols[0] in current_ctid_s]
+        origin_tup = [(x, ti) for (x, ti) in self.mapping if
+                      not is_operation_sql_obj(x) and ti.tracking_cols[0] in current_ctid_s]
         if len(origin_tup) == 0:
-            return None, None # in case there ist no origin -> f.e. col added
+            return None, None  # in case there ist no origin -> f.e. col added
         # In case multiple ctid were present, find the origin of the passed column:
         for orig_t, orig_ti in origin_tup:
             if column_name in orig_ti.non_tracking_cols:
