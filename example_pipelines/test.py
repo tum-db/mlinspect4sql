@@ -214,10 +214,10 @@ def full_healthcare(one_pass=False, mode="", materialize=None):
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    t0 = time.time()
-    example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
     example_one(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
@@ -293,7 +293,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    full_healthcare(one_pass=False, mode="VIEW", materialize=True)
+    full_healthcare(one_pass=False, mode="CTE", materialize=False)
     # full_compas(one_pass=False, mode="CTE")
     # full_adult_simple(one_pass=False, mode="VIEW")
     # full_adult_complex(one_pass=False, mode="CTE")
