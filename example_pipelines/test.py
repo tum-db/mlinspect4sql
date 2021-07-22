@@ -208,6 +208,55 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
                 print(distribution_change.before_and_after_df.to_markdown())
 
 
+def example_row_wise(to_sql, despite=True, sql_one_run=True, dbms_connector=None, mode=None, materialize=None):
+    ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex",
+                                         "adult_complex.py")
+
+    inspector_result = PipelineInspector \
+        .on_pipeline_from_py_file(ROW_WISE_FILE_PY) \
+        .add_check(NoBiasIntroducedFor(["race", "age_group"])) \
+        .add_check(NoIllegalFeatures()) \
+        .add_check(NoMissingEmbeddings()) \
+        .add_required_inspection(RowLineage(5)) \
+        .add_required_inspection(MaterializeFirstOutputRows(5))
+
+    if to_sql:
+        assert (dbms_connector)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode, materialize=materialize)
+    else:
+        inspector_result = inspector_result.execute()
+
+    if despite:
+        extracted_dag = inspector_result.dag
+
+        filename = os.path.join(str(get_project_root()), "demo", "feature_overview", "healthcare.png")
+        from mlinspect.visualisation import save_fig_to_path
+        from PIL.Image import Image
+        save_fig_to_path(extracted_dag, filename)
+
+        from PIL import Image
+        import matplotlib.pyplot as plt
+        im = Image.open(filename)
+        plt.imshow(im)
+        plt.waitforbuttonpress()
+
+        dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
+        check_results = inspector_result.check_to_check_results
+        no_bias_check_result = check_results[NoBiasIntroducedFor(["race", "age_group"])]
+
+        distribution_changes_overview_df = NoBiasIntroducedFor.get_distribution_changes_overview_as_df(
+            no_bias_check_result)
+        print(distribution_changes_overview_df.to_markdown())
+
+        for i in list(no_bias_check_result.bias_distribution_change.items()):
+            _, join_distribution_changes = i
+            for column, distribution_change in join_distribution_changes.items():
+                print("")
+                print(f"\033[1m Column '{column}'\033[0m")
+                print(distribution_change.before_and_after_df.to_markdown())
+
+
+
 def full_healthcare(one_pass=False, mode="", materialize=None):
     t0 = time.time()
     example_one(to_sql=False)
@@ -283,6 +332,24 @@ def full_adult_complex(one_pass=False, mode=""):
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
+def full_row_wise(one_pass=False, mode="", materialize=None):
+    t0 = time.time()
+    example_row_wise(to_sql=False)
+    t1 = time.time()
+    print("\nTime spend with original: " + str(t1 - t0))
+
+    # t0 = time.time()
+    # example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    t0 = time.time()
+    example_row_wise(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
+
 
 umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
 dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
@@ -293,7 +360,8 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    full_healthcare(one_pass=False, mode="CTE", materialize=False)
+    # full_healthcare(one_pass=False, mode="CTE", materialize=False)
+    full_row_wise(one_pass=False, mode="CTE", materialize=False)
     # full_compas(one_pass=False, mode="CTE")
     # full_adult_simple(one_pass=False, mode="VIEW")
     # full_adult_complex(one_pass=False, mode="CTE")
