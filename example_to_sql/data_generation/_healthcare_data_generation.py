@@ -1,7 +1,7 @@
 import pandas
 from faker import Faker
 import random
-from .._benchmark_utility import ROOT_DIR, REPETITIONS
+from example_to_sql._benchmark_utility import ROOT_DIR
 
 
 def set_some_null(input_list, null_percentage, null_symbol="?"):
@@ -80,17 +80,20 @@ def create_fake_patients_dataset(target_path, target_lines, other_ssn):
     new_file.to_csv(target_path, index=False)
 
 
-def generate_healthcare_dataset():
+def generate_healthcare_dataset(sizes):
     """
     As the compas pipeline does not use any joins, the data will just be augmented, by replicating the existing one.
     """
     paths = []
-    for i in REPETITIONS:
+    for i in sizes:
         target_paths = (ROOT_DIR / r"data_generation" / f"generated_csv/healthcare_histories_generated_{i}.csv",
                         ROOT_DIR / r"data_generation" / f"generated_csv/healthcare_patients_generated_{i}.csv")
 
-        ssn_list = create_fake_histories_dataset(target_paths[0], i)
-        create_fake_patients_dataset(target_paths[1], i, ssn_list)
+        if not target_paths[0].exists() or not target_paths[1].exists():
+            ssn_list = create_fake_histories_dataset(target_paths[0], i)
+            create_fake_patients_dataset(target_paths[1], i, ssn_list)
 
         paths.append(target_paths)
-        print(f"Data generated for: size = {i} -- healthcare")
+        print(f"Data generated or found for: size = {i} -- healthcare")
+
+    return paths

@@ -6,7 +6,6 @@ import datetime
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent
 PLOT_DIR = ROOT_DIR / "plots"
-REPETITIONS = [(10 ** i) for i in range(2, 5, 1)]
 
 COLOR_SET = ["#B93313", "#188DD3", "#64B351", "#7F6AA7", "#D6BD62", "#BBDDAA"]
 rc = {
