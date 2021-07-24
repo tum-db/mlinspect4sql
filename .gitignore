@@ -136,3 +136,7 @@ dmypy.json
 
 # VS Code
 .vscode
+
+# Generated Files:
+example_to_sql/data_generation/generated_csv/
+

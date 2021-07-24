@@ -17,6 +17,7 @@ gorilla==0.4.0
 # For SQL related:
 tableschema==1.20.2
 sqlalchemy==1.4.18
+psycopg2-binary==2.8.6
 astor
 
 tabulate
