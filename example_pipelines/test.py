@@ -35,7 +35,7 @@ def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, mo
     if to_sql:
         assert (dbms_connector)
         inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
-                                                           mode=mode, materialize=materialize)
+                                                           mode=mode, materialize=materialize, row_wise=False)
     else:
         inspector_result = inspector_result.execute()
 
@@ -268,10 +268,10 @@ def full_healthcare(one_pass=False, mode="", materialize=None):
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
     example_one(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
@@ -358,9 +358,9 @@ def full_row_wise(one_pass=False, mode="", materialize=None):
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-# umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
-# dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-#                                   umbra_dir=umbra_path)
+umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+                                  umbra_dir=umbra_path)
 
 dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
                                        port=5432,

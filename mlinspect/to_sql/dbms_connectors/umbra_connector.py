@@ -12,7 +12,7 @@ import csv
 
 
 class UmbraConnector(Connector):
-    def __init__(self, dbname, user, password, port, host, umbra_dir=None):
+    def __init__(self, dbname, user, password, port, host, umbra_dir=None, add_mlinspect_serial=False):
         """
         Starts a new empty Umbra server is 'DROP' is not implemented yet.
 
@@ -35,6 +35,7 @@ class UmbraConnector(Connector):
         """
         super().__init__(dbname, user, password, port, host)
         self.umbra_dir = umbra_dir
+        self.add_mlinspect_serial = add_mlinspect_serial
 
         # check if already running:
         result = subprocess.run("pgrep serve", stdout=subprocess.PIPE, shell=True)
@@ -97,29 +98,34 @@ class UmbraConnector(Connector):
                 **kwargs):
         """ See parent. """
         # create the index column:
-        _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
         try:
-            with open(path_to_csv, 'r') as csvinput:
-                with open(path_to_tmp, 'w') as csvoutput:
-                    writer = csv.writer(csvoutput)
-                    csv_reader = csv.reader(csvinput)
-                    if header:
-                        writer.writerow(next(csv_reader) + ["index_mlinspect"])
-                    for i, row in enumerate(csv_reader):
-                        writer.writerow(row + [str(i)])
-            col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_tmp, table_name=table_name,
+            if self.add_mlinspect_serial:
+                _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
+
+                with open(path_to_csv, 'r') as csvinput:
+                    with open(path_to_tmp, 'w') as csvoutput:
+                        writer = csv.writer(csvoutput)
+                        csv_reader = csv.reader(csvinput)
+                        if header:
+                            writer.writerow(next(csv_reader) + ["index_mlinspect"])
+                        for i, row in enumerate(csv_reader):
+                            writer.writerow(row + [str(i)])
+                path_to_csv = path_to_tmp
+            col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_csv, table_name=table_name,
                                                                               null_symbols=null_symbols,
                                                                               delimiter=delimiter,
                                                                               header=header,
                                                                               add_mlinspect_serial=False)
             self.run(sql_code)
 
-            create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
-            self.run(create_index)
+            if self.add_mlinspect_serial:
+                create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
+                self.run(create_index)
+                sql_code += "\n" + create_index
 
-            sql_code += "\n" + create_index
         finally:
-            os.remove(path_to_tmp)  # do cleanup
+            if self.add_mlinspect_serial:
+                os.remove(path_to_tmp)  # do cleanup
         return col_names, sql_code
 
     def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
