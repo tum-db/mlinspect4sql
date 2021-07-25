@@ -6,6 +6,7 @@ import pathlib
 from typing import Iterable, List
 
 import gorilla
+import pandas
 import nbformat
 import networkx
 from astmonkey.transformers import ParentChildNodeTransformer
@@ -28,6 +29,7 @@ from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 from mlinspect.to_sql.checks_and_inspections_sql._histogram_for_columns import SQLHistogramForColumns
 from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping
 from mlinspect.checks._no_bias_introduced_for import NoBiasIntroducedFor
+from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConnector
 
 
 class PipelineExecutor:
@@ -66,6 +68,13 @@ class PipelineExecutor:
     sql_obj = None
     root_dir_to_sql = pathlib.Path(__file__).resolve().parent.parent / "to_sql/generated_code"
 
+    backup_eq = None
+    backup_ne = None
+    backup_lt = None
+    backup_le = None
+    backup_gt = None
+    backup_ge = None
+
     def run(self, *,
             notebook_path: str or None = None,
             python_path: str or None = None,
@@ -79,7 +88,8 @@ class PipelineExecutor:
             sql_one_run: bool = False,
             dbms_connector: Connector = None,
             mode: str = "",
-            materialize: bool = False
+            materialize: bool = False,
+            row_wise: bool = False
             ) -> InspectorResult:
         """
         Instrument and execute the pipeline and evaluate all checks
@@ -99,6 +109,13 @@ class PipelineExecutor:
 
             self.sql_one_run = sql_one_run
             self.dbms_connector = dbms_connector
+            if not self.dbms_connector:  # is None
+                print("\nJust translation to SQL is performed! "
+                      "\n-> SQL-Code placed at: mlinspect/to_sql/generated_code\n")
+                self.dbms_connector = PostgresqlConnector(just_code=True, add_mlinspect_serial=row_wise)
+                checks = None
+                inspections = []
+
             # Empty the "to_sql_output" folder if necessary:
             [f.unlink() for f in self.root_dir_to_sql.glob("*.sql") if f.is_file()]
 
@@ -109,6 +126,14 @@ class PipelineExecutor:
                                                       one_run=self.sql_one_run, sql_obj=self.sql_obj)
             self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container,
                                       dbms_connector=self.dbms_connector, sql_obj=self.sql_obj)
+
+            # Fix the problem gorilla has with restoring the comparison operators:
+            self.backup_eq = pandas.Series.__eq__
+            self.backup_ne = pandas.Series.__ne__
+            self.backup_lt = pandas.Series.__lt__
+            self.backup_le = pandas.Series.__le__
+            self.backup_gt = pandas.Series.__gt__
+            self.backup_ge = pandas.Series.__ge__
 
         if reset_state:
             # reset_state=False should only be used internally for performance experiments etc!
@@ -314,6 +339,15 @@ def undo_monkey_patch():
     patches = gorilla.find_patches(patch_sources)
     for patch in patches:
         gorilla.revert(patch)
+
+    # Fix the problem gorilla has with restoring the comparison operators:
+    if singleton.to_sql:
+        pandas.Series.__eq__ = singleton.backup_eq
+        pandas.Series.__ne__ = singleton.backup_ne
+        pandas.Series.__lt__ = singleton.backup_lt
+        pandas.Series.__le__ = singleton.backup_le
+        pandas.Series.__gt__ = singleton.backup_gt
+        pandas.Series.__ge__ = singleton.backup_ge
 
 
 def get_monkey_patching_patch_sources():

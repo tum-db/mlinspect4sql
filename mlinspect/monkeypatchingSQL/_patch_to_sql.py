@@ -25,14 +25,6 @@ pandas.options.mode.chained_assignment = None  # default='warn'
 # it can't be called, we need to backup the original pandas comparison functions.
 # more info: https://stackoverflow.com/questions/10401935/python-method-wrapper-type
 
-backup_eq = pandas.Series.__eq__
-backup_ne = pandas.Series.__ne__
-backup_lt = pandas.Series.__lt__
-backup_le = pandas.Series.__le__
-backup_gt = pandas.Series.__gt__
-backup_ge = pandas.Series.__ge__
-
-
 @gorilla.patches(pandas)
 class PandasPatchingSQL:
     """ Patches for pandas """
@@ -81,14 +73,15 @@ class PandasPatchingSQL:
             if len(args) >= 3:
                 raise NotImplementedError
 
-            table_name = pathlib.Path(path_to_csv).stem + "_" + str(singleton.sql_logic.get_unique_id())
+            table_name = pathlib.Path(path_to_csv).stem + f"_mlinid{op_id}"
 
             # we need to add the ct_id columns to the original table:
             tracking_column = f"{table_name}_ctid"
             # result[tracking_column] = "placeholder"
 
             col_names, sql_code = singleton.dbms_connector.add_csv(path_to_csv, table_name, null_symbols=na_values,
-                                                                   delimiter=sep, header=(header == 1))
+                                                                   delimiter=sep, header=(header == 1),
+                                                                   add_mlinspect_serial=True)
 
             # print(sql_code + "\n")
             singleton.pipeline_container.write_to_init_file(sql_code)
@@ -97,7 +90,7 @@ class PandasPatchingSQL:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=[tracking_column],
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.DATA_SOURCE,
@@ -155,6 +148,11 @@ class DataFramePatchingSQL:
             result = self
             backend_result = PandasBackend.after_call(operator_context, input_infos, result)
 
+            # TO_SQL: ###############################################################################################
+            # Having a pandas.DataFrame code source, is not yet supported.
+
+            # TO_SQL DONE! ##########################################################################################
+
             columns = list(self.columns)  # pylint: disable=no-member
             dag_node = DagNode(op_id,
                                BasicCodeLocation(caller_filename, lineno),
@@ -205,7 +203,7 @@ class DataFramePatchingSQL:
                        f"FROM {name} \n" \
                        f"WHERE NOT ({' OR '.join([f'{x} IS NULL' for x in columns_without_tracking])})"
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=ti.tracking_cols,
                                                                      non_tracking_cols_addition=columns_without_tracking,
                                                                      operation_type=OperatorType.SELECTION)
@@ -323,7 +321,7 @@ class DataFramePatchingSQL:
                 sql_code = f"SELECT {', '.join(columns_without_tracking + columns_tracking)}\n" \
                            f"FROM {tb1_name}"
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=columns_tracking,
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=operation_type,
@@ -403,7 +401,10 @@ class DataFramePatchingSQL:
                                f"FROM {tb1_name}"
                 else:
                     # TODO: Row-wise
-                    raise NotImplementedError
+                    print("Row-wise operations should be avoided due to performance deficits. "
+                          "If this is intended \"row_wise=True\" should be passed when calling"
+                          "\"execute_in_sql\"")
+                    raise NotImplementedError()
                     # final_tracking_columns = list(set(tracking_columns) | set(tb1_ti.tracking_cols))
                     # sql_code = f"SELECT tb1.{', tb1.'.join([x for x in tb1.columns.values if x != new_name])}, " \
                     #            f"tb2.{tb2.name} AS {new_name}\n" \
@@ -412,7 +413,7 @@ class DataFramePatchingSQL:
                     #            f"WHERE tb1.row_number = tb2.row_number"
 
             # Here we need to take "self", as the result of __setitem__ will be None.
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result=self,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=self,
                                                                      tracking_cols=tb1_ti.tracking_cols,
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.PROJECTION_MODIFY,
@@ -477,7 +478,7 @@ class DataFramePatchingSQL:
                            f"{', '.join(select_list)}\n" \
                            f"FROM {name}"
                 columns_without_tracking = ti.non_tracking_cols
-                cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result=self,
+                cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=self,
                                                                          tracking_cols=ti.tracking_cols,
                                                                          non_tracking_cols_addition=columns_without_tracking,
                                                                          operation_type=OperatorType.PROJECTION_MODIFY,
@@ -581,7 +582,7 @@ class DataFramePatchingSQL:
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.\"{merge_column}\" = tb2.\"{merge_column}\""
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=list(
                                                                          set(tb1_ti.tracking_cols + tb2_ti.tracking_cols)),
                                                                      non_tracking_cols_addition=[],
@@ -705,7 +706,7 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {tb1_name}\n" \
                        f"GROUP BY {groupby_string}"
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=[],
                                                                      non_tracking_cols_addition=non_tracking_cols_addition,
                                                                      operation_type=OperatorType.GROUP_BY_AGG)
@@ -884,7 +885,7 @@ class SeriesPatchingSQL:
                 # TODO: row wise
                 raise NotImplementedError
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, lineno, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=ti.tracking_cols,
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.SELECTION,
@@ -1007,43 +1008,43 @@ class SeriesPatchingSQL:
     @gorilla.settings(allow_hit=True)
     def patched__ne__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ne__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("!=", self, args, backup_ne, rop=False)
-        return execute_patched_func(backup_ne, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("!=", self, args, singleton.backup_ne, rop=False)
+        return execute_patched_func(singleton.backup_ne, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__eq__')
     @gorilla.settings(allow_hit=True)
     def patched__eq__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__eq__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("==", self, args, backup_eq, rop=False)
-        return execute_patched_func(backup_eq, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("==", self, args, singleton.backup_eq, rop=False)
+        return execute_patched_func(singleton.backup_eq, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__gt__')
     @gorilla.settings(allow_hit=True)
     def patched__gt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__gt__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper(">", self, args, backup_gt, rop=False)
-        return execute_patched_func(backup_gt, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">", self, args, singleton.backup_gt, rop=False)
+        return execute_patched_func(singleton.backup_gt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__ge__')
     @gorilla.settings(allow_hit=True)
     def patched__ge__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__ge__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper(">=", self, args, backup_ge, rop=False)
-        return execute_patched_func(backup_ge, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper(">=", self, args, singleton.backup_ge, rop=False)
+        return execute_patched_func(singleton.backup_ge, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__lt__')
     @gorilla.settings(allow_hit=True)
     def patched__lt__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__lt__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("<", self, args, backup_lt, rop=False)
-        return execute_patched_func(backup_lt, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<", self, args, singleton.backup_lt, rop=False)
+        return execute_patched_func(singleton.backup_lt, execute_inspections, self, *args, **kwargs)
 
     @gorilla.name('__le__')
     @gorilla.settings(allow_hit=True)
     def patched__le__(self, *args, **kwargs):
         """ Patch for ('pandas.core.series', '__le__') """
-        execute_inspections = SeriesPatchingSQL.__op_call_helper("<=", self, args, backup_le, rop=False)
-        return execute_patched_func(backup_le, execute_inspections, self, *args, **kwargs)
+        execute_inspections = SeriesPatchingSQL.__op_call_helper("<=", self, args, singleton.backup_le, rop=False)
+        return execute_patched_func(singleton.backup_le, execute_inspections, self, *args, **kwargs)
 
     ################
     # LOGICAL OPS:
@@ -1100,6 +1101,6 @@ class SeriesPatchingSQL:
             result = original(self=left, other=right)
 
         def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
-            return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, lineno=lineno)
+            return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, line_id=op_id)
 
         return execute_inspections

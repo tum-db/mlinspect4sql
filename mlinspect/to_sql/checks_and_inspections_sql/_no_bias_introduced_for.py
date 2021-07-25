@@ -24,7 +24,7 @@ class SQLNoBiasIntroducedFor:
         self.pipeline_container = pipeline_container
 
     def no_bias_introduced_sql_evaluate_total(self, sensitive_columns, threshold,
-                                              only_passed=True):  # TODO: only_passed also allow to return the query result!!
+                                              relevant_sql_objs):  # TODO: only_passed also allow to return the query result!!
         # TO_SQL: ###############################################################################################
         # print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
         #       "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
@@ -32,27 +32,43 @@ class SQLNoBiasIntroducedFor:
         sensitive_columns = [f"\"{x}\"" for x in sensitive_columns]
         sql_code_final = ""
         sql_obj_final = []  # The sql objects (cte, view) containing the bias result.
+
+        origin_col_mapping = {}  # This mapping tracks the data source tables.
+
         for sc in sensitive_columns:
             """
             For each sc we need to find the most "recent" SQL object(CTE or VIEW), that contains either the column, or
             the ctid that allows to measure the column ratio!  
+            
+            Process:
+            1) If not existing: crete table with original ratio for each sensitive column.
+            2) Create a table comparing it all the relevant current tables. 
             """
 
-            for (name, ti) in self.mapping.mapping:
+            for (name, ti) in relevant_sql_objs:
 
-                if sc in ti.non_tracking_cols:  # check if part of "normal" columns
-                    origin_table, _ = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                origin_table, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
 
-                    cte_name, sql_code = SQLLogic.ratio_track(origin_table, name, sc, threshold=threshold)
-                    sql_obj_final.append(cte_name)
+                if not (origin_table, sc) in origin_col_mapping:
+
+                    sql_obj_name, sql_code = SQLLogic.ratio_track_original_ref(origin_table, sc)
+                    origin_col_mapping[(origin_table, sc)] = sql_obj_name
+                    sql_code_final += sql_code
+
+                if sc in ti.non_tracking_cols:
+                    # check ratio of "normal" columns:
+
+                    sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_col_mapping[(origin_table, sc)], name, sc,
+                                                                   threshold=threshold)
+                    sql_obj_final.append(sql_obj_name)
                     sql_code_final += sql_code
                 else:
-                    # check if a possible ratio over the ctid could be calculated:
-                    origin_table, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
+                    # check if ratio over the ctid could be calculated:
+
                     if bool(origin_ctid):
-                        cte_name, sql_code = SQLLogic.ratio_track(origin_table, name, sc, threshold=threshold,
-                                                                  join_ctid=origin_ctid)
-                        sql_obj_final.append(cte_name)
+                        sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name, sc, threshold=threshold,
+                                                                       join_ctid=origin_ctid)
+                        sql_obj_final.append(sql_obj_name)
                         sql_code_final += sql_code
 
         return sql_code_final[:-2] + "\n" + SQLLogic.ratio_track_final_selection(sql_obj_final)

@@ -89,7 +89,8 @@ class PipelineInspectorBuilder:
                              checks=self.checks,
                              custom_monkey_patching=self.monkey_patching_modules)
 
-    def execute_in_sql(self, dbms_connector: Connector, sql_one_run=False, mode="CTE", materialize=False) -> InspectorResult:
+    def execute_in_sql(self, dbms_connector: Connector = None, sql_one_run=False, mode="CTE",
+                       materialize=False, row_wise=False) -> InspectorResult:
         """
         Instrument and execute the pipeline
         Args:
@@ -98,7 +99,7 @@ class PipelineInspectorBuilder:
             mode(str): Available: "CTE" or "VIEW"
             materialize(bool): If the mode is "VIEW" this option will tell the DBMS to materialize the interim result.
         """
-        assert(isinstance(dbms_connector, Connector))
+        assert (isinstance(dbms_connector, Connector) or dbms_connector is None)
         return singleton.run(notebook_path=self.notebook_path,
                              python_path=self.python_path,
                              python_code=self.python_code,
@@ -106,13 +107,14 @@ class PipelineInspectorBuilder:
                              checks=self.checks,
                              custom_monkey_patching=self.monkey_patching_modules,
                              to_sql=True, sql_one_run=sql_one_run, dbms_connector=dbms_connector,
-                             mode=mode, materialize=materialize)
+                             mode=mode, materialize=materialize, row_wise=row_wise)
 
 
 class PipelineInspector:
     """
     The entry point to the fluent API to build an inspection run
     """
+
     @staticmethod
     def on_pipeline_from_py_file(path: str) -> PipelineInspectorBuilder:
         """Inspect a pipeline from a .py file."""

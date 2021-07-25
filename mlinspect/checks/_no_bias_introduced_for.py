@@ -70,14 +70,26 @@ class NoBiasIntroducedFor(Check):
     def evaluate(self, inspection_result: InspectionResult) -> CheckResult:
         """Evaluate the check"""
         # pylint: disable=too-many-locals
+        dag = inspection_result.dag
+        histograms = {}
+        relevant_nodes = [node for node in dag.nodes if node.operator_info.operator in {OperatorType.JOIN,
+                                                                                        OperatorType.SELECTION} or
+                          (node.operator_info.function_info == FunctionInfo('sklearn.impute._base', 'SimpleImputer')
+                           and set(node.details.columns).intersection(self.sensitive_columns))]
 
         # TO_SQL: ###############################################################################################
         if hasattr(self, "_sql_one_run") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
                 hasattr(self, "dbms_connector") and self._sql_one_run:
             # TODO: ATTENTION ONLY ONE CHECK BEFORE AND AFTER!!
+
+            relevant_ids = [f"_mlinid{x.node_id}" for x in relevant_nodes]
+            relevant_sql_objs = [(name, ti) for (name, ti) in self.mapping.mapping if
+                                 any(r_id in name for r_id in relevant_ids)]
+
             nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
             sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
-                                                                  threshold=self.min_allowed_relative_ratio_change)
+                                                                  threshold=self.min_allowed_relative_ratio_change,
+                                                                  relevant_sql_objs=relevant_sql_objs)
             full_sql_code = self.pipeline_container.get_pipe_without_selection() + ",\n" + sql_code
 
             result = self.dbms_connector.run(full_sql_code)
@@ -97,14 +109,9 @@ class NoBiasIntroducedFor(Check):
             return NoBiasIntroducedForResult(self, status, "", bias_distribution_change)
         # TO_SQL DONE! ##########################################################################################
 
-        dag = inspection_result.dag
-        histograms = {}
         for dag_node, inspection_results in inspection_result.dag_node_to_inspection_results.items():
             histograms[dag_node] = inspection_results[HistogramForColumns(self.sensitive_columns)]
-        relevant_nodes = [node for node in dag.nodes if node.operator_info.operator in {OperatorType.JOIN,
-                                                                                        OperatorType.SELECTION} or
-                          (node.operator_info.function_info == FunctionInfo('sklearn.impute._base', 'SimpleImputer')
-                           and set(node.details.columns).intersection(self.sensitive_columns))]
+
         check_status = CheckStatus.SUCCESS
         bias_distribution_change = collections.OrderedDict()
         issue_list = []

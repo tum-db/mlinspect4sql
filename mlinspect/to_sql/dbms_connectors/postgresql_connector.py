@@ -1,25 +1,35 @@
-from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
+from mlinspect.to_sql.data_source_sql_handling import CreateTablesFromDataSource
 from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 import psycopg2
-import pandas as pd
+import pandas
+
 
 class PostgresqlConnector(Connector):
-    def __init__(self, dbname, user, password, port, host):
+    def __init__(self, dbname="", user="", password="", port="", host="", just_code=False, add_mlinspect_serial=False):
         """
         Note: For Postgresql:
             1) install Postgresql and start the server
             2) assert it is running: "sudo netstat -lntup | grep '5433\\|5432'"
         """
+        self.add_mlinspect_serial = add_mlinspect_serial
+        self.just_code = just_code
+        if just_code:
+            return
         super().__init__(dbname, user, password, port, host)
         self.connection = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
         self.cur = self.connection.cursor()
 
     def __del__(self):
-        print(self.connection)
-        self.connection.close()
+        if not self.just_code:
+            print(self.connection)
+            self.connection.close()
 
     def run(self, sql_query):
         results = []
+
+        if self.just_code:
+            return []
+
         for q in super()._prepare_query(sql_query):
             self.cur.execute(q)
             try:
@@ -27,7 +37,7 @@ class PostgresqlConnector(Connector):
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
 
-        return [pd.DataFrame(r) for r in results]
+        return [pandas.DataFrame(r) for r in results]
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         exe_times = []
@@ -49,39 +59,26 @@ class PostgresqlConnector(Connector):
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
         """ See parent. """
-        col_names, sql_code = CreateTablesFromCSVs(path_to_csv).get_sql_code(table_name=table_name,
-                                                                             null_symbols=null_symbols,
-                                                                             delimiter=delimiter,
-                                                                             header=header,
-                                                                             add_mlinspect_serial=True)
+        col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_csv, table_name=table_name,
+                                                                          null_symbols=null_symbols,
+                                                                          delimiter=delimiter,
+                                                                          header=header,
+                                                                          add_mlinspect_serial=self.add_mlinspect_serial)
 
-        create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
         self.run(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
         self.run(sql_code)
-        self.run(create_index)
+
+        create_index = ""
+        if self.add_mlinspect_serial:
+            create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
+            self.run(create_index)
+
         return col_names, sql_code + "\n" + create_index
 
+    def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
+        col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(data_frame, table_name=table_name,
+                                                                          add_mlinspect_serial=False)
 
-if __name__ == "__main__":
-    postgres = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
-                                   host="localhost")
-    with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
-            r"generated_code/create_table.sql") as file:
-        content = file.read()
-    drop_p = f"DROP TABLE IF EXISTS patients_1;"
-    drop_h = f"DROP TABLE IF EXISTS histories_2;"
-    postgres.run(drop_p)
-    postgres.run(drop_h)
-    res = postgres.run(content)
+        self.run(sql_code)
+        return col_names, sql_code
 
-    # ATTENTION: FOR SOME REASON, CLOSING THE CONNECTION BEFORE RUNNING ANALYSE YIELDS SHORTER EXEC TIME!!
-    postgres = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
-                                   host="localhost")
-
-    with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
-            r"generated_code/pipeline.sql") as file:
-        pipe = file.read()
-
-    postgres.benchmark_run(pipe, repetitions=100)

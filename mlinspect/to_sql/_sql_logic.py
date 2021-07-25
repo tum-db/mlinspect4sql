@@ -14,13 +14,13 @@ class SQLLogic:
         self.sql_obj = sql_obj
         self.dbms_connector = dbms_connector
 
-    def wrap_in_sql_obj(self, sql_code, lineno, block_name=""):
+    def wrap_in_sql_obj(self, sql_code, line_id, block_name=""):
         """
         Wraps the passed sql code in a WITH... AS or VIEW block. Takes into account, that WITH only needs to be
         used once.
         """
         if block_name == "":
-            block_name = f"{sql_obj_prefix}_{lineno}_{self.get_unique_id()}"
+            block_name = f"{sql_obj_prefix}_mlinid{line_id}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         if self.sql_obj.mode == SQLObjRep.CTE:
             sql_code = f"{block_name} AS (\n\t{sql_code}\n)"
@@ -36,7 +36,7 @@ class SQLLogic:
         self.id += 1
         return self.id - 1
 
-    def handle_operation_series(self, operator, result, left, right, lineno):
+    def handle_operation_series(self, operator, result, left, right, line_id):
         """
         Args:
         """
@@ -92,7 +92,7 @@ class SQLLogic:
                    f"FROM {from_block}" \
                    f"{where_block}"
 
-        cte_name, sql_code = self.finish_sql_call(sql_code, lineno, result,
+        cte_name, sql_code = self.finish_sql_call(sql_code, line_id, result,
                                                   tracking_cols=tracking_columns,
                                                   non_tracking_cols_addition=[rename],
                                                   operation_type=OperatorType.BIN_OP,
@@ -137,10 +137,10 @@ class SQLLogic:
         new_content = f"({content_l} {op} {content_r})"
         return new_table, new_content, new_tracking_columns
 
-    def finish_sql_call(self, sql_code, lineno, result, tracking_cols, non_tracking_cols_addition, operation_type,
+    def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,
                         origin_context=None,
                         cte_name=""):
-        final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, lineno, block_name=cte_name)
+        final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
         if isinstance(result, pandas.Series):
             non_tracking_cols = f"\"{result.name}\""
         else:
@@ -164,11 +164,12 @@ class SQLLogic:
         Here the query for the original ratio of the values inside the passed column is provided.
         """
         column_name = column_name.replace("\"", "")
-        return f"{prefix}_ratio_{column_name} AS (\n" \
-               f"\tSELECT {column_name}, (count(*) * 1.0 / (select count(*) FROM {table})) AS ratio\n" \
-               f"\tFROM {table} \n" \
-               f"\tGROUP BY {column_name}\n" \
-               "),\n"
+        table_name = f"{prefix}_ratio_{column_name}"
+        return table_name, f"{table_name} AS (\n" \
+                           f"\tSELECT {column_name}, (COUNT(*) * 1.0 / (SELECT COUNT(*) FROM {table})) AS ratio\n" \
+                           f"\tFROM {table} \n" \
+                           f"\tGROUP BY {column_name}\n" \
+                           "),\n"
 
     @staticmethod
     def __column_ratio_current(table_orig, table_new, column_name, prefix, join_ctid):
@@ -176,16 +177,18 @@ class SQLLogic:
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
         column_name_title = column_name.replace("\"", "")
-        return f"{prefix}_ratio_{column_name_title} AS (\n" \
-               f"\tSELECT tb_orig.{column_name}, (count(*) * 1.0 / (select count(*) FROM {table_new})) AS ratio\n" \
-               f"\tFROM {table_new} tb_curr " \
-               f"JOIN {table_orig} tb_orig " \
-               f"ON tb_curr.{join_ctid}=tb_orig.{join_ctid}\n" \
-               f"\tGROUP BY tb_orig.{column_name}\n" \
-               "),\n"
+        table_name = f"{prefix}_ratio_{column_name_title}"
+        return table_name, f"{table_name} AS (\n" \
+                           f"\tSELECT tb_orig.{column_name}, (COUNT(*) * 1.0 / (SELECT count(*) " \
+                           f"FROM {table_new})) AS ratio\n" \
+                           f"\tFROM {table_new} tb_curr " \
+                           f"JOIN {table_orig} tb_orig " \
+                           f"ON tb_curr.{join_ctid}=tb_orig.{join_ctid}\n" \
+                           f"\tGROUP BY tb_orig.{column_name}\n" \
+                           "),\n"
 
     @staticmethod
-    def __overview_ratio(table_new, column_name, prefix_original="original", prefix_current="current"):
+    def __overview_ratio(table_new, column_name, ratio_table_new, ratio_table_old):
         """
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
@@ -193,12 +196,12 @@ class SQLLogic:
         cte_name = f"overview_{column_name}_{table_new}"
         return cte_name, f"{cte_name} AS (\n" \
                          f"\tSELECT n.{column_name}, n.ratio AS ratio_new, o.ratio AS ratio_original \n" \
-                         f"\tFROM {prefix_current}_ratio_{column_name} n " \
-                         f"RIGHT JOIN {prefix_original}_ratio_{column_name} o " \
+                         f"\tFROM {ratio_table_new} n " \
+                         f"RIGHT JOIN {ratio_table_old} o " \
                          f"ON o.{column_name} = n.{column_name})"
 
     @staticmethod
-    def __overview_bias(table_new, column_name, threshold, prefix_original="original", prefix_current="current"):
+    def __overview_bias(table_new, origin_sql_obj, column_name, threshold):
         """
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
@@ -208,8 +211,8 @@ class SQLLogic:
                          f"\tSELECT SUM(CASE WHEN ABS(n.ratio - o.ratio) < ABS({threshold}) THEN 1 ELSE 0 END) " \
                          f"= count(*) AS " \
                          f"no_bias_introduced_flag\n" \
-                         f"\tFROM {prefix_current}_ratio_{column_name_title} n " \
-                         f"RIGHT JOIN {prefix_original}_ratio_{column_name_title} o " \
+                         f"\tFROM {table_new} n " \
+                         f"RIGHT JOIN {origin_sql_obj} o " \
                          f"ON o.{column_name} = n.{column_name}\n),\n"
 
     # @staticmethod
@@ -270,33 +273,50 @@ class SQLLogic:
     #     return sql_code
 
     @staticmethod
-    def ratio_track(origin_table: str, current_table: str, column_name: str, threshold: float, join_ctid: str = None):
+    def ratio_track_original_ref(origin_table: str, column_name: str):
+        """
+        Creates the query for the original table.
+
+        Args:
+            origin_table:
+            column_name:
+        Return:
+            (<sql_code>, <new_object_name>) the generated code, as well as
+        """
+
+        return SQLLogic.__column_ratio(origin_table, column_name=column_name, prefix="original")
+
+    @staticmethod
+    def ratio_track_curr(origin_sql_obj, current_table: str, column_name: str, threshold: float,
+                         join_ctid: str = None):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
         Args:
-            origin_table:
+            origin_sql_obj(str): original table referance name (returned by SQLLogic.ratio_track_original_ref)
             current_table:
             column_name:
             join_ctid: If a join needs to be performed to make the comparison.
             threshold: Threshold for which the bias is considered not a problem.
-            only_passed(bool): makes the query just return true or false, representing if a bias with the given
-                threshold was introduced.
         Return:
             (<sql_code>, <new_object_name>) the generated code, as well as
         Note:
         supports column renaming -> in case the dict contains one.
         """
-
-        sql_code = SQLLogic.__column_ratio(origin_table, column_name=column_name, prefix="original")
-
+        sql_code = ""
+        prefix = "current_" + current_table + "_"
         if join_ctid:
-            sql_code += SQLLogic.__column_ratio_current(origin_table, table_new=current_table, column_name=column_name,
-                                                        prefix="current", join_ctid=join_ctid)
-        else:
-            sql_code += SQLLogic.__column_ratio(current_table, column_name=column_name, prefix="current")
 
-        cte_name, sql_code_addition = SQLLogic.__overview_bias(table_new=current_table, column_name=column_name,
+            _, sql_code_addition = SQLLogic.__column_ratio_current(origin_sql_obj, table_new=current_table,
+                                                                   column_name=column_name,
+                                                                   prefix=prefix, join_ctid=join_ctid)
+
+            sql_code += sql_code_addition
+        else:
+            _, sql_code_addition = SQLLogic.__column_ratio(current_table, column_name=column_name, prefix=prefix)
+            sql_code += sql_code_addition
+
+        cte_name, sql_code_addition = SQLLogic.__overview_bias(current_table, origin_sql_obj, column_name=column_name,
                                                                threshold=threshold)
 
         return cte_name, sql_code + sql_code_addition

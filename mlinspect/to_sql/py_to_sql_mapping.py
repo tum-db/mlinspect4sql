@@ -158,7 +158,7 @@ class DfToStringMapping:
         for orig_t, orig_ti in origin_tup:
             if column_name in orig_ti.non_tracking_cols:
                 return orig_t, orig_ti.tracking_cols[0]
-        assert False
+        return None, None  # The input combination is wrong!
 
     def get_latest_name_cols(self):
         entry = self.mapping[0]

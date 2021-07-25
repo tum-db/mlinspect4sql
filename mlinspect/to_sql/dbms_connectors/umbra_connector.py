@@ -1,12 +1,12 @@
 from abc import ABC
-from mlinspect.to_sql.csv_sql_handling import CreateTablesFromCSVs
+from mlinspect.to_sql.data_source_sql_handling import CreateTablesFromDataSource
 from .dbms_connector import Connector
 import psycopg2
 import subprocess
 import time
 import fcntl
 import os
-import pandas as pd
+import pandas
 import tempfile
 import csv
 
@@ -57,12 +57,13 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
+            # print(q + "\n")
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
-        return [pd.DataFrame(r) for r in results]
+        return [pandas.DataFrame(r) for r in results]
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         print("Executing Query in Umbra...") if verbose else 0
@@ -106,30 +107,24 @@ class UmbraConnector(Connector):
                         writer.writerow(next(csv_reader) + ["index_mlinspect"])
                     for i, row in enumerate(csv_reader):
                         writer.writerow(row + [str(i)])
-            col_names, sql_code = CreateTablesFromCSVs(path_to_tmp).get_sql_code(table_name=table_name,
-                                                                                 null_symbols=null_symbols,
-                                                                                 delimiter=delimiter,
-                                                                                 header=header,
-                                                                                 add_mlinspect_serial=False)
+            col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_tmp, table_name=table_name,
+                                                                              null_symbols=null_symbols,
+                                                                              delimiter=delimiter,
+                                                                              header=header,
+                                                                              add_mlinspect_serial=False)
             self.run(sql_code)
-            self.run(f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);")
+
+            create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
+            self.run(create_index)
+
+            sql_code += "\n" + create_index
         finally:
             os.remove(path_to_tmp)  # do cleanup
         return col_names, sql_code
 
+    def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
+        col_names, sql_code = CreateTablesFromDataSource.get_sql_code_data_frame(data_frame, table_name=table_name,
+                                                                                 add_mlinspect_serial=False)
 
-if __name__ == "__main__":
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/Umbra/umbra-students"
-    umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=umbra_path)
-    with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
-            r"generated_code/create_table.sql") as file:
-        content = file.read()
-    res = umbra.run(content)
-
-    with open(
-            r"/home/luca/Documents/Bachelorarbeit/BA_code_mlinspect_fork/mlinspect_fork/mlinspect/mlinspect/to_sql/"
-            r"generated_code/pipeline.sql") as file:
-        content = file.read()
-
-    umbra.benchmark_run(content, repetitions=10)
+        self.run(sql_code)
+        return col_names, sql_code

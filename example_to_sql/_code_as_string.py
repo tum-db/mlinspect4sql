@@ -1,6 +1,7 @@
 from inspect import cleandoc
 
 
+# ########################################### FOR THE OP BENCHMARK #####################################################
 class Join:
     """
     Code for simple join.
@@ -108,3 +109,33 @@ class GroupBy:
         GROUP BY {attr1}
         """)
         return sql_code
+
+
+# ######################################################################################################################
+
+# ########################################### FOR THE PURE PIPELINE BENCHMARK ##########################################
+def get_healthcare_pipe_code(path_patients, path_histories):
+    setup_code = cleandoc("""
+        import os
+        import pandas as pd
+        from mlinspect.utils import get_project_root
+        """)
+
+    test_code = cleandoc(f"""
+        COUNTIES_OF_INTEREST = ['county2', 'county3']
+
+        patients = pd.read_csv('{path_patients}', na_values='?')
+        histories = pd.read_csv('{path_histories}', na_values='?')
+
+        data = patients.merge(histories, on=['ssn'])
+        complications = data.groupby('age_group') \
+            .agg(mean_complications=('complications', 'mean'))
+        data = data.merge(complications, on=['age_group'])
+        data['label'] = data['complications'] > 1.2 * data['mean_complications']
+        data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
+        data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
+        """)
+
+    return setup_code, test_code
+
+# ######################################################################################################################

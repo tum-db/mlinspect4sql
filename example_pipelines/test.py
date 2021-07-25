@@ -20,6 +20,7 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 # tf.logging.set_verbosity(tf.logging.ERROR)
 
 def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, mode=None, materialize=None):
+
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
 
     inspector_result = PipelineInspector \
@@ -33,7 +34,8 @@ def example_one(to_sql, despite=True, sql_one_run=False, dbms_connector=None, mo
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode, materialize=materialize)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+                                                           mode=mode, materialize=materialize)
     else:
         inspector_result = inspector_result.execute()
 
@@ -79,7 +81,8 @@ def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, 
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+                                                           mode=mode)
     else:
         inspector_result = inspector_result.execute()
 
@@ -95,7 +98,7 @@ def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, 
         import matplotlib.pyplot as plt
         im = Image.open(filename)
         plt.imshow(im)
-        # plt.waitforbuttonpress()
+        plt.waitforbuttonpress()
 
         dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
         check_results = inspector_result.check_to_check_results
@@ -126,7 +129,8 @@ def example_adult_simple(to_sql, despite=True, sql_one_run=True, dbms_connector=
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+                                                           mode=mode)
     else:
         inspector_result = inspector_result.execute()
 
@@ -174,7 +178,8 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+                                                           mode=mode)
     else:
         inspector_result = inspector_result.execute()
 
@@ -209,8 +214,8 @@ def example_adult_complex(to_sql, despite=True, sql_one_run=True, dbms_connector
 
 
 def example_row_wise(to_sql, despite=True, sql_one_run=True, dbms_connector=None, mode=None, materialize=None):
-    ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex",
-                                         "adult_complex.py")
+    ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "row_wise",
+                                    "row_wise.py")
 
     inspector_result = PipelineInspector \
         .on_pipeline_from_py_file(ROW_WISE_FILE_PY) \
@@ -222,7 +227,8 @@ def example_row_wise(to_sql, despite=True, sql_one_run=True, dbms_connector=None
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run, mode=mode, materialize=materialize)
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+                                                           mode=mode, materialize=materialize)
     else:
         inspector_result = inspector_result.execute()
 
@@ -254,7 +260,6 @@ def example_row_wise(to_sql, despite=True, sql_one_run=True, dbms_connector=None
                 print("")
                 print(f"\033[1m Column '{column}'\033[0m")
                 print(distribution_change.before_and_after_df.to_markdown())
-
 
 
 def full_healthcare(one_pass=False, mode="", materialize=None):
@@ -332,11 +337,12 @@ def full_adult_complex(one_pass=False, mode=""):
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
+
 def full_row_wise(one_pass=False, mode="", materialize=None):
-    t0 = time.time()
-    example_row_wise(to_sql=False)
-    t1 = time.time()
-    print("\nTime spend with original: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_row_wise(to_sql=False)
+    # t1 = time.time()
+    # print("\nTime spend with original: " + str(t1 - t0))
 
     # t0 = time.time()
     # example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
@@ -344,24 +350,25 @@ def full_row_wise(one_pass=False, mode="", materialize=None):
     # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    example_row_wise(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    example_row_wise(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode,
+                     materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     # print("\n\n" + "#" * 20 + "NOW WITH BIGGER SIZES:" + "#" * 20 + "\n\n")
 
 
-umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
-dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                  umbra_dir=umbra_path)
+# umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+# dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+#                                   umbra_dir=umbra_path)
 
 dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
                                        port=5432,
                                        host="localhost")
 
 if __name__ == "__main__":
-    # full_healthcare(one_pass=False, mode="CTE", materialize=False)
-    full_row_wise(one_pass=False, mode="CTE", materialize=False)
+    full_healthcare(one_pass=True, mode="CTE", materialize=False)
+    # full_row_wise(one_pass=False, mode="CTE", materialize=False)
     # full_compas(one_pass=False, mode="CTE")
     # full_adult_simple(one_pass=False, mode="VIEW")
     # full_adult_complex(one_pass=False, mode="CTE")

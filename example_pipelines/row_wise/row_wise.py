@@ -17,16 +17,11 @@ warnings.filterwarnings('ignore')
 
 COUNTIES_OF_INTEREST = ['county2', 'county3']
 
-# patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_1000000.csv",
-#     na_values='?')
-# histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_1000000.csv",
-#     na_values='?')
-
 data = pd.read_csv(os.path.join(str(get_project_root()),
-    "example_pipelines", "../row_wise", "healthcare_histories.csv"),
+    "example_pipelines", "row_wise", "healthcare_histories.csv"),
     na_values='?')
 comp = pd.read_csv(os.path.join(str(get_project_root()),
-    "example_pipelines", "../row_wise", "healthcare_comp.csv"),
+    "example_pipelines", "row_wise", "healthcare_comp.csv"),
     na_values='?')
 
 data["complications"] = comp["complications"]

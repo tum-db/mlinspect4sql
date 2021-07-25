@@ -39,6 +39,23 @@ class Connector(abc.ABC):
         """
         raise NotImplementedError()
 
+    def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
+        """ Has to correctly add the passed csv to the DBMS under the given name. Implements DROP of old if necessary.
+        Args:
+            data_frame(pandas.DataFrame): the pandas.DataFrame object.
+            table_name(str): the name under which the table will be accessed.
+        Returns:
+            Tuple(column_names, sql_code)
+                column_names: All column names as list.
+                sql_code: The SQL code to create the table, if none is available just return "".
+        Note:
+            If more attributes are required, add them through args and kwargs.
+
+        ATTENTION: The added table NEEDS to contain a index column, called: "index_mlinspect" +
+            create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
+        """
+        raise NotImplementedError()
+
     @abc.abstractmethod
     def run(self, sql_query: str) -> pandas.DataFrame:
         """
