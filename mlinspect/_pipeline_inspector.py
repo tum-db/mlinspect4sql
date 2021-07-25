@@ -98,6 +98,7 @@ class PipelineInspectorBuilder:
             sql_one_run(bool): Only one inspection of entire pipeline. Faster, but does not pinpoint error.
             mode(str): Available: "CTE" or "VIEW"
             materialize(bool): If the mode is "VIEW" this option will tell the DBMS to materialize the interim result.
+            row_wise: Sets whether to add the mlinspect_index column.
         """
         assert (isinstance(dbms_connector, Connector) or dbms_connector is None)
         return singleton.run(notebook_path=self.notebook_path,
