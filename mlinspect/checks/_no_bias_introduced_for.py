@@ -87,6 +87,7 @@ class NoBiasIntroducedFor(Check):
                                  any(r_id in name for r_id in relevant_ids)]
 
             nbif = SQLNoBiasIntroducedFor(self.dbms_connector, self.mapping, self.pipeline_container)
+
             sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
                                                                   threshold=self.min_allowed_relative_ratio_change,
                                                                   relevant_sql_objs=relevant_sql_objs)

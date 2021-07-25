@@ -33,7 +33,7 @@ class SQLNoBiasIntroducedFor:
         sql_code_final = ""
         sql_obj_final = []  # The sql objects (cte, view) containing the bias result.
 
-        origin_col_mapping = {}  # This mapping tracks the data source tables.
+        origin_to_ratio_mapping = {}  # This mapping tracks the data source tables.
 
         for sc in sensitive_columns:
             """
@@ -49,25 +49,29 @@ class SQLNoBiasIntroducedFor:
 
                 origin_table, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
 
-                if not (origin_table, sc) in origin_col_mapping:
-
+                if not (origin_table, sc) in origin_to_ratio_mapping:
                     sql_obj_name, sql_code = SQLLogic.ratio_track_original_ref(origin_table, sc)
-                    origin_col_mapping[(origin_table, sc)] = sql_obj_name
+                    origin_to_ratio_mapping[(origin_table, sc)] = sql_obj_name
                     sql_code_final += sql_code
 
                 if sc in ti.non_tracking_cols:
                     # check ratio of "normal" columns:
 
-                    sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_col_mapping[(origin_table, sc)], name, sc,
-                                                                   threshold=threshold)
+                    sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name,
+                                                                       sc, threshold=threshold,
+                                                                       origin_ratio_table=origin_to_ratio_mapping[
+                                                                           (origin_table, sc)])
                     sql_obj_final.append(sql_obj_name)
                     sql_code_final += sql_code
                 else:
                     # check if ratio over the ctid could be calculated:
 
                     if bool(origin_ctid):
-                        sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name, sc, threshold=threshold,
-                                                                       join_ctid=origin_ctid)
+                        sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name,
+                                                                           sc, threshold=threshold,
+                                                                           join_ctid=origin_ctid,
+                                                                           origin_ratio_table=origin_to_ratio_mapping[
+                                                                               (origin_table, sc)])
                         sql_obj_final.append(sql_obj_name)
                         sql_code_final += sql_code
 

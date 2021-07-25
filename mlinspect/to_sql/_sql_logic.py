@@ -172,19 +172,19 @@ class SQLLogic:
                            "),\n"
 
     @staticmethod
-    def __column_ratio_current(table_orig, table_new, column_name, prefix, join_ctid):
+    def __column_ratio_with_join(table_orig, table_new, column_name, prefix, join_ctid):
         """
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
         column_name_title = column_name.replace("\"", "")
         table_name = f"{prefix}_ratio_{column_name_title}"
         return table_name, f"{table_name} AS (\n" \
-                           f"\tSELECT tb_orig.{column_name}, (COUNT(*) * 1.0 / (SELECT count(*) " \
+                           f"\tSELECT o.{column_name}, (COUNT(*) * 1.0 / (SELECT count(*) " \
                            f"FROM {table_new})) AS ratio\n" \
-                           f"\tFROM {table_new} tb_curr " \
-                           f"JOIN {table_orig} tb_orig " \
-                           f"ON tb_curr.{join_ctid}=tb_orig.{join_ctid}\n" \
-                           f"\tGROUP BY tb_orig.{column_name}\n" \
+                           f"\tFROM {table_new} n " \
+                           f"JOIN {table_orig} o " \
+                           f"ON n.{join_ctid}=o.{join_ctid}\n" \
+                           f"\tGROUP BY o.{column_name}\n" \
                            "),\n"
 
     @staticmethod
@@ -201,19 +201,21 @@ class SQLLogic:
                          f"ON o.{column_name} = n.{column_name})"
 
     @staticmethod
-    def __overview_bias(table_new, origin_sql_obj, column_name, threshold):
+    def __overview_bias(new_ratio, origin_ratio, column_name, threshold, suffix=""):
         """
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
         column_name_title = column_name.replace("\"", "")
-        cte_name = f"overview_{column_name_title}_{table_new}"
+        cte_name = f"overview_{suffix}"
         return cte_name, f"{cte_name} AS (\n" \
-                         f"\tSELECT SUM(CASE WHEN ABS(n.ratio - o.ratio) < ABS({threshold}) THEN 1 ELSE 0 END) " \
+                         f"\tSELECT SUM(CASE WHEN ABS((n.ratio - o.ratio)/o.ratio) " \
+                         f"< ABS({threshold}) THEN 1 ELSE 0 END) " \
                          f"= count(*) AS " \
                          f"no_bias_introduced_flag\n" \
-                         f"\tFROM {table_new} n " \
-                         f"RIGHT JOIN {origin_sql_obj} o " \
-                         f"ON o.{column_name} = n.{column_name}\n),\n"
+                         f"\tFROM {new_ratio} n " \
+                         f"RIGHT JOIN {origin_ratio} o " \
+                         f"ON o.{column_name} = n.{column_name} OR " \
+                         f"(o.{column_name} IS NULL AND n.{column_name} IS NULL)\n),\n"
 
     # @staticmethod
     # def ratio_track(origin_dict, column_names, current_dict, join_dict, threshold, only_passed=True):
@@ -287,13 +289,14 @@ class SQLLogic:
         return SQLLogic.__column_ratio(origin_table, column_name=column_name, prefix="original")
 
     @staticmethod
-    def ratio_track_curr(origin_sql_obj, current_table: str, column_name: str, threshold: float,
-                         join_ctid: str = None):
+    def ratio_track_curr(origin_sql_obj: str, current_table: str, column_name: str, threshold: float,
+                         origin_ratio_table: str, join_ctid: str = None):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
 
         Args:
-            origin_sql_obj(str): original table referance name (returned by SQLLogic.ratio_track_original_ref)
+            origin_sql_obj(str): original table reference name of the data source
+            origin_ratio_table(str): original ration table (returned by SQLLogic.ratio_track_original_ref)
             current_table:
             column_name:
             join_ctid: If a join needs to be performed to make the comparison.
@@ -304,20 +307,26 @@ class SQLLogic:
         supports column renaming -> in case the dict contains one.
         """
         sql_code = ""
-        prefix = "current_" + current_table + "_"
+        prefix = "current_" + current_table
         if join_ctid:
 
-            _, sql_code_addition = SQLLogic.__column_ratio_current(origin_sql_obj, table_new=current_table,
-                                                                   column_name=column_name,
-                                                                   prefix=prefix, join_ctid=join_ctid)
+            current_table_ratio, sql_code_addition = SQLLogic.__column_ratio_with_join(origin_sql_obj,
+                                                                                       table_new=current_table,
+                                                                                       column_name=column_name,
+                                                                                       prefix=prefix,
+                                                                                       join_ctid=join_ctid)
 
             sql_code += sql_code_addition
         else:
-            _, sql_code_addition = SQLLogic.__column_ratio(current_table, column_name=column_name, prefix=prefix)
+            current_table_ratio, sql_code_addition = SQLLogic.__column_ratio(current_table, column_name=column_name,
+                                                                             prefix=prefix)
             sql_code += sql_code_addition
 
-        cte_name, sql_code_addition = SQLLogic.__overview_bias(current_table, origin_sql_obj, column_name=column_name,
-                                                               threshold=threshold)
+        overview_suffix = column_name.replace('\"', '') + "_" + current_table
+        cte_name, sql_code_addition = SQLLogic.__overview_bias(new_ratio=current_table_ratio,
+                                                               origin_ratio=origin_ratio_table,
+                                                               column_name=column_name,
+                                                               threshold=threshold, suffix=overview_suffix)
 
         return cte_name, sql_code + sql_code_addition
 
