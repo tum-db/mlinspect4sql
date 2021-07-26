@@ -554,14 +554,6 @@ class DataFramePatchingSQL:
             # columns are renamed .._x and .._y => if this affects the ctid columns we can remove one, as they are the
             # same.
 
-            # TODO: check if needed:
-            # x_ctid_columns = [x for x in result.columns.values if "ctid_x" in x]
-            # result = result.drop(x_ctid_columns, axis=1)
-            #
-            #
-            # for y in [y for y in result.columns.values if "ctid_y" in y]:
-            #     result = result.rename(columns={y: y.split("_y")[0]})
-
             tb1 = self
             tb2 = args[0]
 
@@ -1187,7 +1179,6 @@ class SklearnSimpleImputerPatching:
         result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
         backend_result = SklearnBackend.after_call(operator_context, input_infos, result)
 
-
         new_return_value = backend_result.annotated_dfobject.result_data
         if isinstance(input_infos[0].result_data, pandas.DataFrame):
             columns = list(input_infos[0].result_data.columns)
@@ -1197,50 +1188,75 @@ class SklearnSimpleImputerPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        target_table = args[0]
-        name, ti = singleton.mapping.get_name_and_ti(target_table)
-        strategy = self.stategy
+        target_sql_obj = args[0]
+        name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
+        strategy = self.strategy
 
-        cols_to_impute = ti.non_tracking_cols
-
-        result_name = f"imputed_{name}"
+        # guarantee correct order (crucial from now on! - check if necessary):
+        if isinstance(target_sql_obj, pandas.DataFrame) or isinstance(target_sql_obj, pandas.Series):
+            cols_to_impute = [f"\"{x}\"" for x in target_sql_obj.columns.values]
+        else:
+            cols_to_impute = ti.non_tracking_cols
 
         if strategy == "most_frequent":
             # Most frequent:
             select_block = ""
             count_block = ""
+            tracking_cols = ti.tracking_cols
             for col in cols_to_impute:
                 count_table, count_code = singleton.sql_logic.column_count(name, col)
+
                 count_block += count_code
-                select_block += f"\tCOALESCE({col}, (SELECT {col} FROM {count_table} WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col},\n"
+                count_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
+
+                select_block += f"\tCOALESCE({col}, " \
+                                f"(SELECT {col} " \
+                                f"FROM {count_table} " \
+                                f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col},\n"
+
+            count_block = count_block[:-3] if singleton.sql_obj.mode.CTE else count_block
 
             # Add the counting columns to the pipeline_container
-            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, cols_to_impute[-1])
+            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, None)
 
-            sql_code = f"SELECT {select_block[:-2]} \n" \
+            select_block += "\t" + ", ".join(tracking_cols)
+
+            sql_code = f"SELECT \n{select_block} \n" \
                        f"FROM {name}"
         else:
             raise NotImplementedError
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
-                                                                 tracking_cols=ti.tracking_cols,
-                                                                 non_tracking_cols_addition=[],
-                                                                 operation_type=OperatorType.TRANSFORMER)
+                                                                 tracking_cols=tracking_cols,
+                                                                 non_tracking_cols_addition=cols_to_impute,
+                                                                 operation_type=OperatorType.TRANSFORMER,
+                                                                 cte_name=f"block_impute_mlinid{op_id}")
 
         # print(sql_code + "\n")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_impute)
 
         # TO_SQL DONE! ##########################################################################################
-
-
-
         dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
                            operator_context,
                            DagNodeDetails("Simple Imputer", columns),
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
+
+        backend_result = singleton.update_hist.sql_update_backend_result(backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=cols_to_impute)
+
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
+
+        # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
+        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
+                not hasattr(new_return_value, "_mlinspect_annotation"):
+            new_return_value._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
+        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
+                not hasattr(new_return_value, "_mlinspect_dag_node"):
+            new_return_value._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
+
         return new_return_value
 
 
@@ -1312,11 +1328,14 @@ class SklearnOneHotEncoderPatching:
             oh_block = ""
             for col in cols_to_one_hot:
                 oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
+
                 oh_block += oh_code
+                oh_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
+
                 select_block += f"\tCOALESCE({col}, (SELECT {col} FROM {oh_table} WHERE count = (SELECT MAX(count) FROM {oh_table}))) AS {col},\n"
 
             # Add the counting columns to the pipeline_container
-            singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, cols_to_one_hot[-1])
+            singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, None)
 
             sql_code = f"SELECT {select_block[:-2]} \n" \
                        f"FROM {name}"
@@ -1326,7 +1345,8 @@ class SklearnOneHotEncoderPatching:
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
                                                                  tracking_cols=ti.tracking_cols,
                                                                  non_tracking_cols_addition=[],
-                                                                 operation_type=OperatorType.TRANSFORMER)
+                                                                 operation_type=OperatorType.TRANSFORMER,
+                                                                 cte_name=f"onehot_mlinid{op_id}")
 
         # print(sql_code + "\n")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_one_hot)
