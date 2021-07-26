@@ -39,12 +39,14 @@ data = data[['smoker', 'last_name', 'county',
     'num_children', 'race', 'income', 'label'] ]
 data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
 
-# impute_and_one_hot_encode = Pipeline([
-#     ('impute',
-#         SimpleImputer(strategy='most_frequent')),
-#     ('encode',
-#         OneHotEncoder(sparse=False, handle_unknown='ignore'))
-# ])
+impute_and_one_hot_encode = Pipeline([
+    ('impute',
+        SimpleImputer(strategy='most_frequent')),
+    ('encode',
+        OneHotEncoder(sparse=False, handle_unknown='ignore'))
+])
+impute_and_one_hot_encode.fit_transform(data)
+
 # featurisation = ColumnTransformer(transformers=[
 #     ("impute_and_one_hot_encode", impute_and_one_hot_encode,
 #         ['smoker', 'county', 'race']),

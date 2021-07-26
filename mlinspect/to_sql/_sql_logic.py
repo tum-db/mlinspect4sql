@@ -138,8 +138,7 @@ class SQLLogic:
         return new_table, new_content, new_tracking_columns
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,
-                        origin_context=None,
-                        cte_name=""):
+                        origin_context=None, cte_name=""):
         final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
         if isinstance(result, pandas.Series):
             non_tracking_cols = f"\"{result.name}\""
@@ -291,3 +290,23 @@ class SQLLogic:
     @staticmethod
     def create_indexed_table(table_name):
         return f"(SELECT *, ROW_NUMBER() OVER() FROM {table_name})"
+
+    # ################################################ SKLEARN #########################################################
+
+    def column_count(self, table, column_name):
+        column_name = column_name.replace("\"", "")
+        table_name = f"{table}_count_{column_name}"
+        sql_code = f"\tSELECT {column_name}, COUNT(*) AS count\n" \
+                   f"\tFROM {table} \n" \
+                   f"\tGROUP BY {column_name}\n"
+        return table_name, sql_code
+
+    @staticmethod
+    def column_one_hot_encoding(table_name, column_name):
+        return f"one_hot_{column_name} as (" \
+               f"\tselect {column_name}, (array_fill(0,array[oh_{column_name}.rank-1]) || 1 || " \
+               f"array_fill(0, array[ cast((select count(distinct({column_name})) from {table_name}) as int) -" \
+               f" (oh_{column_name}.rank)])) as {column_name}_one_hot" \
+               f"\tfrom (select {column_name}, cast (rank() over (order by {column_name} desc) as int)" \
+               f"from (select distinct({column_name}) from {table_name}) oh) oh_{column_name}" \
+               "),"

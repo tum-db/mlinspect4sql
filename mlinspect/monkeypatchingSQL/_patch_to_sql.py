@@ -9,15 +9,29 @@ import pandas
 import pathlib
 
 from mlinspect.to_sql.py_to_sql_mapping import OpTree
-from mlinspect import OperatorType, DagNode, BasicCodeLocation, DagNodeDetails
 from mlinspect.backends._pandas_backend import PandasBackend
-from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo
-from mlinspect.instrumentation._pipeline_executor import singleton
-from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, get_input_info, add_dag_node, \
-    get_dag_node_for_id, execute_patched_func_no_op_id, get_optional_code_info_or_none
+from mlinspect.monkeypatching._monkey_patching_utils import get_dag_node_for_id
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 
+import gorilla
+import numpy
+import pandas
+from sklearn import preprocessing, compose, tree, impute, linear_model, model_selection
+from tensorflow.keras.wrappers import scikit_learn as keras_sklearn_external  # pylint: disable=no-name-in-module
+from tensorflow.python.keras.wrappers import scikit_learn as keras_sklearn_internal  # pylint: disable=no-name-in-module
+
+from mlinspect.backends._backend import BackendResult
+from mlinspect.backends._sklearn_backend import SklearnBackend
+from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo, OperatorType
+from mlinspect.instrumentation import _pipeline_executor
+from mlinspect.instrumentation._dag_node import DagNode, BasicCodeLocation, DagNodeDetails, CodeReference
+from mlinspect.instrumentation._pipeline_executor import singleton
+from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
+    execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
+from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
+
 pandas.options.mode.chained_assignment = None  # default='warn'
+
 
 # Because gorillas is not able to provide the original function of comparisons e.g. (==, <, ...). It actually
 # return "<method-wrapper '__eq__' of type object at 0x21b4970>" instead
@@ -1104,3 +1118,226 @@ class SeriesPatchingSQL:
             return singleton.sql_logic.handle_operation_series(op, result, left=left, right=right, line_id=op_id)
 
         return execute_inspections
+
+
+# SKLEARN:
+
+class SklearnCallInfo:
+    """ Contains info like lineno from the current Transformer so indirect utility function calls can access it """
+    # pylint: disable=too-few-public-methods
+
+    transformer_filename: str or None = None
+    transformer_lineno: int or None = None
+    transformer_function_info: FunctionInfo or None = None
+    transformer_optional_code_reference: CodeReference or None = None
+    transformer_optional_source_code: str or None = None
+    column_transformer_active: bool = False
+
+
+call_info_singleton = SklearnCallInfo()
+
+
+@gorilla.patches(impute.SimpleImputer)
+class SklearnSimpleImputerPatching:
+    """ Patches for sklearn SimpleImputer"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, *, missing_values=numpy.nan, strategy="mean",
+                        fill_value=None, verbose=0, copy=True, add_indicator=False,
+                        mlinspect_caller_filename=None, mlinspect_lineno=None,
+                        mlinspect_optional_code_reference=None, mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.impute._base', 'SimpleImputer') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init
+        original = gorilla.get_original_attribute(impute.SimpleImputer, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, missing_values=missing_values, strategy=strategy, fill_value=fill_value, verbose=verbose,
+                     copy=copy, add_indicator=add_indicator)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, missing_values=missing_values,
+                                             strategy=strategy, fill_value=fill_value, verbose=verbose, copy=copy,
+                                             add_indicator=add_indicator)
+
+    @gorilla.name('fit_transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit_transform(self, *args, **kwargs):
+        """ Patch for ('sklearn.preprocessing._encoders.OneHotEncoder', 'fit_transform') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit_transform')
+        function_info = FunctionInfo('sklearn.impute._base', 'SimpleImputer')
+        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+
+        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+        backend_result = SklearnBackend.after_call(operator_context, input_infos, result)
+
+
+        new_return_value = backend_result.annotated_dfobject.result_data
+        if isinstance(input_infos[0].result_data, pandas.DataFrame):
+            columns = list(input_infos[0].result_data.columns)
+        else:
+            columns = ['array']
+
+        op_id = singleton.get_next_op_id()
+        # TO_SQL: ###############################################################################################
+
+        target_table = args[0]
+        name, ti = singleton.mapping.get_name_and_ti(target_table)
+        strategy = self.stategy
+
+        cols_to_impute = ti.non_tracking_cols
+
+        result_name = f"imputed_{name}"
+
+        if strategy == "most_frequent":
+            # Most frequent:
+            select_block = ""
+            count_block = ""
+            for col in cols_to_impute:
+                count_table, count_code = singleton.sql_logic.column_count(name, col)
+                count_block += count_code
+                select_block += f"\tCOALESCE({col}, (SELECT {col} FROM {count_table} WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col},\n"
+
+            # Add the counting columns to the pipeline_container
+            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, cols_to_impute[-1])
+
+            sql_code = f"SELECT {select_block[:-2]} \n" \
+                       f"FROM {name}"
+        else:
+            raise NotImplementedError
+
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
+                                                                 tracking_cols=ti.tracking_cols,
+                                                                 non_tracking_cols_addition=[],
+                                                                 operation_type=OperatorType.TRANSFORMER)
+
+        # print(sql_code + "\n")
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_impute)
+
+        # TO_SQL DONE! ##########################################################################################
+
+
+
+        dag_node = DagNode(op_id,
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Simple Imputer", columns),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        return new_return_value
+
+
+@gorilla.patches(preprocessing.OneHotEncoder)
+class SklearnOneHotEncoderPatching:
+    """ Patches for sklearn OneHotEncoder"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, *, categories='auto', drop=None, sparse=True,
+                        dtype=numpy.float64, handle_unknown='error',
+                        mlinspect_caller_filename=None, mlinspect_lineno=None,
+                        mlinspect_optional_code_reference=None, mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.preprocessing._encoders', 'OneHotEncoder') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init
+        original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, categories=categories, drop=drop, sparse=sparse, dtype=dtype, handle_unknown=handle_unknown)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, categories=categories, drop=drop,
+                                             sparse=sparse, dtype=dtype, handle_unknown=handle_unknown)
+
+    @gorilla.name('fit_transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit_transform(self, *args, **kwargs):
+        """ Patch for ('sklearn.preprocessing._encoders.OneHotEncoder', 'fit_transform') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'fit_transform')
+        function_info = FunctionInfo('sklearn.preprocessing._encoders', 'OneHotEncoder')
+        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+
+        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+        backend_result = SklearnBackend.after_call(operator_context,
+                                                   input_infos,
+                                                   result)
+        new_return_value = backend_result.annotated_dfobject.result_data
+
+        op_id = singleton.get_next_op_id()
+        # TO_SQL: ###############################################################################################
+
+        target_table = args[0]
+        name, ti = singleton.mapping.get_name_and_ti(target_table)
+        strategy = self.stategy
+
+        cols_to_one_hot = ti.non_tracking_cols
+
+        result_name = f"onehot_{name}"
+
+        if strategy == "most_frequent":
+            # Most frequent:
+            select_block = ""
+            oh_block = ""
+            for col in cols_to_one_hot:
+                oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
+                oh_block += oh_code
+                select_block += f"\tCOALESCE({col}, (SELECT {col} FROM {oh_table} WHERE count = (SELECT MAX(count) FROM {oh_table}))) AS {col},\n"
+
+            # Add the counting columns to the pipeline_container
+            singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, cols_to_one_hot[-1])
+
+            sql_code = f"SELECT {select_block[:-2]} \n" \
+                       f"FROM {name}"
+        else:
+            raise NotImplementedError
+
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
+                                                                 tracking_cols=ti.tracking_cols,
+                                                                 non_tracking_cols_addition=[],
+                                                                 operation_type=OperatorType.TRANSFORMER)
+
+        # print(sql_code + "\n")
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_one_hot)
+
+        # TO_SQL DONE! ##########################################################################################
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("One-Hot Encoder", ['array']),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        return new_return_value
