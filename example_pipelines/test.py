@@ -98,7 +98,7 @@ def example_compas(to_sql, despite=True, sql_one_run=True, dbms_connector=None, 
         import matplotlib.pyplot as plt
         im = Image.open(filename)
         plt.imshow(im)
-        plt.waitforbuttonpress()
+        # plt.waitforbuttonpress()
 
         dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
         check_results = inspector_result.check_to_check_results
@@ -287,10 +287,10 @@ def full_compas(one_pass=False, mode=""):
     t1 = time.time()
     print("\nTime spend with original: " + str(t1 - t0))
 
-    t0 = time.time()
-    example_compas(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_compas(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
     example_compas(to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode)
@@ -367,8 +367,8 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    full_healthcare(one_pass=False, mode="CTE", materialize=False)
+    full_healthcare(one_pass=False, mode="VIEW", materialize=True)
     # full_row_wise(one_pass=False, mode="CTE", materialize=False)
-    # full_compas(one_pass=False, mode="CTE")
+    # full_compas(one_pass=True, mode="CTE")
     # full_adult_simple(one_pass=False, mode="VIEW")
     # full_adult_complex(one_pass=False, mode="CTE")

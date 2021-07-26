@@ -142,18 +142,3 @@ class SQLHistogramForColumns:
         return {float("nan") if str(x) == "None" else
                 str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}, new_name
 
-    # def __get_last_table(self, column_name):
-    #     current_table_sc = ""
-    #     for m in self.mapping.mapping:  # we reverse because of the adding order -> faster match
-    #         table_name = m[0]
-    #         table_info = m[1]
-    #         table = table_info.data_object
-    #         if (isinstance(table, pandas.DataFrame) and column_name in table.columns.values) or \
-    #                 (isinstance(table, pandas.Series) and column_name == table.name):
-    #             current_table_sc = table_name
-    #             break
-    #     return current_table_sc
-    #
-    # @staticmethod
-    # def __have_match(list1, list2):
-    #     return (set(list1) - set(list2)) == {}

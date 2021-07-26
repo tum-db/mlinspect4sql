@@ -1,4 +1,5 @@
 from inspect import cleandoc
+from mlinspect.utils import get_project_root
 
 
 # ########################################### FOR THE OP BENCHMARK #####################################################
@@ -136,6 +137,46 @@ def get_healthcare_pipe_code(path_patients, path_histories):
         data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
         """)
 
-    return setup_code, test_code
+    return setup_code + "\n", test_code
+
+
+def get_compas_pipe_code(path_train, path_test):
+    setup_code = cleandoc("""
+        import os
+        import pandas as pd
+        """)
+
+    test_code = cleandoc(f"""
+        train_file = os.path.join('{path_train}')
+        train_data = pd.read_csv(train_file, na_values='', index_col=0)
+        
+        test_file = os.path.join('{path_test}')
+        test_data = pd.read_csv(test_file, na_values='', index_col=0)
+        
+        train_data = train_data[
+            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        test_data = test_data[
+            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        
+        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data[
+            'days_b_screening_arrest'] >= -30)]
+        train_data = train_data[train_data['is_recid'] != -1]
+        train_data = train_data[train_data['c_charge_degree'] != "O"]
+        train_data = train_data[train_data['score_text'] != 'N/A']
+        
+        train_data = train_data.replace('Medium', "Low")
+        test_data = test_data.replace('Medium', "Low")
+        """)
+
+    return setup_code + "\n", test_code
+
 
 # ######################################################################################################################
+
+def print_generated_code():
+    generated_files = (get_project_root() / r"mlinspect/to_sql/generated_code").glob("*.sql")
+    for file in generated_files:
+        with file.open() as f:
+            print(f.read())

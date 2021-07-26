@@ -32,6 +32,10 @@ class UmbraConnector(Connector):
                 host:"localhost"
         Not implemented yet:
         DROP, ALTER, DELETE, CREATE MATERIALIZED VIEW
+
+        ATTENTION: The added table CAN be forced to contain a index column, called: "index_mlinspect" +
+            create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
+            this can be done trough setting add_mlinspect_serial to True! -> Allows row-wise ops
         """
         super().__init__(dbname, user, password, port, host)
         self.umbra_dir = umbra_dir

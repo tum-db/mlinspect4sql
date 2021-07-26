@@ -33,9 +33,6 @@ class Connector(abc.ABC):
                 sql_code: The SQL code to create the table, if none is available just return "".
         Note:
             If more attributes are required, add them through args and kwargs.
-
-        ATTENTION: The added table NEEDS to contain a index column, called: "index_mlinspect" +
-            create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
         """
         raise NotImplementedError()
 
@@ -50,9 +47,6 @@ class Connector(abc.ABC):
                 sql_code: The SQL code to create the table, if none is available just return "".
         Note:
             If more attributes are required, add them through args and kwargs.
-
-        ATTENTION: The added table NEEDS to contain a index column, called: "index_mlinspect" +
-            create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
         """
         raise NotImplementedError()
 

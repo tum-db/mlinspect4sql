@@ -10,6 +10,10 @@ class PostgresqlConnector(Connector):
         Note: For Postgresql:
             1) install Postgresql and start the server
             2) assert it is running: "sudo netstat -lntup | grep '5433\\|5432'"
+
+        ATTENTION: The added table CAN be forced to contain a index column, called: "index_mlinspect" +
+            create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
+            this can be done trough setting add_mlinspect_serial to True! -> Allows row-wise ops
         """
         self.add_mlinspect_serial = add_mlinspect_serial
         self.just_code = just_code
@@ -31,7 +35,9 @@ class PostgresqlConnector(Connector):
             return []
 
         for q in super()._prepare_query(sql_query):
+            # print("TO")
             self.cur.execute(q)
+            # print("DONE")
             try:
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
@@ -76,6 +82,7 @@ class PostgresqlConnector(Connector):
         return col_names, sql_code + "\n" + create_index
 
     def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
+
         col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(data_frame, table_name=table_name,
                                                                           add_mlinspect_serial=False)
 

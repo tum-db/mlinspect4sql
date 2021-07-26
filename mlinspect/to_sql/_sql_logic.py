@@ -217,63 +217,6 @@ class SQLLogic:
                          f"ON o.{column_name} = n.{column_name} OR " \
                          f"(o.{column_name} IS NULL AND n.{column_name} IS NULL)\n),\n"
 
-    # @staticmethod
-    # def ratio_track(origin_dict, column_names, current_dict, join_dict, threshold, only_passed=True):
-    #     """
-    #     Creates the full query for the overview of the change in ratio of a certain attribute.
-    #
-    #     Args:
-    #         origin_dict: Dictionary with all the origin tables of the single attributes.
-    #         column_names: The column names of which we want to have the ratio comparison
-    #         current_dict: Dictionary that maps the names of the sensitive columns to the current table with the
-    #             new ratio we want to check.
-    #         join_dict: Dict for the columns not present in the corresponding table, for which we will need to join.
-    #         threshold: Threshold for which the bias is considered not a problem.
-    #         only_passed(bool): Returns just true or false, representing if a bias with the given threshold
-    #             was introduced.
-    #     Return:
-    #          None -> see stdout
-    #
-    #     Note:
-    #     supports column renaming -> in case the dict contains one.
-    #     """
-    #     sql_code = ""
-    #     last_cte_names = []
-    #
-    #     for i in column_names:
-    #         ctid_col = None
-    #         table_orig = origin_dict[i]
-    #         if i in current_dict.keys():
-    #             table_curr = current_dict[i]
-    #         else:
-    #             table_curr, ctid_col = join_dict[i]
-    #         sql_code += SQLLogic.__column_ratio(table_orig, column_name=i, prefix="original")
-    #         sql_code += SQLLogic.__column_ratio_current(table_orig, table_new=table_curr, column_name=i,
-    #                                                     prefix="current", ctid_col=ctid_col)
-    #         cte_name, sql_code_addition = SQLLogic.__no_bias(table_new=table_curr, column_name=i, threshold=threshold)
-    #
-    #         sql_code += sql_code_addition
-    #         last_cte_names.append(cte_name)
-    #
-    #     sql_code = sql_code[:-2]  # remove the last comma!
-    #     # # Write the code for each column of interest to the corresponding file:
-    #     # for i in column_names:
-    #     #     self.pipeline_container.write_to_side_query(last_cte_names[i], sql_code[i], f"ratio_{i}")
-    #
-    #     if only_passed:
-    #         sql_code += "\nSELECT "
-    #         from_block = ""
-    #         for n in last_cte_names:
-    #             sql_code += f"{n}.no_bias_introduced_flag, "
-    #             from_block += f"{n}, "
-    #         sql_code = sql_code[:-2]
-    #         from_block = from_block[:-2]
-    #         sql_code += f"\nFROM {from_block};\n"
-    #     else:
-    #         raise NotImplementedError
-    #
-    #     return sql_code
-
     @staticmethod
     def ratio_track_original_ref(origin_table: str, column_name: str):
         """

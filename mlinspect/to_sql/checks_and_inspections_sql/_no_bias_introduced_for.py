@@ -24,7 +24,8 @@ class SQLNoBiasIntroducedFor:
         self.pipeline_container = pipeline_container
 
     def no_bias_introduced_sql_evaluate_total(self, sensitive_columns, threshold,
-                                              relevant_sql_objs):  # TODO: only_passed also allow to return the query result!!
+                                              relevant_sql_objs):
+        # TODO: only_passed also allow to return the query result!!
         # TO_SQL: ###############################################################################################
         # print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
         #       "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
