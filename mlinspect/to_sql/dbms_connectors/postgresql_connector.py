@@ -21,7 +21,7 @@ class PostgresqlConnector(Connector):
 
     def __del__(self):
         if not self.just_code:
-            print(self.connection)
+            # print(self.connection)
             self.connection.close()
 
     def run(self, sql_query):

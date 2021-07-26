@@ -40,9 +40,10 @@ class UmbraConnector(Connector):
         # check if already running:
         result = subprocess.run("pgrep serve", stdout=subprocess.PIPE, shell=True)
         if result.returncode == 0:  # here we check if the process is already running
-            subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.PIPE, shell=True)
+            subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.DEVNULL, shell=True)
         command = f"./build/server \"\" -port=5433 -address=localhost"
-        self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.PIPE)
+        self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
 
         # Set output handle to non-blocking (essential to read all that is available and not wait for process term.):
         fcntl.fcntl(self.server.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
