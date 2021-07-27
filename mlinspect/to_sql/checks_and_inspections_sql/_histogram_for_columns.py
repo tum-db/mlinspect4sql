@@ -31,7 +31,7 @@ class SQLHistogramForColumns:
         self.one_run = one_run
         self.sql_obj = sql_obj
 
-    def sql_update_backend_result(self, backend_result: BackendResult,
+    def sql_update_backend_result(self, result, backend_result: BackendResult,
                                   curr_sql_expr_name="",
                                   curr_sql_expr_columns=None):
         """
@@ -112,6 +112,7 @@ class SQLHistogramForColumns:
             # Update the annotation:
             old_dat_node_annotations[annotation] = new_dict
 
+        self.__set_optional_attribute(result, backend_result)
         return backend_result
 
     def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False):
@@ -141,4 +142,16 @@ class SQLHistogramForColumns:
 
         return {float("nan") if str(x) == "None" else
                 str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}, new_name
+
+    @staticmethod
+    def __set_optional_attribute(result, backend_result):
+        # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
+        if result is None:
+            return
+        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
+                not hasattr(result, "_mlinspect_annotation"):
+            result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
+        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
+                not hasattr(result, "_mlinspect_dag_node"):
+            result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 

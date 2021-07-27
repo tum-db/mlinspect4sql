@@ -369,6 +369,6 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
 if __name__ == "__main__":
     full_healthcare(one_pass=False, mode="CTE", materialize=False)
     # full_row_wise(one_pass=False, mode="CTE", materialize=False)
-    # full_compas(one_pass=True, mode="CTE")
+    full_compas(one_pass=False, mode="CTE")
     # full_adult_simple(one_pass=False, mode="VIEW")
     # full_adult_complex(one_pass=False, mode="CTE")

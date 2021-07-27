@@ -126,17 +126,9 @@ class PandasPatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=col_names))
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
             return result
 
@@ -174,15 +166,9 @@ class DataFramePatchingSQL:
                                DagNodeDetails(None, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(backend_result))
+                         singleton.update_hist.sql_update_backend_result(result, backend_result))
 
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
+            return result
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -233,18 +219,10 @@ class DataFramePatchingSQL:
                                DagNodeDetails("dropna", list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking
                                                                          ))
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
             return result
 
@@ -346,17 +324,9 @@ class DataFramePatchingSQL:
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
             return result
 
@@ -443,7 +413,7 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
 
@@ -510,18 +480,10 @@ class DataFramePatchingSQL:
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking
                                                                          ))
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
             return result
 
@@ -607,18 +569,10 @@ class DataFramePatchingSQL:
                                operator_context,
                                DagNodeDetails(description, list(result.columns)),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
-            backend_result = singleton.update_hist.sql_update_backend_result(backend_result,
+            backend_result = singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=columns_without_tracking)
             add_dag_node(dag_node, [input_info_a.dag_node, input_info_b.dag_node], backend_result)
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
             return result
 
@@ -676,6 +630,8 @@ class DataFrameGroupByPatchingSQL:
 
             input_infos = PandasBackend.before_call(operator_context, [])
             result = original(self, *args, **kwargs)
+            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
+            new_return_value = backend_result.annotated_dfobject.result_data
             # TO_SQL: ###############################################################################################
             tb1 = self.obj
             tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
@@ -712,19 +668,16 @@ class DataFrameGroupByPatchingSQL:
                        f"FROM {tb1_name}\n" \
                        f"GROUP BY {groupby_string}"
 
-            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
                                                                      tracking_cols=[],
                                                                      non_tracking_cols_addition=non_tracking_cols_addition,
                                                                      operation_type=OperatorType.GROUP_BY_AGG)
 
             # print(sql_code + "\n")
 
-            columns_without_tracking = [f"\"{x}\"" for x in list(result.columns.values) + groupby_columns]
+            columns_without_tracking = [f"\"{x}\"" for x in list(new_return_value.columns.values) + groupby_columns]
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
-
-            backend_result = PandasBackend.after_call(operator_context, input_infos, result)
-
             if len(args) > 0:
                 description = "Groupby '{}', Aggregate: '{}'".format(result.index.name, args)
             else:
@@ -736,20 +689,9 @@ class DataFrameGroupByPatchingSQL:
                                DagNodeDetails(description, columns),
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
             add_dag_node(dag_node, [input_dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result,
+                         singleton.update_hist.sql_update_backend_result(new_return_value, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=columns_without_tracking))
-            new_return_value = backend_result.annotated_dfobject.result_data
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(new_return_value, "_mlinspect_annotation"):
-                new_return_value._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(new_return_value, "_mlinspect_dag_node"):
-                new_return_value._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
-
-            singleton.mapping.update_pandas_obj(result, new_return_value)
 
             return new_return_value
 
@@ -799,15 +741,7 @@ class LocIndexerPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [input_info.dag_node],
-                         singleton.update_hist.sql_update_backend_result(backend_result))
-
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
+                         singleton.update_hist.sql_update_backend_result(result, backend_result))
 
         else:
             result = original(self, *args, **kwargs)
@@ -848,15 +782,9 @@ class SeriesPatchingSQL:
                                get_optional_code_info_or_none(optional_code_reference, optional_source_code))
 
             add_dag_node(dag_node, [],
-                         singleton.update_hist.sql_update_backend_result(backend_result))
+                         singleton.update_hist.sql_update_backend_result(result, backend_result))
 
-            # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                    not hasattr(result, "_mlinspect_annotation"):
-                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                    not hasattr(result, "_mlinspect_dag_node"):
-                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
+            return result
 
         execute_patched_func(original, execute_inspections, self, *args, **kwargs)
 
@@ -1243,19 +1171,11 @@ class SklearnSimpleImputerPatching:
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
 
-        backend_result = singleton.update_hist.sql_update_backend_result(backend_result,
+        backend_result = singleton.update_hist.sql_update_backend_result(new_return_value, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=cols_to_impute)
 
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
-
-        # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
-        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                not hasattr(new_return_value, "_mlinspect_annotation"):
-            new_return_value._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                not hasattr(new_return_value, "_mlinspect_dag_node"):
-            new_return_value._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
 
         return new_return_value
 
@@ -1316,35 +1236,38 @@ class SklearnOneHotEncoderPatching:
 
         target_table = args[0]
         name, ti = singleton.mapping.get_name_and_ti(target_table)
-        strategy = self.stategy
 
         cols_to_one_hot = ti.non_tracking_cols
+        tracking_cols = ti.tracking_cols
 
-        result_name = f"onehot_{name}"
+        oh_block = ""
+        select_block = ""
+        where_block = ""
+        from_block = ""
+        for col in cols_to_one_hot:
+            oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
 
-        if strategy == "most_frequent":
-            # Most frequent:
-            select_block = ""
-            oh_block = ""
-            for col in cols_to_one_hot:
-                oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
+            oh_block += oh_code
+            oh_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
 
-                oh_block += oh_code
-                oh_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
+            select_block += f"\t{col[:-1]}_one_hot\" AS {col},\n"
+            where_block += f"\t{name}.{col} = {oh_table}.{col} AND \n"
+            from_block += f"{oh_table}, "
 
-                select_block += f"\tCOALESCE({col}, (SELECT {col} FROM {oh_table} WHERE count = (SELECT MAX(count) FROM {oh_table}))) AS {col},\n"
+        oh_block = oh_block[:-3] if singleton.sql_obj.mode.CTE else oh_block
 
-            # Add the counting columns to the pipeline_container
-            singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, None)
+        # Add the one hot columns to the pipeline_container
+        singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, None)
 
-            sql_code = f"SELECT {select_block[:-2]} \n" \
-                       f"FROM {name}"
-        else:
-            raise NotImplementedError
+        select_block += "\t" + ", ".join(tracking_cols)
+
+        sql_code = f"SELECT \n{select_block} \n" \
+                   f"FROM {name}, {from_block[:-2]}\n" \
+                   f"WHERE\n {where_block[:-5]}"
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
-                                                                 tracking_cols=ti.tracking_cols,
-                                                                 non_tracking_cols_addition=[],
+                                                                 tracking_cols=tracking_cols,
+                                                                 non_tracking_cols_addition=cols_to_one_hot,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"onehot_mlinid{op_id}")
 
@@ -1353,11 +1276,17 @@ class SklearnOneHotEncoderPatching:
 
         # TO_SQL DONE! ##########################################################################################
 
-        dag_node = DagNode(singleton.get_next_op_id(),
+        dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
                            operator_context,
                            DagNodeDetails("One-Hot Encoder", ['array']),
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
+
+        backend_result = singleton.update_hist.sql_update_backend_result(new_return_value, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=cols_to_one_hot)
+
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
+
         return new_return_value

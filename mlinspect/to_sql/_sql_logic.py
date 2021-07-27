@@ -299,18 +299,20 @@ class SQLLogic:
     # ################################################ SKLEARN #########################################################
 
     def column_count(self, table, column_name):
-        column_name = column_name.replace("\"", "")
-        table_name = f"count_{column_name}_{self.get_unique_id()}"
+        table_name = f"{table}_{self.get_unique_id()}_count"
         sql_code = f"\tSELECT {column_name}, COUNT(*) AS count\n" \
                    f"\tFROM {table} \n" \
                    f"\tGROUP BY {column_name}\n"
         return self.wrap_in_sql_obj(sql_code, block_name=table_name)
 
-    def column_one_hot_encoding(self, table, column_name):
-        table_name = f"onehot_{column_name}_{self.get_unique_id()}"
-        sql_code = f"\tselect {column_name}, (array_fill(0,array[oh_{column_name}.rank-1]) || 1 || " \
-                   f"array_fill(0, array[ cast((select count(distinct({column_name})) from {table}) as int) -" \
-                   f" (oh_{column_name}.rank)])) as {column_name}_one_hot" \
-                   f"\tfrom (select {column_name}, cast (rank() over (order by {column_name} desc) as int)" \
-                   f"from (select distinct({column_name}) from {table}) oh) oh_{column_name}"
+    def column_one_hot_encoding(self, table, col):
+        table_name = f"{table}_{self.get_unique_id()}_onehot"
+        sql_code = f"\tselect {col}, \n" \
+                   f"\t(array_fill(0,array[\"oh_{col[1:]}.rank-1]) || 1 || " \
+                   f"array_fill(0, array[ cast((select count(distinct({col})) from {table}) as int) - " \
+                   f"(\"oh_{col[1:]}.rank)])) as {col[:-1]}_one_hot\" \n" \
+                   f"\tfrom (\n" \
+                   f"\t\tselect {col}, cast (rank() over (order by {col} desc) as int)\n" \
+                   f"\t\tfrom (select distinct({col}) from {table}) oh\n" \
+                   f"\t) \"oh_{col[1:]}"
         return self.wrap_in_sql_obj(sql_code, block_name=table_name)
