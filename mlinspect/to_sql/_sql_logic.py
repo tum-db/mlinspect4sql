@@ -133,7 +133,6 @@ class SQLLogic:
         else:
             # TODO adding naming etc. + row-wise
             raise NotImplementedError
-            # table = "TODO"
 
         new_content = f"({content_l} {op} {content_r})"
         return new_table, new_content, new_tracking_columns

@@ -123,9 +123,8 @@ class SQLHistogramForColumns:
         """
         new_name = curr_sql_expr_name
         if self.sql_obj.mode == SQLObjRep.CTE:
-            sc_hist_result = self.dbms_connector.run(
-                self.pipeline_container.get_pipe_without_selection() + "\n" + query
-            )[0]
+            query = self.pipeline_container.get_pipe_without_selection() + "\n" + query
+            sc_hist_result = self.dbms_connector.run(query)[0]
         else:
 
             if self.sql_obj.materialize and not init:
@@ -139,6 +138,8 @@ class SQLHistogramForColumns:
                     query = new_view_query + "\n" + query.replace(curr_sql_expr_name, new_name)
 
             sc_hist_result = self.dbms_connector.run(query)[0]
+
+        # self.pipeline_container.write_to_side_query(query, f"ratio_query_{curr_sql_expr_name}")
 
         return {float("nan") if str(x) == "None" else
                 str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}, new_name

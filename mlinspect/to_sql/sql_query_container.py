@@ -42,17 +42,15 @@ class SQLQueryContainer:
         with self.file_path_create_table.open(mode="a", ) as file:
             file.write(sql_code + "\n\n")
 
-    def write_to_side_query(self, last_cte_name, sql_code, file_name):
+    def write_to_side_query(self, full_sql_code, file_name):
         """
         Stores and add side statements (like ratio measurements) at "mlinspect/to_sql/generated_code/ratio_<column>.sql"
         """
         if len(file_name.split(".")) == 1:
             file_name = file_name + ".sql"
         path = self.root_dir_to_sql / file_name
-        SQLQueryContainer.__del_select_line(path, self.sql_obj.mode == SQLObjRep.CTE)
         with path.open(mode="a")as file:
-            file.write(sql_code)
-        SQLQueryContainer.__add_select_line(path, last_cte_name)
+            file.write(full_sql_code)
 
     def __write_to_pipe_query(self, last_cte_name, sql_code, cols_to_keep):
         SQLQueryContainer.__del_select_line(self.file_path_pipe, self.sql_obj.mode == SQLObjRep.CTE)

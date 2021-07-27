@@ -12,6 +12,7 @@ from mlinspect.to_sql.py_to_sql_mapping import OpTree
 from mlinspect.backends._pandas_backend import PandasBackend
 from mlinspect.monkeypatching._monkey_patching_utils import get_dag_node_for_id
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
+from mlinspect.to_sql._mode import SQLObjRep
 
 import gorilla
 import numpy
@@ -1135,17 +1136,19 @@ class SklearnSimpleImputerPatching:
                 count_table, count_code = singleton.sql_logic.column_count(name, col)
 
                 count_block += count_code
-                count_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
+                count_block += ", \n" if singleton.sql_obj.mode == SQLObjRep.CTE else ""
 
                 select_block += f"\tCOALESCE({col}, " \
                                 f"(SELECT {col} " \
                                 f"FROM {count_table} " \
                                 f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col},\n"
 
-            count_block = count_block[:-3] if singleton.sql_obj.mode.CTE else count_block
+            count_block = count_block[:-3] if singleton.sql_obj.mode == SQLObjRep.CTE else count_block
 
             # Add the counting columns to the pipeline_container
             singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, None)
+            if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                singleton.dbms_connector.run(count_block)
 
             select_block += "\t" + ", ".join(tracking_cols)
 
@@ -1248,16 +1251,18 @@ class SklearnOneHotEncoderPatching:
             oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
 
             oh_block += oh_code
-            oh_block += ", \n" if singleton.sql_obj.mode.CTE else "\n"
+            oh_block += ", \n" if singleton.sql_obj.mode == SQLObjRep.CTE else ""
 
             select_block += f"\t{col[:-1]}_one_hot\" AS {col},\n"
             where_block += f"\t{name}.{col} = {oh_table}.{col} AND \n"
             from_block += f"{oh_table}, "
 
-        oh_block = oh_block[:-3] if singleton.sql_obj.mode.CTE else oh_block
+        oh_block = oh_block[:-3] if singleton.sql_obj.mode == SQLObjRep.CTE else oh_block
 
         # Add the one hot columns to the pipeline_container
         singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, None)
+        if singleton.sql_obj.mode == SQLObjRep.VIEW:
+            singleton.dbms_connector.run(oh_block)
 
         select_block += "\t" + ", ".join(tracking_cols)
 
