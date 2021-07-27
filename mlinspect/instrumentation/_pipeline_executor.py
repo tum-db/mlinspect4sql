@@ -124,8 +124,11 @@ class PipelineExecutor:
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql, sql_obj=self.sql_obj)
             self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
                                                       one_run=self.sql_one_run, sql_obj=self.sql_obj)
+            sql_logic_id = 1
+            if self.sql_logic:  # Necessary to avoid duplicate names, when running multiple inspections in a row!
+                sql_logic_id = self.sql_logic.id
             self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container,
-                                      dbms_connector=self.dbms_connector, sql_obj=self.sql_obj)
+                                      dbms_connector=self.dbms_connector, sql_obj=self.sql_obj, id=sql_logic_id)
 
             # Fix the problem gorilla has with restoring the comparison operators:
             self.backup_eq = pandas.Series.__eq__
@@ -227,8 +230,11 @@ class PipelineExecutor:
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql, sql_obj=self.sql_obj)
             self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
                                                       self.sql_one_run, sql_obj=self.sql_obj)
+            sql_logic_id = 1
+            if self.sql_logic:  # Necessary to avoid duplicate names, when running multiple inspections in a row!
+                sql_logic_id = self.sql_logic.id
             self.sql_logic = SQLLogic(mapping=self.mapping, pipeline_container=self.pipeline_container,
-                                      dbms_connector=self.dbms_connector, sql_obj=self.sql_obj)
+                                      dbms_connector=self.dbms_connector, sql_obj=self.sql_obj, id=sql_logic_id)
 
     @staticmethod
     def instrument_pipeline(parsed_ast, track_code_references):

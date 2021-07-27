@@ -7,13 +7,13 @@ from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
 
 class SQLLogic:
     first_with = True
-    id = 1
 
-    def __init__(self, mapping, pipeline_container, dbms_connector, sql_obj):
+    def __init__(self, mapping, pipeline_container, dbms_connector, sql_obj, id=1):
         self.mapping = mapping
         self.pipeline_container = pipeline_container
         self.sql_obj = sql_obj
         self.dbms_connector = dbms_connector
+        self.id = id
 
     def wrap_in_sql_obj(self, sql_code, position_id=-1, block_name=""):
         """
@@ -21,7 +21,7 @@ class SQLLogic:
         used once.
         """
         if block_name == "":
-            block_name = f"{sql_obj_prefix}_mlinid{position_id}"
+            block_name = f"{sql_obj_prefix}_mlinid{position_id}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         if self.sql_obj.mode == SQLObjRep.CTE:
             sql_code = f"{block_name} AS (\n\t{sql_code}\n)"
