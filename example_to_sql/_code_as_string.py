@@ -115,7 +115,7 @@ class GroupBy:
 # ######################################################################################################################
 
 # ########################################### FOR THE PURE PIPELINE BENCHMARK ##########################################
-def get_healthcare_pipe_code(path_patients, path_histories):
+def get_healthcare_pipe_code(path_patients, path_histories, add_impute_and_onehot=False):
     setup_code = cleandoc("""
         import os
         import pandas as pd
@@ -136,7 +136,13 @@ def get_healthcare_pipe_code(path_patients, path_histories):
         data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
         data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
         """)
-
+    if add_impute_and_onehot:
+        test_code += cleandoc(f"""
+        impute_and_one_hot_encode = Pipeline([
+            ('impute', SimpleImputer(strategy='most_frequent')),
+            ('encode', OneHotEncoder(sparse=False, handle_unknown='ignore'))
+        ])
+        """)
     return setup_code + "\n", test_code
 
 
@@ -180,3 +186,5 @@ def print_generated_code():
     for file in generated_files:
         with file.open() as f:
             print(f.read())
+
+

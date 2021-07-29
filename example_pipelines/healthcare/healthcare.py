@@ -17,17 +17,17 @@ warnings.filterwarnings('ignore')
 
 COUNTIES_OF_INTEREST = ['county2', 'county3']
 
-# patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_1000000.csv",
-#     na_values='?')
-# histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_1000000.csv",
-#     na_values='?')
+patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_1000000.csv",
+    na_values='?')
+histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_1000000.csv",
+    na_values='?')
 
-patients = pd.read_csv(os.path.join( str(get_project_root()),
-    "example_pipelines", "healthcare", "patients.csv"),
-    na_values='')
-histories = pd.read_csv(os.path.join( str(get_project_root()),
-    "example_pipelines", "healthcare", "histories.csv"),
-    na_values='')
+# patients = pd.read_csv(os.path.join( str(get_project_root()),
+#     "example_pipelines", "healthcare", "patients.csv"),
+#     na_values='')
+# histories = pd.read_csv(os.path.join( str(get_project_root()),
+#     "example_pipelines", "healthcare", "histories.csv"),
+#     na_values='')
 
 data = patients.merge(histories, on=['ssn'])
 complications = data.groupby('age_group').agg(
@@ -45,7 +45,7 @@ impute_and_one_hot_encode = Pipeline([
     ('encode',
         OneHotEncoder(sparse=False, handle_unknown='ignore'))
 ])
-impute_and_one_hot_encode.fit_transform(data)
+# impute_and_one_hot_encode.fit_transform(data)
 
 # featurisation = ColumnTransformer(transformers=[
 #     ("impute_and_one_hot_encode", impute_and_one_hot_encode,
