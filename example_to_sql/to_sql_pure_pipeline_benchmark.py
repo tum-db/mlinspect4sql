@@ -20,8 +20,8 @@ from data_generation.healthcare_data_generation import generate_healthcare_datas
 
 # Some parameters you might want check:
 DO_CLEANUP = True
-SIZES = [(10 ** i) for i in range(2, 8, 1)]
-BENCH_REP = 3
+SIZES = [(10 ** i) for i in range(2, 6, 1)]
+BENCH_REP = 1
 MLINSPECT_ROOT_DIR = get_project_root()
 
 # DBMS related:
@@ -89,12 +89,13 @@ def pure_pipeline_benchmark(add_impute_and_onehot=False, title="HealthcarePurePi
     plot_compare(title, SIZES, all_y=table, all_y_names=names, save=True)
 
 
-# Just the pandas part:
-pure_pipeline_benchmark()
+if __name__ == "__main__":
+    # Just the pandas part:
+    pure_pipeline_benchmark()
 
-# With OneHotEncoding and SimpleImputer:
-pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")
+    # With OneHotEncoding and SimpleImputer:
+    pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")
 
-# Clean_up:
-if DO_CLEANUP:
-    [f.unlink() for f in PLOT_DIR.glob("*_.png") if f.is_file()]
+    # Clean_up:
+    if DO_CLEANUP:
+        [f.unlink() for f in PLOT_DIR.glob("*_.png") if f.is_file()]

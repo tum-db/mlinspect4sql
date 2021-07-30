@@ -1111,7 +1111,7 @@ class SklearnComposePatching:
 
         # We will need pass the input of this function to the subclass, to be able to achieve the mapping.
         global column_transformer_input
-        column_transformer_input = args[0], [f"\"{x}\"" for x in self.transformers[0][2]]
+        column_transformer_input = args[0], self
 
         # TODO: HANDLE "drop" == self.remainder
 
@@ -1221,9 +1221,9 @@ class SklearnSimpleImputerPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        target_sql_obj, cols_to_impute = help_sk_input(target_sql_obj=args[0])
+        target_sql_obj, cols_to_impute, val_for_mapping = help_sk_input(target_sql_obj=args[0], result=new_return_value)
 
-        name, ti = target_sql_obj
+        name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
 
         strategy = self.strategy
 
@@ -1263,11 +1263,13 @@ class SklearnSimpleImputerPatching:
         else:
             raise NotImplementedError
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, value_for_mapping,
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, val_for_mapping,
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols_addition=cols_to_impute,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_impute_mlinid{op_id}")
+                                                                 cte_name=f"block_impute_mlinid{op_id}",
+                                                                 update_data_obj=not(
+                                                                         new_return_value is val_for_mapping))
 
         # print(sql_code + "\n")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_impute)
@@ -1280,7 +1282,7 @@ class SklearnSimpleImputerPatching:
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
 
-        backend_result = singleton.update_hist.sql_update_backend_result(value_for_mapping, backend_result,
+        backend_result = singleton.update_hist.sql_update_backend_result(val_for_mapping, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=cols_to_impute)
 
@@ -1343,8 +1345,9 @@ class SklearnOneHotEncoderPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        target_table = args[0]
-        name, ti = singleton.mapping.get_name_and_ti(target_table)
+        target_sql_obj, cols_to_one_hot, val_for_mapping = help_sk_input(target_sql_obj=args[0], result=new_return_value)
+
+        name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
 
         cols_to_one_hot = ti.non_tracking_cols
         tracking_cols = ti.tracking_cols
@@ -1380,7 +1383,9 @@ class SklearnOneHotEncoderPatching:
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols_addition=cols_to_one_hot,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"onehot_mlinid{op_id}")
+                                                                 cte_name=f"onehot_mlinid{op_id}",
+                                                                 update_data_obj=not(
+                                                                         new_return_value is val_for_mapping))
 
         # print(sql_code + "\n")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_one_hot)
@@ -1520,15 +1525,16 @@ class SklearnStandardScalerPatching:
 
 # ################################## UTILITY ##########################################
 
-def help_sk_input(target_sql_obj):
+def help_sk_input(target_sql_obj, result):
     if not singleton.mapping.contains(target_sql_obj):
         # This is the case the input is passed over some indirection as ColumnTransformer => get original from glob.
         global column_transformer_input
         if not column_transformer_input:
             raise NotImplementedError
-        target_sql_obj, cols_to_impute = column_transformer_input
+        target_sql_obj, c_transformer = column_transformer_input
+        cols_to_handle = [f"\"{x}\"" for x in c_transformer.transformers[0][2]]
 
-        return target_sql_obj, cols_to_impute
+        return target_sql_obj, cols_to_handle, target_sql_obj
 
     name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
-    return target_sql_obj, ti.non_tracking_cols
+    return target_sql_obj, ti.non_tracking_cols, result

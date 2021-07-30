@@ -45,11 +45,13 @@ impute_and_one_hot_encode = Pipeline([
     ('encode',
         OneHotEncoder(sparse=False, handle_unknown='ignore'))
 ])
-featurisation = ColumnTransformer(transformers=[
-    ("impute_and_one_hot_encode", impute_and_one_hot_encode, ['smoker', 'county', 'race'])
-    #, ('numeric', StandardScaler(), ['num_children', 'income'])
-])
-featurisation.fit_transform(data)
+impute_and_one_hot_encode.fit_transform(data)
+
+# featurisation = ColumnTransformer(transformers=[
+#     ("impute_and_one_hot_encode", impute_and_one_hot_encode, ['smoker', 'county', 'race'])
+#     #, ('numeric', StandardScaler(), ['num_children', 'income'])
+# ])
+# featurisation.fit_transform(data)
 
 # featurisation = ColumnTransformer(transformers=[
 #     ("impute_and_one_hot_encode", impute_and_one_hot_encode,

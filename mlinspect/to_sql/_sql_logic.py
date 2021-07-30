@@ -138,7 +138,7 @@ class SQLLogic:
         return new_table, new_content, new_tracking_columns
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,
-                        origin_context=None, cte_name=""):
+                        origin_context=None, cte_name="", update_data_obj=False):
         final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
         if isinstance(result, pandas.Series):
             non_tracking_cols = f"\"{result.name}\""
@@ -148,12 +148,17 @@ class SQLLogic:
             non_tracking_cols = non_tracking_cols_addition
         else:
             raise NotImplementedError
-        mapping_result = TableInfo(data_object=result,
-                                   tracking_cols=tracking_cols,
-                                   non_tracking_cols=non_tracking_cols,
-                                   operation_type=operation_type,
-                                   origin_context=origin_context)
-        self.mapping.add(final_cte_name, mapping_result)
+
+        if update_data_obj:
+            self.mapping.update_name_df(result, final_cte_name)
+        else:
+            mapping_result = TableInfo(data_object=result,
+                                       tracking_cols=tracking_cols,
+                                       non_tracking_cols=non_tracking_cols,
+                                       operation_type=operation_type,
+                                       origin_context=origin_context)
+
+            self.mapping.add(final_cte_name, mapping_result)
 
         if self.sql_obj.mode == SQLObjRep.VIEW:
             self.dbms_connector.run(sql_code)  # Create the view.
