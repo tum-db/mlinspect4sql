@@ -1058,6 +1058,110 @@ class SklearnCallInfo:
 call_info_singleton = SklearnCallInfo()
 
 
+@gorilla.patches(compose.ColumnTransformer)
+class SklearnComposePatching:
+    """ Patches for sklearn ColumnTransformer"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self,
+                        transformers, *,
+                        remainder='drop',
+                        sparse_threshold=0.3,
+                        n_jobs=None,
+                        transformer_weights=None,
+                        verbose=False):
+        """ Patch for ('sklearn.compose._column_transformer', 'ColumnTransformer') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(compose.ColumnTransformer, '__init__')
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            # pylint: disable=attribute-defined-outside-init
+            original(self, transformers, remainder=remainder, sparse_threshold=sparse_threshold, n_jobs=n_jobs,
+                     transformer_weights=transformer_weights, verbose=verbose)
+
+            self.mlinspect_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_indirect_allowed(execute_inspections)
+
+    @gorilla.name('fit_transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit_transform(self, *args, **kwargs):
+        """ Patch for ('sklearn.compose._column_transformer', 'ColumnTransformer') """
+        # pylint: disable=no-method-argument
+        call_info_singleton.transformer_filename = self.mlinspect_filename
+        call_info_singleton.transformer_lineno = self.mlinspect_lineno
+        call_info_singleton.transformer_function_info = FunctionInfo('sklearn.compose._column_transformer',
+                                                                     'ColumnTransformer')
+        call_info_singleton.transformer_optional_code_reference = self.mlinspect_optional_code_reference
+        call_info_singleton.transformer_optional_source_code = self.mlinspect_optional_source_code
+
+        call_info_singleton.column_transformer_active = True
+        original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit_transform')
+
+        # TO_SQL: ###############################################################################################
+        # When calling original(self, *args, **kwargs) the overwritten SimpleImpute and OneHotEncode functions
+        # will be called with the relevant slice of the table.
+
+        # We will need pass the input of this function to the subclass, to be able to achieve the mapping.
+        global column_transformer_input
+        column_transformer_input = args[0], [f"\"{x}\"" for x in self.transformers[0][2]]
+
+        # TODO: HANDLE "drop" == self.remainder
+
+        # TO_SQL DONE! ##########################################################################################
+
+        result = original(self, *args, **kwargs)
+        call_info_singleton.column_transformer_active = False
+
+        return result
+
+    @gorilla.name('_hstack')
+    @gorilla.settings(allow_hit=True)
+    def patched_hstack(self, *args, **kwargs):
+        """ Patch for ('sklearn.compose._column_transformer', 'ColumnTransformer') """
+        # pylint: disable=no-method-argument, unused-argument, too-many-locals
+        original = gorilla.get_original_attribute(compose.ColumnTransformer, '_hstack')
+
+        if not call_info_singleton.column_transformer_active:
+            return original(self, *args, **kwargs)
+
+        input_tuple = args[0]
+        function_info = FunctionInfo('sklearn.compose._column_transformer', 'ColumnTransformer')
+        input_infos = []
+        for input_df_obj in input_tuple:
+            input_info = get_input_info(input_df_obj, self.mlinspect_filename, self.mlinspect_lineno, function_info,
+                                        self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+            input_infos.append(input_info)
+
+        operator_context = OperatorContext(OperatorType.CONCATENATION, function_info)
+        input_annotated_dfs = [input_info.annotated_dfobject for input_info in input_infos]
+        backend_input_infos = SklearnBackend.before_call(operator_context, input_annotated_dfs)
+        # No input_infos copy needed because it's only a selection and the rows not being removed don't change
+        result = original(self, *args, **kwargs)
+        backend_result = SklearnBackend.after_call(operator_context,
+                                                   backend_input_infos,
+                                                   result)
+        result = backend_result.annotated_dfobject.result_data
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails(None, ['array']),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        input_dag_nodes = [input_info.dag_node for input_info in input_infos]
+        add_dag_node(dag_node, input_dag_nodes, backend_result)
+
+        return result
+
+
 @gorilla.patches(impute.SimpleImputer)
 class SklearnSimpleImputerPatching:
     """ Patches for sklearn SimpleImputer"""
@@ -1117,15 +1221,17 @@ class SklearnSimpleImputerPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        target_sql_obj = args[0]
-        name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
+        target_sql_obj, cols_to_impute = help_sk_input(target_sql_obj=args[0])
+
+        name, ti = target_sql_obj
+
         strategy = self.strategy
 
-        # guarantee correct order (crucial from now on! - check if necessary):
-        if isinstance(target_sql_obj, pandas.DataFrame) or isinstance(target_sql_obj, pandas.Series):
-            cols_to_impute = [f"\"{x}\"" for x in target_sql_obj.columns.values]
-        else:
-            cols_to_impute = ti.non_tracking_cols
+        # # guarantee correct order (crucial from now on! - check if necessary):
+        # if isinstance(target_sql_obj, pandas.DataFrame) or isinstance(target_sql_obj, pandas.Series):
+        #     cols_to_impute = [f"\"{x}\"" for x in target_sql_obj.columns.values]
+        # else:
+        #     cols_to_impute = ti.non_tracking_cols
 
         if strategy == "most_frequent":
             # Most frequent:
@@ -1157,7 +1263,7 @@ class SklearnSimpleImputerPatching:
         else:
             raise NotImplementedError
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, value_for_mapping,
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols_addition=cols_to_impute,
                                                                  operation_type=OperatorType.TRANSFORMER,
@@ -1174,7 +1280,7 @@ class SklearnSimpleImputerPatching:
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
 
-        backend_result = singleton.update_hist.sql_update_backend_result(new_return_value, backend_result,
+        backend_result = singleton.update_hist.sql_update_backend_result(value_for_mapping, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=cols_to_impute)
 
@@ -1295,3 +1401,134 @@ class SklearnOneHotEncoderPatching:
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
         return new_return_value
+
+
+@gorilla.patches(preprocessing.StandardScaler)
+class SklearnStandardScalerPatching:
+    """ Patches for sklearn StandardScaler"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, *, copy=True, with_mean=True, with_std=True,
+                        mlinspect_caller_filename=None, mlinspect_lineno=None,
+                        mlinspect_optional_code_reference=None, mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.preprocessing._data', 'StandardScaler') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init
+        original = gorilla.get_original_attribute(preprocessing.StandardScaler, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, copy=copy, with_mean=with_mean, with_std=with_std)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, copy=copy, with_mean=with_mean,
+                                             with_std=with_std)
+
+    @gorilla.name('fit_transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit_transform(self, *args, **kwargs):
+        """ Patch for ('sklearn.preprocessing._data.StandardScaler', 'fit_transform') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'fit_transform')
+        function_info = FunctionInfo('sklearn.preprocessing._data', 'StandardScaler')
+        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+
+        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+        backend_result = SklearnBackend.after_call(operator_context,
+                                                   input_infos,
+                                                   result)
+        new_return_value = backend_result.annotated_dfobject.result_data
+        assert isinstance(new_return_value, MlinspectNdarray)
+
+        op_id = singleton.get_next_op_id()
+        # TO_SQL: ###############################################################################################
+
+        target_sql_obj = args[0]
+        name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
+        strategy = self.strategy
+
+        # guarantee correct order (crucial from now on! - check if necessary):
+        if isinstance(target_sql_obj, pandas.DataFrame) or isinstance(target_sql_obj, pandas.Series):
+            cols_to_impute = [f"\"{x}\"" for x in target_sql_obj.columns.values]
+        else:
+            cols_to_impute = ti.non_tracking_cols
+
+        if strategy == "most_frequent":
+            # Most frequent:
+            select_block = ""
+            count_block = ""
+            tracking_cols = ti.tracking_cols
+            for col in cols_to_impute:
+                count_table, count_code = singleton.sql_logic.column_count(name, col)
+
+                count_block += count_code
+                count_block += ", \n" if singleton.sql_obj.mode == SQLObjRep.CTE else ""
+
+                select_block += f"\tCOALESCE({col}, " \
+                                f"(SELECT {col} " \
+                                f"FROM {count_table} " \
+                                f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col},\n"
+
+            count_block = count_block[:-3] if singleton.sql_obj.mode == SQLObjRep.CTE else count_block
+
+            # Add the counting columns to the pipeline_container
+            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, None)
+            if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                singleton.dbms_connector.run(count_block)
+
+            select_block += "\t" + ", ".join(tracking_cols)
+
+            sql_code = f"SELECT \n{select_block} \n" \
+                       f"FROM {name}"
+        else:
+            raise NotImplementedError
+
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
+                                                                 tracking_cols=tracking_cols,
+                                                                 non_tracking_cols_addition=cols_to_impute,
+                                                                 operation_type=OperatorType.TRANSFORMER,
+                                                                 cte_name=f"block_impute_mlinid{op_id}")
+
+        # print(sql_code + "\n")
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_impute)
+
+        # TO_SQL DONE! ##########################################################################################
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Standard Scaler", ['array']),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        return new_return_value
+
+
+# ################################## UTILITY ##########################################
+
+def help_sk_input(target_sql_obj):
+    if not singleton.mapping.contains(target_sql_obj):
+        # This is the case the input is passed over some indirection as ColumnTransformer => get original from glob.
+        global column_transformer_input
+        if not column_transformer_input:
+            raise NotImplementedError
+        target_sql_obj, cols_to_impute = column_transformer_input
+
+        return target_sql_obj, cols_to_impute
+
+    name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
+    return target_sql_obj, ti.non_tracking_cols

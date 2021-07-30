@@ -263,10 +263,10 @@ def example_row_wise(to_sql, despite=True, sql_one_run=True, dbms_connector=None
 
 
 def full_healthcare(one_pass=False, mode="", materialize=None):
-    t0 = time.time()
-    example_one(to_sql=False)
-    t1 = time.time()
-    print("\nTime spend with original: " + str(t1 - t0))
+    # t0 = time.time()
+    # example_one(to_sql=False)
+    # t1 = time.time()
+    # print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
     example_one(to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
@@ -367,7 +367,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    full_healthcare(one_pass=False, mode="VIEW", materialize=False)
+    full_healthcare(one_pass=False, mode="CTE", materialize=False)
     # full_row_wise(one_pass=False, mode="CTE", materialize=False)
     # full_compas(one_pass=False, mode="VIEW", materialize=False)
     # full_adult_simple(one_pass=False, mode="VIEW")
