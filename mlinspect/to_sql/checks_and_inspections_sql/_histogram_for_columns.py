@@ -73,9 +73,7 @@ class SQLHistogramForColumns:
             #       sensitive columns are not to be found in the tracking_columns of our table
             # 1.1) This table has nothing to do with it, because its another input file.
             # 2) They were removed by a selection => compare original ctid with the ones present here.
-
             for sc in sensitive_columns:  # update the values based on current table.
-
                 if sc in curr_sql_expr_columns:
                     query = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
                     new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,

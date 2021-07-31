@@ -14,7 +14,7 @@ from _code_as_string import Join, GroupBy, Selection, Projection
 
 DO_CLEANUP = True
 SIZES = [(10 ** i) for i in range(2, 8, 1)]
-BENCH_REP = 10
+BENCH_REP = 3
 
 # DBMS related:
 UMBRA_DIR = r"/home/luca/Documents/Bachelorarbeit/umbra-students"

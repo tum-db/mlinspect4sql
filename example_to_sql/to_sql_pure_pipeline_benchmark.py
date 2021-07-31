@@ -20,8 +20,8 @@ from data_generation.healthcare_data_generation import generate_healthcare_datas
 
 # Some parameters you might want check:
 DO_CLEANUP = True
-SIZES = [(10 ** i) for i in range(2, 6, 1)]
-BENCH_REP = 1
+SIZES = [(10 ** i) for i in range(2, 8, 1)]
+BENCH_REP = 3
 MLINSPECT_ROOT_DIR = get_project_root()
 
 # DBMS related:
@@ -48,7 +48,7 @@ COMPAS_DATA_PATHS = generate_compas_dataset(SIZES)
 HEALTHCARE_DATA_PATHS = generate_healthcare_dataset(SIZES)
 
 
-def pure_pipeline_benchmark(add_impute_and_onehot=False, title="HealthcarePurePipeComparison"):
+def pure_pipeline_benchmark(mode, materialize, add_impute_and_onehot=False, title="HealthcarePurePipeComparison"):
     umbra_times = []
     postgres_times = []
     pandas_times = []
@@ -63,8 +63,8 @@ def pure_pipeline_benchmark(add_impute_and_onehot=False, title="HealthcarePurePi
         setup_code_orig, test_code_orig = get_healthcare_pipe_code(path_to_csv_his, path_to_csv_pat,
                                                                    add_impute_and_onehot=add_impute_and_onehot)
 
-        setup_code, test_code = get_healthcare_sql_str(setup_code_orig + "\n" + test_code_orig, mode="CTE",
-                                                       materialize=False)
+        setup_code, test_code = get_healthcare_sql_str(setup_code_orig + "\n" + test_code_orig, mode=mode,
+                                                       materialize=materialize)
 
         ################################################################################################################
         # time Umbra:
@@ -91,10 +91,14 @@ def pure_pipeline_benchmark(add_impute_and_onehot=False, title="HealthcarePurePi
 
 if __name__ == "__main__":
     # Just the pandas part:
-    pure_pipeline_benchmark()
+    pure_pipeline_benchmark(mode="CTE", materialize=False, add_impute_and_onehot=False,
+                            title="HealthcarePurePipeComparison")
+
+    pure_pipeline_benchmark(mode="VIEW", materialize=False, add_impute_and_onehot=False,
+                            title="HealthcarePurePipeComparisonVIEW")
 
     # With OneHotEncoding and SimpleImputer:
-    pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")
+    # pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")
 
     # Clean_up:
     if DO_CLEANUP:

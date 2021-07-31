@@ -47,7 +47,7 @@ class UmbraConnector(Connector):
             subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.DEVNULL, shell=True)
         command = f"./build/server \"\" -port=5433 -address=localhost"
         self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
+                                       stderr=subprocess.STDOUT)
 
         # Set output handle to non-blocking (essential to read all that is available and not wait for process term.):
         fcntl.fcntl(self.server.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
@@ -63,11 +63,12 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            # print(q + "\n")
+            # print(q)
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
+                # print(q + "\n" + "#" * 20)
                 continue
         return [pandas.DataFrame(r) for r in results]
 

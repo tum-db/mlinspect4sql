@@ -3,9 +3,11 @@ import seaborn
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
+import csv
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent
 PLOT_DIR = ROOT_DIR / "plots"
+LOG = ROOT_DIR / "plots" / "aRunLog.csv"
 
 COLOR_SET = ["#B93313", "#188DD3", "#64B351", "#7F6AA7", "#D6BD62", "#BBDDAA"]
 rc = {
@@ -83,3 +85,8 @@ def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset siz
         figure.savefig(save_path, bbox_inches='tight', dpi=800)
 
     return plt
+
+
+def write_to_log(pipeline_name, size, mode, materialize, csv_file_paths, engine, time):
+    with LOG.open("a") as file:
+        file.write(f"{pipeline_name}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',',';')}\n")
