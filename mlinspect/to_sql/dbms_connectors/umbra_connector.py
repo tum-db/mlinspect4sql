@@ -63,7 +63,7 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            # print(q)
+            print(q)
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
@@ -105,23 +105,27 @@ class UmbraConnector(Connector):
         """ See parent. """
         # create the index column:
         try:
+            index_col = False
             if self.add_mlinspect_serial:
-                _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
+                if "index_col" in kwargs:
+                    index_col = kwargs["index_col"]  # This will be used as serial
+                else:
+                    _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
 
-                with open(path_to_csv, 'r') as csvinput:
-                    with open(path_to_tmp, 'w') as csvoutput:
-                        writer = csv.writer(csvoutput)
-                        csv_reader = csv.reader(csvinput)
-                        if header:
-                            writer.writerow(next(csv_reader) + ["index_mlinspect"])
-                        for i, row in enumerate(csv_reader):
-                            writer.writerow(row + [str(i)])
-                path_to_csv = path_to_tmp
+                    with open(path_to_csv, 'r') as csvinput:
+                        with open(path_to_tmp, 'w') as csvoutput:
+                            writer = csv.writer(csvoutput)
+                            csv_reader = csv.reader(csvinput)
+                            if header:
+                                writer.writerow(next(csv_reader) + ["index_mlinspect"])
+                            for i, row in enumerate(csv_reader):
+                                writer.writerow(row + [str(i)])
+                    path_to_csv = path_to_tmp
             col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_csv, table_name=table_name,
                                                                               null_symbols=null_symbols,
                                                                               delimiter=delimiter,
                                                                               header=header,
-                                                                              add_mlinspect_serial=False)
+                                                                              add_mlinspect_serial=index_col)
             self.run(sql_code)
 
             if self.add_mlinspect_serial:

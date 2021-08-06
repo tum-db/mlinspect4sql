@@ -66,6 +66,7 @@ class PandasPatchingSQL:
             na_values = ["?"]
             header = 1
             path_to_csv = ""
+            index_col = None
 
             # Check relevant kwargs:
             if "filepath_or_buffer" in kwargs:  # could be: str, (path object or file-like object)
@@ -79,6 +80,8 @@ class PandasPatchingSQL:
                 header = kwargs["header"]
                 if not isinstance(header, int):
                     raise NotImplementedError
+            elif "index_col" in kwargs:
+                index_col = kwargs["index_col"]
 
             # Check args that weren't set by kwargs:
             if path_to_csv == "" and len(args) >= 1:  # Just evaluate the first arg to get the csv.
@@ -96,7 +99,7 @@ class PandasPatchingSQL:
 
             col_names, sql_code = singleton.dbms_connector.add_csv(path_to_csv, table_name, null_symbols=na_values,
                                                                    delimiter=sep, header=(header == 1),
-                                                                   add_mlinspect_serial=True)
+                                                                   add_mlinspect_serial=True, index_col=index_col)
 
             # print(sql_code + "\n")
             singleton.pipeline_container.write_to_init_file(sql_code)
