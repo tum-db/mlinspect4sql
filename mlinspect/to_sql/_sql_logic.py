@@ -39,7 +39,7 @@ class SQLLogic:
 
     def handle_operation_series(self, operator, result, left, right, line_id):
         """
-        Args:
+        Handles the nesting of binary operations on single columns.
         """
         # a rename gets necessary, as otherwise in binary ops the name will be "None"
         rename = f"op_{self.get_unique_id()}"
@@ -50,13 +50,14 @@ class SQLLogic:
             name_l, ti_l = self.mapping.get_name_and_ti(left)
             name_r, ti_r = self.mapping.get_name_and_ti(right)
 
-            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=ti_r.origin_context)
-            tables, column, tracking_columns = self.get_origin_series(origin_context)
+            origin_context = OpTree(op=operator, children=[ti_l.origin_context, ti_r.origin_context])
+            tables, content, tracking_columns = self.resolve_to_origin(origin_context)
 
             if len(tables) == 1:
-                select_block = f"({column}) AS {rename}, {', '.join(tracking_columns)}"
+                select_block = f"({content}) AS {rename}, {', '.join(tracking_columns)}"
                 from_block = tables[0]
             else:
+                # row-wise, f.e. like:
                 from_block = f"{self.create_indexed_table(name_l)} l, " \
                              f"{self.create_indexed_table(name_r)} r"
                 where_block = f"\nWHERE l.row_number = r.row_number"
@@ -70,24 +71,22 @@ class SQLLogic:
             name_l, ti_l = self.mapping.get_name_and_ti(left)
             if isinstance(right, str):
                 right = f"\'{right}\'"
-            origin_context = OpTree(op=operator, left=ti_l.origin_context, right=OpTree(op=str(right), is_const=True))
-            tables, column, tracking_columns = self.get_origin_series(origin_context)
-            select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
+            origin_context = OpTree(op=operator,
+                                    children=[ti_l.origin_context, OpTree("{}", [str(right)], is_const=True)])
+            tables, content, tracking_columns = self.resolve_to_origin(origin_context)
+            select_block = f"{content} AS {rename}, {', '.join(tracking_columns)}"
             from_block = tables[0]
-            if len(tables) > 1:
-                raise NotImplementedError  # TODO Row-wise
 
         else:
             assert (isinstance(right, pandas.Series))
             if isinstance(left, str):
                 left = f"\'{left}\'"
             name_r, ti_r = self.mapping.get_name_and_ti(right)
-            origin_context = OpTree(op=operator, left=OpTree(op=str(left), is_const=True), right=ti_r.origin_context)
-            tables, column, tracking_columns = self.get_origin_series(origin_context)
-            select_block = f"{column} AS {rename}, {', '.join(tracking_columns)}"
+            origin_context = OpTree(op=operator,
+                                    children=[OpTree("{}", [str(left)], is_const=True), ti_r.origin_context])
+            tables, content, tracking_columns = self.resolve_to_origin(origin_context)
+            select_block = f"{content} AS {rename}, {', '.join(tracking_columns)}"
             from_block = tables[0]
-            if len(tables) > 1:
-                raise NotImplementedError  # TODO Row-wise
 
         sql_code = f"SELECT {select_block}\n" \
                    f"FROM {from_block}" \
@@ -101,19 +100,15 @@ class SQLLogic:
         self.pipeline_container.add_statement_to_pipe(cte_name, sql_code, [rename])
         return result
 
-    def get_origin_series(self, origin_context):
+    def resolve_to_origin(self, origin_context):
         """
-        Gets the correct origin table and column for series.
-        Returns:
-            Tuple, where the first element is the table, and the second is the column name.
-
-        Note: Currently only supporting a single origin! -> TODO: has to be solved with row-wise operations see: create_indexed_table.
+        Resolves the OPTree behind origin_context to its new select_statement (incl. tracking and name).
         """
-        if origin_context.is_const:
-            return [], origin_context.op, []
         op = origin_context.op
-        if op == "":
-            # We are dealing with a projection:
+        if origin_context.is_const:
+            return [], op.format(*origin_context.non_tracking_columns), []
+
+        if origin_context.is_projection():
             table = origin_context.origin_table  # format: [(table1, [col1, ...]), ...]
             columns = origin_context.non_tracking_columns
             tracking_columns = origin_context.tracking_columns
@@ -122,19 +117,20 @@ class SQLLogic:
             column = columns[0]
             return [table], column, tracking_columns
 
-        table_r, content_r, tracking_columns_r = self.get_origin_series(origin_context.right)
-        table_l, content_l, tracking_columns_l = self.get_origin_series(origin_context.left)
+        children_resolved = [self.resolve_to_origin(child) for child in origin_context.children]
 
-        tables = list(set(table_r + table_l))
-        tracking_columns = list(set(tracking_columns_l + tracking_columns_r))
+        tables = list(set([n for name, _, _ in children_resolved for n in name]))
+        contents = [content for _, content, _ in children_resolved]
+        tracking_columns = list(set([tc for _, _, track_col in children_resolved for tc in track_col]))
+
         if len(tables) == 1:
             new_table = tables
             new_tracking_columns = tracking_columns
         else:
-            # TODO adding naming etc. + row-wise
+            # row-wise
             raise NotImplementedError
 
-        new_content = f"({content_l} {op} {content_r})"
+        new_content = op.format(*contents)
         return new_table, new_content, new_tracking_columns
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,

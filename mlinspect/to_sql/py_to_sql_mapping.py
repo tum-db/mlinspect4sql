@@ -15,23 +15,27 @@ def is_operation_sql_obj(name):
 class OpTree:
     """
     This class is devoted to help optimize the query by nesting otherwise sequential operations.
+    Note:
     """
 
-    def __init__(self, op="", non_tracking_columns=None, tracking_columns=None, origin_table="", left=None, right=None,
+    def __init__(self, op="{}", non_tracking_columns=None, tracking_columns=None, origin_table="", children=None,
                  is_const=False):
+        """
+        Args:
+            is_const(bool):
+        """
         self.op = op
         self.non_tracking_columns = [] if not non_tracking_columns else non_tracking_columns
         self.tracking_columns = [] if not tracking_columns else tracking_columns
         self.origin_table = origin_table
-        self.left = left
-        self.right = right
+        self.children = children
         self.is_const = is_const
 
     def is_projection(self):
-        return self.op == ""
+        return self.op == "{}"
 
     def resolve(self):
-        return self.left is None and self.right is None
+        return self.children is None or self.children == []
 
 
 @dataclass

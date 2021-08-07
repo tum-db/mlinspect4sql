@@ -30,7 +30,7 @@ test_data = test_data[
 train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
 train_data = train_data[train_data['is_recid'] != -1]
 train_data = train_data[train_data['c_charge_degree'] != "O"]
-train_data = train_data[train_data['score_text'] != 'N/A']
+train_data = train_data[train_data['score_text'] != 'N/A']  # TODO: fix pipeline for this!!
 
 train_data = train_data.replace('Medium', "Low")
 test_data = test_data.replace('Medium', "Low")
