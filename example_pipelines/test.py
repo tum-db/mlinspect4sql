@@ -72,20 +72,20 @@ def run_inspection(file_location, bias, to_sql, sql_one_run=False, dbms_connecto
 
 
 def run_for_all(file_location, bias, one_pass=False, mode="", materialize=None):
-    t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias,  to_sql=False)
-    t1 = time.time()
-    print("\nTime spend with original: " + str(t1 - t0))
+    # t0 = time.time()
+    # run_inspection(file_location=file_location, bias=bias,  to_sql=False)
+    # t1 = time.time()
+    # print("\nTime spend with original: " + str(t1 - t0))
 
     t0 = time.time()
     run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
-    t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
 dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",

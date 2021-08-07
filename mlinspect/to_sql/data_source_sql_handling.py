@@ -47,7 +47,7 @@ class CreateTablesFromDataSource:
         names, data_types = CreateTablesFromDataSource._get_schema_from_data_frame(data_frame)
 
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
-        if isinstance(add_mlinspect_serial, int):
+        if not isinstance(add_mlinspect_serial, bool):
             names[add_mlinspect_serial] = "\"index_mlinspect\""
 
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(

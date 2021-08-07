@@ -307,11 +307,8 @@ class DataFramePatchingSQL:
                                f"FROM {tables[0]} \n" \
                                f"WHERE {column}"
                 else:
-                    raise NotImplementedError  # TODO: column wise
-                # sql_code = f"SELECT tb1.{', tb1.'.join(tb1.columns.values)}\n" \
-                #            f"FROM {singleton.sql_logic.create_indexed_table(tb1_name)} as tb1,  " \
-                #            f"{singleton.sql_logic.create_indexed_table(singleton.mapping.get_name(source))} as tb2\n" \
-                #            f"WHERE tb2.{source.name} and tb1.row_number = tb2.row_number"
+                    # row-wise
+                    raise NotImplementedError
 
             else:
                 sql_code = f"SELECT {', '.join(columns_without_tracking + columns_tracking)}\n" \
@@ -322,8 +319,6 @@ class DataFramePatchingSQL:
                                                                      non_tracking_cols_addition=[],
                                                                      operation_type=operation_type,
                                                                      origin_context=origin_context)
-
-            # print(sql_code + "\n")
 
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, columns_without_tracking)
             # TO_SQL DONE! ##########################################################################################
@@ -466,7 +461,7 @@ class DataFramePatchingSQL:
                            f"{', '.join(select_list)}\n" \
                            f"FROM {name}"
                 columns_without_tracking = ti.non_tracking_cols
-                cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=self,
+                cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=result,
                                                                          tracking_cols=ti.tracking_cols,
                                                                          non_tracking_cols_addition=columns_without_tracking,
                                                                          operation_type=OperatorType.PROJECTION_MODIFY,
@@ -816,11 +811,11 @@ class SeriesPatchingSQL:
             new_syntax_tree = OpTree(op="IN", left=ti.origin_context,
                                      right=OpTree(op=f"({where_in_block})", is_const=True))
             tables, column, tracking_columns = singleton.sql_logic.get_origin_series(new_syntax_tree)
-            if len(tables) == 1 and ti.origin_context.op == "":  # TODO: add correct ENUM -> improve syntax tree.
+            if len(tables) == 1 and ti.origin_context.op == "":  # Not row wise
                 sql_code = f"SELECT {column}, {', '.join(tracking_columns)}\n" \
                            f"FROM {tables[0]}"
             else:
-                # TODO: row wise
+                # rare row-wise case
                 raise NotImplementedError
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
@@ -1271,7 +1266,7 @@ class SklearnSimpleImputerPatching:
                                                                  non_tracking_cols_addition=cols_to_impute,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_impute_mlinid{op_id}",
-                                                                 update_data_obj=not(
+                                                                 update_data_obj=not (
                                                                          new_return_value is val_for_mapping))
 
         # print(sql_code + "\n")
@@ -1348,7 +1343,8 @@ class SklearnOneHotEncoderPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        target_sql_obj, cols_to_one_hot, val_for_mapping = help_sk_input(target_sql_obj=args[0], result=new_return_value)
+        target_sql_obj, cols_to_one_hot, val_for_mapping = help_sk_input(target_sql_obj=args[0],
+                                                                         result=new_return_value)
 
         name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
 
@@ -1387,7 +1383,7 @@ class SklearnOneHotEncoderPatching:
                                                                  non_tracking_cols_addition=cols_to_one_hot,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"onehot_mlinid{op_id}",
-                                                                 update_data_obj=not(
+                                                                 update_data_obj=not (
                                                                          new_return_value is val_for_mapping))
 
         # print(sql_code + "\n")
@@ -1524,6 +1520,89 @@ class SklearnStandardScalerPatching:
                                                           self.mlinspect_optional_source_code))
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
+
+
+@gorilla.patches(preprocessing)
+class SklearnPreprocessingPatching:
+    """ Patches for sklearn """
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('label_binarize')
+    @gorilla.settings(allow_hit=True)
+    def patched_label_binarize(*args, **kwargs):
+        """ Patch for ('sklearn.preprocessing._label', 'label_binarize') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing, 'label_binarize')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            # pylint: disable=too-many-locals
+            function_info = FunctionInfo('sklearn.preprocessing._label', 'label_binarize')
+            input_info = get_input_info(args[0], caller_filename, lineno, function_info, optional_code_reference,
+                                        optional_source_code)
+
+            operator_context = OperatorContext(OperatorType.PROJECTION_MODIFY, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context,
+                                                       input_infos,
+                                                       result)
+            new_return_value = backend_result.annotated_dfobject.result_data
+
+            op_id = singleton.get_next_op_id()
+            # TO_SQL: ###############################################################################################
+            target_sql_obj = args[0]
+            name, ti = singleton.mapping.get_name_and_ti(target_sql_obj)
+            col_name = ti.non_tracking_cols
+
+            if "classes" in kwargs:
+                classes = kwargs["classes"]
+            else:
+                classes = args[1]
+            class_len = len(classes)
+
+            origin_context = OpTree(op="", non_tracking_columns=ti.non_tracking_cols,
+                                    tracking_columns=ti.tracking_cols, origin_table=name)
+
+            select_content = "\n\tCASE\n"
+            if class_len == 2:
+                select_content += f"\t\tWHEN ({col_name} == {classes[0]}) THEN 0\n" \
+                                  f"\t\tWHEN ({col_name} == {classes[1]}) THEN 1\n"
+            else:
+                # raise Warning("Try One-Hot-Encode instead of \"sklearn.preprocessing.label_binarize\".")
+                raise NotImplementedError
+            select_content += "\tEND"
+
+            sql_code = f"select ({select_content}) as {col_name}\n" \
+                       f"from {name}"
+
+            binarized_col = ti.non_tracking_cols
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=new_return_value,
+                                                                     tracking_cols=binarized_col,
+                                                                     non_tracking_cols_addition=[],
+                                                                     operation_type=OperatorType.TRANSFORMER,
+                                                                     cte_name=f"block_binarize_mlinid{op_id}",
+                                                                     origin_context=origin_context,
+                                                                     update_data_obj=False)
+
+            # print(sql_code + "\n")
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, binarized_col)
+
+            # TO_SQL DONE! ##########################################################################################
+
+            classes = kwargs['classes']
+            description = "label_binarize, classes: {}".format(classes)
+            dag_node = DagNode(op_id,
+                               BasicCodeLocation(caller_filename, lineno),
+                               operator_context,
+                               DagNodeDetails(description, ["array"]),
+                               get_optional_code_info_or_none(optional_code_reference, optional_source_code))
+            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+
+            return new_return_value
+
+        return execute_patched_func(original, execute_inspections, *args, **kwargs)
 
 
 # ################################## UTILITY ##########################################

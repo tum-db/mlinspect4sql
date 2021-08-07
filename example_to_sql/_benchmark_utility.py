@@ -3,7 +3,27 @@ import seaborn
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
-import csv
+from mlinspect.utils import get_project_root
+
+# Some parameters you might want check:
+DO_CLEANUP = True
+SIZES = [(10 ** i) for i in range(2, 8, 1)]
+BENCH_REP = 3
+MLINSPECT_ROOT_DIR = get_project_root()
+
+# DBMS related:
+UMBRA_DIR = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+UMBRA_USER = "postgres"
+UMBRA_PW = " "
+UMBRA_DB = ""
+UMBRA_PORT = 5433
+UMBRA_HOST = "/tmp/"
+
+POSTGRES_USER = "luca"
+POSTGRES_PW = "password"
+POSTGRES_DB = "healthcare_benchmark"
+POSTGRES_PORT = 5432
+POSTGRES_HOST = "localhost"
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent
 PLOT_DIR = ROOT_DIR / "plots"

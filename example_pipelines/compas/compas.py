@@ -35,8 +35,8 @@ train_data = train_data[train_data['score_text'] != 'N/A']
 train_data = train_data.replace('Medium', "Low")
 test_data = test_data.replace('Medium', "Low")
 
-# train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-# test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
 #
 # impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
 #                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])

@@ -16,28 +16,11 @@ import timeit
 from inspect import cleandoc
 from mlinspect.utils import get_project_root
 from _code_as_string import get_healthcare_pipe_code, get_compas_pipe_code, print_generated_code
-from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log
+from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, SIZES, DO_CLEANUP, SIZES, BENCH_REP, \
+    MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
+    POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from data_generation.compas_data_generation import generate_compas_dataset
 from data_generation.healthcare_data_generation import generate_healthcare_dataset
-
-DO_CLEANUP = False
-SIZES = [(10 ** i) for i in range(7, 8, 1)]
-BENCH_REP = 1
-MLINSPECT_ROOT_DIR = get_project_root()
-
-# DBMS related:
-UMBRA_DIR = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
-UMBRA_USER = "postgres"
-UMBRA_PW = " "
-UMBRA_DB = ""
-UMBRA_PORT = 5433
-UMBRA_HOST = "/tmp/"
-
-POSTGRES_USER = "luca"
-POSTGRES_PW = "password"
-POSTGRES_DB = "healthcare_benchmark"
-POSTGRES_PORT = 5432
-POSTGRES_HOST = "localhost"
 
 # Data GenerationCTE
 # To be able to benchmark and compare the different approaches, some datasets
@@ -134,7 +117,8 @@ def pipeline_inspection_benchmark(data_paths, no_bias, mode, title, materialize=
         if not exclude_umbra:
             print(f"Running umbra... -- size {SIZES[i]}")
             umbra_times.append(run(pipe_code, True, "dbms_connector_u", no_bias, mode=mode, materialize=materialize))
-            write_to_log(pipeline_name, SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2], engine="Umbra", time=umbra_times[-1])
+            write_to_log(pipeline_name, SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
+                         engine="Umbra", time=umbra_times[-1])
 
     names = ["Pandas", "Postgresql", "Umbra"]
     table = [pandas_times, postgres_times, umbra_times]

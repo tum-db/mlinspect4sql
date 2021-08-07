@@ -14,7 +14,7 @@ def is_operation_sql_obj(name):
 
 class OpTree:
     """
-    This class is devoted to help optimize the query by un-nesting row-wise operations.
+    This class is devoted to help optimize the query by nesting otherwise sequential operations.
     """
 
     def __init__(self, op="", non_tracking_columns=None, tracking_columns=None, origin_table="", left=None, right=None,

@@ -1,6 +1,5 @@
 from inspect import cleandoc
 import pathlib
-from mlinspect.utils import get_project_root
 from mlinspect import PipelineInspector
 from mlinspect.utils import get_project_root
 

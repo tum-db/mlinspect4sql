@@ -6,8 +6,8 @@ def generate_compas_dataset(sizes):
     """
     As the compas pipeline does not use any joins, the data will just be augmented, by replicating the existing one.
     """
-    train_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_train.csv")
-    test_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_test.csv")
+    train_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_train.csv", index_col=0)
+    test_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_test.csv", index_col=0)
 
     paths = []
     for i in sizes:
@@ -16,13 +16,16 @@ def generate_compas_dataset(sizes):
 
         if not target_paths[0].exists():
             new_train = pandas.concat([train_src] * ((i // len(train_src)) + 1), ignore_index=True)[:i]
-            new_train.to_csv(target_paths[0], index=False)
+            new_train.to_csv(target_paths[0], index=True, index_label="")
 
         if not target_paths[1].exists():
             new_train = pandas.concat([test_src] * ((i // len(test_src)) + 1), ignore_index=True)[:i]
-            new_train.to_csv(target_paths[1], index=False)
+            new_train.to_csv(target_paths[1], index=True, index_label="")
 
         paths.append(target_paths)
         print(f"Data generated or found for: size = {i} -- compas")
 
     return paths
+
+if __name__ == "__main__":
+    generate_compas_dataset([100])
