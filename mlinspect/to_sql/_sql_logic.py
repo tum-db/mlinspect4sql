@@ -15,21 +15,26 @@ class SQLLogic:
         self.dbms_connector = dbms_connector
         self.id = id
 
-    def wrap_in_sql_obj(self, sql_code, position_id=-1, block_name=""):
+    def wrap_in_sql_obj(self, sql_code, position_id=-1, block_name="", force_cte=False):
         """
         Wraps the passed sql code in a WITH... AS or VIEW block. Takes into account, that WITH only needs to be
         used once.
+
+        Args:
+            force_cte(bool): allows to force the use of CTE, but no "WITH" in the beginning will be used.
         """
         if block_name == "":
             block_name = f"{sql_obj_prefix}_mlinid{position_id}_{self.get_unique_id()}"
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
-        if self.sql_obj.mode == SQLObjRep.CTE:
+        if self.sql_obj.mode == SQLObjRep.CTE or force_cte:
             sql_code = f"{block_name} AS (\n\t{sql_code}\n)"
-            if self.first_with:
+            if self.first_with and not force_cte:
                 sql_code = "WITH " + sql_code
                 self.first_with = False
         elif self.sql_obj.mode == SQLObjRep.VIEW:
             sql_code = f"CREATE VIEW {block_name} AS (\n\t{sql_code}\n);\n"
+        else:
+            raise NotImplementedError
 
         return block_name, sql_code
 
@@ -135,6 +140,9 @@ class SQLLogic:
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,
                         origin_context=None, cte_name="", update_data_obj=False):
+        """
+        Helper that: wraps the code and stores it in the mapping.
+        """
         final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
         if isinstance(result, pandas.Series):
             non_tracking_cols = f"\"{result.name}\""
@@ -159,7 +167,6 @@ class SQLLogic:
         if self.sql_obj.mode == SQLObjRep.VIEW:
             self.dbms_connector.run(sql_code)  # Create the view.
 
-        # print(sql_code + "\n")
         return final_cte_name, sql_code
 
     @staticmethod
@@ -302,8 +309,9 @@ class SQLLogic:
         table_name = f"{table}_{self.get_unique_id()}_count"
         sql_code = f"SELECT {column_name}, COUNT(*) AS count\n" \
                    f"FROM {table} \n" \
-                   f"GROUP BY {column_name}\n"
-        return self.wrap_in_sql_obj(sql_code, block_name=table_name)
+                   f"GROUP BY {column_name}"
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        return block_name, sql_code
 
     def column_one_hot_encoding(self, table, col):
         table_name = f"{table}_{self.get_unique_id()}_onehot"
@@ -313,6 +321,7 @@ class SQLLogic:
                    f"(\"rank\")]) as {col[:-1]}_one_hot\" \n" \
                    f"\tfrom (\n" \
                    f"\tselect {col}, CAST(ROW_NUMBER() OVER() AS int) AS \"rank\" \n" \
-                   f"\tfrom (select distinct({col}) from {table}) oh\n" \
+                   f"\tfrom (select distinct({col}) from {table}) oh" \
                    f") one_hot_help"
-        return self.wrap_in_sql_obj(sql_code, block_name=table_name)
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        return block_name, sql_code

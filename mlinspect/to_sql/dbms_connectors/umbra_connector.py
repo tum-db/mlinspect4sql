@@ -63,7 +63,7 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            print(q)
+            # print(q)
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
@@ -105,7 +105,7 @@ class UmbraConnector(Connector):
         """ See parent. """
         # create the index column:
         try:
-            index_col = False
+            index_col = -1
             if self.add_mlinspect_serial:
                 if "index_col" in kwargs:
                     index_col = kwargs["index_col"]  # This will be used as serial
@@ -125,7 +125,8 @@ class UmbraConnector(Connector):
                                                                               null_symbols=null_symbols,
                                                                               delimiter=delimiter,
                                                                               header=header,
-                                                                              add_mlinspect_serial=index_col)
+                                                                              add_mlinspect_serial=index_col != -1,
+                                                                              index_col=index_col)
             self.run(sql_code)
 
             if self.add_mlinspect_serial:

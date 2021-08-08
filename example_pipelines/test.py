@@ -27,6 +27,8 @@ ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "r
 
 HEALTHCARE_BIAS = ["age_group", "race"]
 COMPAS_BIAS = ["sex", "race"]
+ADULT_COMPLEX_BIAS = ["race"]
+ADULT_SIMPLE_BIAS = ["race"]
 
 
 def run_inspection(file_location, bias, to_sql, sql_one_run=False, dbms_connector=None, mode=None, materialize=None):
@@ -76,16 +78,18 @@ def run_for_all(file_location, bias, one_pass=False, mode="", materialize=None):
     # run_inspection(file_location=file_location, bias=bias,  to_sql=False)
     # t1 = time.time()
     # print("\nTime spend with original: " + str(t1 - t0))
+
+    t0 = time.time()
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
     #
     # t0 = time.time()
     # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
     # t1 = time.time()
     # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
-    t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
 
 umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
 dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
@@ -96,9 +100,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, one_pass=False, mode="CTE", materialize=False)
-    run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, one_pass=False, mode="VIEW", materialize=False)
-    # full_row_wise(one_pass=False, mode="CTE", materialize=False)
-    # full_compas(one_pass=False, mode="VIEW", materialize=False)
-    # full_adult_simple(one_pass=False, mode="VIEW")
-    # full_adult_complex(one_pass=False, mode="CTE")
+    run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    # run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    # run_for_all(file_location=ADULT_SIMPLE_FILE_PY, bias=ADULT_SIMPLE_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    # run_for_all(file_location=ADULT_COMPLEX_FILE_PY, bias=ADULT_COMPLEX_BIAS, one_pass=False, mode="VIEW", materialize=False)

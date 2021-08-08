@@ -35,7 +35,7 @@ class PostgresqlConnector(Connector):
             return []
 
         for q in super()._prepare_query(sql_query):
-            # print(q)
+            print(q)
             self.cur.execute(q)
             # print("DONE")
             try:
@@ -65,11 +65,15 @@ class PostgresqlConnector(Connector):
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
         """ See parent. """
+        if "index_col" in kwargs:
+            index_col = kwargs["index_col"]  # This will be used as serial
+
         col_names, sql_code = CreateTablesFromDataSource.get_sql_code_csv(path_to_csv, table_name=table_name,
                                                                           null_symbols=null_symbols,
                                                                           delimiter=delimiter,
                                                                           header=header,
-                                                                          add_mlinspect_serial=self.add_mlinspect_serial)
+                                                                          add_mlinspect_serial=self.add_mlinspect_serial,
+                                                                          index_col=index_col)
 
         self.run(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
         self.run(sql_code)

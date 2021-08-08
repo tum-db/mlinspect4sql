@@ -3,6 +3,7 @@ from typing import List
 from mlinspect.inspections._inspection_input import OperatorType
 from dataclasses import dataclass
 import pandas
+from typing import Dict, List
 
 sql_obj_prefix = "block"
 
@@ -10,6 +11,18 @@ sql_obj_prefix = "block"
 def is_operation_sql_obj(name):
     length = len(sql_obj_prefix)
     return len(name) > length and name[:length] == sql_obj_prefix
+
+
+@dataclass
+class PipelineLevel:
+    """
+    This class will help store all necessary information to optimize sklearn.Pipelines and sklearn.ColumnTransformer.
+    """
+    # levels = None
+    # pre_cte_queries: list
+    # column_map: dict
+    op_to_col_map: Dict[str, List[str]]  # pipeline-operation name to target columns
+    target_obj: any
 
 
 class OpTree:

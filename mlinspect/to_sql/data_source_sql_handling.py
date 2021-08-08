@@ -42,18 +42,21 @@ class CreateTablesFromDataSource:
         return col_names, types
 
     @staticmethod
-    def _create_table_code(data_frame, table_name, add_mlinspect_serial):
+    def _create_table_code(data_frame, table_name, add_mlinspect_serial, index_col):
 
         names, data_types = CreateTablesFromDataSource._get_schema_from_data_frame(data_frame)
 
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
-        if not isinstance(add_mlinspect_serial, bool):
-            names[add_mlinspect_serial] = "\"index_mlinspect\""
+        if add_mlinspect_serial:
+            if index_col != -1:
+                names[index_col] = "\"index_mlinspect\""
+            else:
+                names.append("\"index_mlinspect\"")
 
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
             [i + " " + j for i, j in zip(names, data_types)])
 
-        if isinstance(add_mlinspect_serial, bool) and add_mlinspect_serial:
+        if add_mlinspect_serial and index_col == -1:
             create_table += ",\n\tindex_mlinspect SERIAL PRIMARY KEY"
         create_table += "\n)"
 
@@ -61,14 +64,21 @@ class CreateTablesFromDataSource:
 
     @staticmethod
     def get_sql_code_csv(path_to_csv, table_name, null_symbols=None, delimiter=",", header=True,
-                         drop_old=False, add_mlinspect_serial=False):
+                         drop_old=False, add_mlinspect_serial=False, index_col=-1):
+        """
+        Args:
+            add_mlinspect_serial(bool): add serial index -> take index_col if not -1
+            index_col(int):index of index column if present -> -1 can be used for no
+                index column. !Attention: see pandas "index_col"!
+        """
         if null_symbols is None:
             null_symbols = ["?"]
 
         data_frame = CreateTablesFromDataSource._get_data(path_to_csv)
 
         names, drop_old_table, create_table = CreateTablesFromDataSource._create_table_code(data_frame, table_name,
-                                                                                            add_mlinspect_serial)
+                                                                                            add_mlinspect_serial,
+                                                                                            index_col=index_col)
 
         if len(null_symbols) != 1:
             raise NotImplementedError("Currently only ONE null symbol supported!")
