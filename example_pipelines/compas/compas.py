@@ -50,7 +50,10 @@ featurizer = ColumnTransformer(transformers=[
     ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
     ('impute2_and_bin', impute2_and_bin, ['age'])
 ])
-# featurizer.fit_transform(train_data, train_labels.ravel())
+# Attention:
+# below lines are the same, as "y=..." only passes data trough to the NN:
+# featurizer.fit_transform(train_data, train_labels.ravel()) is equal to:
+# featurizer.fit_transform(train_data)
 featurizer.fit_transform(train_data)
 
 #

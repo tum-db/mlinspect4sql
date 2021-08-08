@@ -23,6 +23,7 @@ class PipelineLevel:
     # column_map: dict
     op_to_col_map: Dict[str, List[str]]  # pipeline-operation name to target columns
     target_obj: any
+    cols_to_drop: list
 
 
 class OpTree:
@@ -110,6 +111,13 @@ class DfToStringMapping:
             if obj is data_object:
                 index = i
         self.mapping[index] = new_name, self.mapping[index][1]
+
+    def update_ti_df(self, data_object, new_ti):
+        index = None
+        for i, obj in enumerate([ti.data_object for (x, ti) in self.mapping]):
+            if obj is data_object:
+                index = i
+        self.mapping[index] = self.mapping[index][0], new_ti
 
     def get_ti_from_name(self, name_to_find: str) -> TableInfo:
         return next(ti for (n, ti) in self.mapping if n == name_to_find)

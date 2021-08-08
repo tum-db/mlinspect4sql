@@ -138,31 +138,33 @@ class SQLLogic:
         new_content = op.format(*contents)
         return new_table, new_content, new_tracking_columns
 
-    def finish_sql_call(self, sql_code, line_id, result, tracking_cols, non_tracking_cols_addition, operation_type,
-                        origin_context=None, cte_name="", update_data_obj=False):
+    def finish_sql_call(self, sql_code, line_id, result, tracking_cols, operation_type, non_tracking_cols_addition=[],
+                        origin_context=None, cte_name="", update_name_in_map=False, non_tracking_cols=None):
         """
         Helper that: wraps the code and stores it in the mapping.
         """
         final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
-        if isinstance(result, pandas.Series):
-            non_tracking_cols = f"\"{result.name}\""
-        elif isinstance(result, pandas.DataFrame):
-            non_tracking_cols = [f"\"{x}\"" for x in result.columns.values] + non_tracking_cols_addition
-        elif isinstance(result, MlinspectNdarray):
-            non_tracking_cols = non_tracking_cols_addition
-        else:
-            raise NotImplementedError
+        if not non_tracking_cols:
+            if isinstance(result, pandas.Series):
+                non_tracking_cols = f"\"{result.name}\""
+            elif isinstance(result, pandas.DataFrame):
+                non_tracking_cols = [f"\"{x}\"" for x in result.columns.values] + non_tracking_cols_addition
+            # elif isinstance(result, MlinspectNdarray):
+            #     non_tracking_cols = non_tracking_cols_addition
+            else:
+                raise NotImplementedError
 
-        if update_data_obj:
+        new_ti_result = TableInfo(data_object=result,
+                                  tracking_cols=tracking_cols,
+                                  non_tracking_cols=non_tracking_cols,
+                                  operation_type=operation_type,
+                                  origin_context=origin_context)
+
+        if update_name_in_map:
             self.mapping.update_name_df(result, final_cte_name)
+            self.mapping.update_ti_df(result, new_ti_result)
         else:
-            mapping_result = TableInfo(data_object=result,
-                                       tracking_cols=tracking_cols,
-                                       non_tracking_cols=non_tracking_cols,
-                                       operation_type=operation_type,
-                                       origin_context=origin_context)
-
-            self.mapping.add(final_cte_name, mapping_result)
+            self.mapping.add(final_cte_name, new_ti_result)
 
         if self.sql_obj.mode == SQLObjRep.VIEW:
             self.dbms_connector.run(sql_code)  # Create the view.

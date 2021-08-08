@@ -100,7 +100,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, one_pass=False, mode="VIEW", materialize=False)
-    run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    # run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, one_pass=False, mode="VIEW", materialize=False)
     # run_for_all(file_location=ADULT_SIMPLE_FILE_PY, bias=ADULT_SIMPLE_BIAS, one_pass=False, mode="VIEW", materialize=False)
     # run_for_all(file_location=ADULT_COMPLEX_FILE_PY, bias=ADULT_COMPLEX_BIAS, one_pass=False, mode="VIEW", materialize=False)

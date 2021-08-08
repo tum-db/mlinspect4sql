@@ -27,11 +27,11 @@ nested_categorical_feature_transformation = Pipeline([
         ('encode', OneHotEncoder(handle_unknown='ignore'))
     ])
 
-# nested_feature_transformation = ColumnTransformer(transformers=[
-#         ('categorical', nested_categorical_feature_transformation, ['education', 'workclass']),
-#         ('numeric', StandardScaler(), ['age', 'hours-per-week'])
-#     ])
-#
+nested_feature_transformation = ColumnTransformer(transformers=[
+        ('categorical', nested_categorical_feature_transformation, ['education', 'workclass']),
+        ('numeric', StandardScaler(), ['age', 'hours-per-week'])
+    ])
+nested_feature_transformation.fit_transform(train_data, train_labels)
 # nested_income_pipeline = Pipeline([
 #     ('features', nested_feature_transformation),
 #     ('classifier', DecisionTreeClassifier())])

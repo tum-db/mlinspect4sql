@@ -21,7 +21,7 @@ class SQLQueryContainer:
         assert self.sql_obj.mode == SQLObjRep.CTE  # only then this op makes sense
         return f",\n".join(self.pipeline_query[:-1]).strip()
 
-    def add_statement_to_pipe(self, last_cte_name, sql_code, cols_to_keep):
+    def add_statement_to_pipe(self, last_cte_name, sql_code, cols_to_keep=None):
         """
         Stores and add statements of the pipeline internally and at "mlinspect/to_sql/generated_code/pipeline.sql"
         Note:
@@ -52,13 +52,13 @@ class SQLQueryContainer:
         with path.open(mode="a")as file:
             file.write(full_sql_code)
 
-    def __write_to_pipe_query(self, last_cte_name, sql_code, cols_to_keep):
+    def __write_to_pipe_query(self, last_cte_name, sql_code, cols_to_keep=None):
         SQLQueryContainer.__del_select_line(self.file_path_pipe, self.sql_obj.mode == SQLObjRep.CTE)
         with self.file_path_pipe.open(mode="a") as file:
             file.write(sql_code)
         return SQLQueryContainer.__add_select_line(self.file_path_pipe, last_cte_name, cols_to_keep)
 
-    def get_last_query_materialize(self, sql_obj_to_materialize, cols_to_keep):
+    def get_last_query_materialize(self, sql_obj_to_materialize, cols_to_keep=None):
         """
         This function return the code and sql_obj name to materialize the passed view, by creating a materialized one
         and changing the name in the mapping to the new one.

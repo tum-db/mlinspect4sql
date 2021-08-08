@@ -110,7 +110,6 @@ class PandasPatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=[tracking_column],
-                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.DATA_SOURCE,
                                                                      cte_name=table_name + "_ctid")
 
@@ -209,7 +208,6 @@ class DataFramePatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=ti.tracking_cols,
-                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.SELECTION)
 
             # print(sql_code + "\n")
@@ -316,7 +314,6 @@ class DataFramePatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=columns_tracking,
-                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=operation_type,
                                                                      origin_context=origin_context)
 
@@ -325,7 +322,8 @@ class DataFramePatchingSQL:
             add_dag_node(dag_node, [input_info.dag_node],
                          singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=columns_without_tracking))
+                                                                         curr_sql_expr_columns=columns_without_tracking)
+                         )
 
             return result
 
@@ -398,7 +396,6 @@ class DataFramePatchingSQL:
             # Here we need to take "self", as the result of __setitem__ will be None.
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=self,
                                                                      tracking_cols=tb1_ti.tracking_cols,
-                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.PROJECTION_MODIFY,
                                                                      origin_context=None)
             # print(sql_code + "\n")
@@ -414,7 +411,8 @@ class DataFramePatchingSQL:
             add_dag_node(dag_node, [input_info.dag_node],
                          singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=columns_without_tracking))
+                                                                         curr_sql_expr_columns=columns_without_tracking)
+                         )
 
             assert hasattr(self, "_mlinspect_annotation")
             return result
@@ -463,7 +461,6 @@ class DataFramePatchingSQL:
                 columns_without_tracking = ti.non_tracking_cols
                 cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result=result,
                                                                          tracking_cols=ti.tracking_cols,
-                                                                         non_tracking_cols_addition=[],
                                                                          operation_type=OperatorType.PROJECTION_MODIFY,
                                                                          origin_context=None)
                 # print(sql_code + "\n")
@@ -548,11 +545,9 @@ class DataFramePatchingSQL:
                            f"FROM {tb1_name} tb1 \n" \
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.\"{merge_column}\" = tb2.\"{merge_column}\""
-
+            tracking_cols = list( set(tb1_ti.tracking_cols + tb2_ti.tracking_cols))
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
-                                                                     tracking_cols=list(
-                                                                         set(tb1_ti.tracking_cols + tb2_ti.tracking_cols)),
-                                                                     non_tracking_cols_addition=[],
+                                                                     tracking_cols=tracking_cols,
                                                                      operation_type=OperatorType.JOIN)
 
             # print(sql_code + "\n")
@@ -824,7 +819,6 @@ class SeriesPatchingSQL:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=ti.tracking_cols,
-                                                                     non_tracking_cols_addition=[],
                                                                      operation_type=OperatorType.SELECTION,
                                                                      origin_context=new_syntax_tree)
 
@@ -1128,14 +1122,16 @@ class SklearnComposePatching:
             else:
                 op_to_col_map[op_obj.mlinspect_optional_code_reference] = target_cols
 
+        # HANDLE "drop" case:
+        cols_to_drop = []
+        if self.remainder == "drop":
+            cols_to_drop = list(set(ti.non_tracking_cols) - {x for list in op_to_col_map.values() for x in list})
+
         # We will need pass the input of this function to the subclass, to be able to achieve the mapping.
         global column_transformer_share
-        column_transformer_share = PipelineLevel(op_to_col_map=op_to_col_map, target_obj=args[0])
+        column_transformer_share = PipelineLevel(op_to_col_map, target_obj=args[0], cols_to_drop=cols_to_drop)
 
         print()
-
-        # TODO: HANDLE "drop" == self.remainder
-        # drop = self.remainder
 
         # TODO: Optimize for just running:
         result = original(self, *args, **kwargs)
@@ -1264,9 +1260,9 @@ class SklearnSimpleImputerPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        name, ti, target_cols, res_for_map = find_target(self, args[0], result)
+        name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))
+        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
 
         if self.strategy == "most_frequent":
             select_block = []
@@ -1320,14 +1316,16 @@ class SklearnSimpleImputerPatching:
         else:
             raise NotImplementedError
 
+        all_remaining_cols = non_tracking_cols_rest + target_cols
+
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols_addition=[],
+                                                                 non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_impute_mlinid{op_id}",
-                                                                 update_data_obj=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (new_return_value is res_for_map))
 
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, target_cols)
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         # TO_SQL DONE! ##########################################################################################
         dag_node = DagNode(op_id,
@@ -1339,7 +1337,7 @@ class SklearnSimpleImputerPatching:
 
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=target_cols)
+                                                                         curr_sql_expr_columns=all_remaining_cols)
 
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -1400,8 +1398,8 @@ class SklearnOneHotEncoderPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        name, ti, target_cols, res_for_map = find_target(self, args[0], result)
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))
+        name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
+        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
         tracking_cols = ti.tracking_cols
 
         oh_block = ""
@@ -1437,15 +1435,17 @@ class SklearnOneHotEncoderPatching:
                    f"FROM {name}, {from_block[:-2]}\n" \
                    f"WHERE\n {where_block[:-5]}"
 
+        all_remaining_cols = non_tracking_cols_rest + target_cols
+
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols_addition=target_cols,
+                                                                 non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"onehot_mlinid{op_id}",
-                                                                 update_data_obj=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (new_return_value is res_for_map))
 
         # print(sql_code + "\n")
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, target_cols)
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         # TO_SQL DONE! ##########################################################################################
 
@@ -1458,7 +1458,7 @@ class SklearnOneHotEncoderPatching:
 
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=target_cols)
+                                                                         curr_sql_expr_columns=all_remaining_cols)
 
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -1519,9 +1519,10 @@ class SklearnStandardScalerPatching:
         op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
 
-        name, ti, target_cols, res_for_map = find_target(self, args[0], result)
+        name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))
+        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+
 
         if not (self.with_mean and self.with_std):
             raise NotImplementedError
@@ -1546,14 +1547,16 @@ class SklearnStandardScalerPatching:
         sql_code = f"SELECT \n{select_block} \n" \
                    f"FROM {name}"
 
+        all_remaining_cols = non_tracking_cols_rest + target_cols
+
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols_addition=[],
+                                                                 non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_stdscaler_mlinid{op_id}",
-                                                                 update_data_obj=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (new_return_value is res_for_map))
 
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, target_cols)
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         # TO_SQL DONE! ##########################################################################################
 
@@ -1566,7 +1569,7 @@ class SklearnStandardScalerPatching:
 
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=target_cols)
+                                                                         curr_sql_expr_columns=all_remaining_cols)
 
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
@@ -1639,7 +1642,7 @@ class SklearnPreprocessingPatching:
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
                                                                      tracking_cols=origin_ti.tracking_cols,
-                                                                     non_tracking_cols_addition=[],
+                                                                     non_tracking_cols=ti.non_tracking_cols,
                                                                      operation_type=OperatorType.TRANSFORMER,
                                                                      cte_name=f"block_binarize_mlinid{op_id}")
 
@@ -1663,15 +1666,17 @@ class SklearnPreprocessingPatching:
 # ################################## UTILITY ##########################################
 
 def find_target(self, arg, target_obj):
+    cols_to_drop = []
     global column_transformer_share
     if not (column_transformer_share is None):
         target_obj = column_transformer_share.target_obj  # here the correct one given trough the ColumnTransformer
         name, ti = singleton.mapping.get_name_and_ti(target_obj)
         target_cols = column_transformer_share.op_to_col_map[self.mlinspect_optional_code_reference]
+        cols_to_drop = column_transformer_share.cols_to_drop
     else:
         name, ti = singleton.mapping.get_name_and_ti(arg)
         target_cols = ti.non_tracking_cols
-    return name, ti, target_cols, target_obj
+    return name, ti, target_cols, target_obj, cols_to_drop
 
 
 def level_in_column_transformer(ct, x):
