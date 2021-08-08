@@ -327,3 +327,14 @@ class SQLLogic:
                    f") one_hot_help"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
         return block_name, sql_code
+
+    def step_size_kbin(self, table, column_name, n_bins):
+        """
+        Helper for transpiling the KBinsDiscretizer.
+        """
+        table_name = f"{table}_{self.get_unique_id()}_step_size"
+        sql_code = f"SELECT (" \
+                   f"(SELECT MAX({column_name}) FROM {table}) - (SELECT MIN({column_name}) FROM {table})) / {n_bins} " \
+                   f"AS step\n"
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        return block_name, sql_code

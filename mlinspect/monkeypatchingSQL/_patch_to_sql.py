@@ -545,7 +545,7 @@ class DataFramePatchingSQL:
                            f"FROM {tb1_name} tb1 \n" \
                            f"{merge_type.upper()} JOIN {tb2_name} tb2" \
                            f" ON tb1.\"{merge_column}\" = tb2.\"{merge_column}\""
-            tracking_cols = list( set(tb1_ti.tracking_cols + tb2_ti.tracking_cols))
+            tracking_cols = list(set(tb1_ti.tracking_cols + tb2_ti.tracking_cols))
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=tracking_cols,
                                                                      operation_type=OperatorType.JOIN)
@@ -1257,9 +1257,8 @@ class SklearnSimpleImputerPatching:
         else:
             columns = ['array']
 
-        op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
-
+        op_id = singleton.get_next_op_id()
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
         tracking_cols = ti.tracking_cols
         non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
@@ -1278,7 +1277,7 @@ class SklearnSimpleImputerPatching:
                                     f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col}")
 
             # Add the counting columns to the pipeline_container
-            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block, None)
+            singleton.pipeline_container.add_statement_to_pipe(count_table, count_block)
 
             # TODO: -> in cte in view
             # if singleton.sql_obj.mode == SQLObjRep.VIEW:
@@ -1323,7 +1322,8 @@ class SklearnSimpleImputerPatching:
                                                                  non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_impute_mlinid{op_id}",
-                                                                 update_name_in_map=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (
+                                                                         new_return_value is res_for_map))
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -1416,7 +1416,7 @@ class SklearnOneHotEncoderPatching:
             from_block += f"{oh_table}, "
 
         # Add the one hot columns to the pipeline_container
-        singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block, None)
+        singleton.pipeline_container.add_statement_to_pipe(oh_table, oh_block)
 
         # TODO: -> in cte in view
         # if singleton.sql_obj.mode == SQLObjRep.VIEW:
@@ -1442,7 +1442,8 @@ class SklearnOneHotEncoderPatching:
                                                                  non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"onehot_mlinid{op_id}",
-                                                                 update_name_in_map=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (
+                                                                         new_return_value is res_for_map))
 
         # print(sql_code + "\n")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
@@ -1516,13 +1517,11 @@ class SklearnStandardScalerPatching:
         new_return_value = backend_result.annotated_dfobject.result_data
         assert isinstance(new_return_value, MlinspectNdarray)
 
-        op_id = singleton.get_next_op_id()
         # TO_SQL: ###############################################################################################
-
+        op_id = singleton.get_next_op_id()
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
         tracking_cols = ti.tracking_cols
         non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
-
 
         if not (self.with_mean and self.with_std):
             raise NotImplementedError
@@ -1554,7 +1553,8 @@ class SklearnStandardScalerPatching:
                                                                  non_tracking_cols=all_remaining_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_stdscaler_mlinid{op_id}",
-                                                                 update_name_in_map=not (new_return_value is res_for_map))
+                                                                 update_name_in_map=not (
+                                                                         new_return_value is res_for_map))
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -1571,6 +1571,129 @@ class SklearnStandardScalerPatching:
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=all_remaining_cols)
 
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        return new_return_value
+
+
+@gorilla.patches(preprocessing.KBinsDiscretizer)
+class SklearnKBinsDiscretizerPatching:
+    """ Patches for sklearn KBinsDiscretizer"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, n_bins=5, *, encode='onehot', strategy='quantile',
+                        mlinspect_caller_filename=None, mlinspect_lineno=None,
+                        mlinspect_optional_code_reference=None, mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.preprocessing._discretization', 'KBinsDiscretizer') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init
+        original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, n_bins=n_bins, encode=encode, strategy=strategy)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, n_bins=n_bins, encode=encode,
+                                             strategy=strategy)
+
+    @gorilla.name('fit_transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit_transform(self, *args, **kwargs):
+        """ Patch for ('sklearn.preprocessing._discretization.KBinsDiscretizer', 'fit_transform') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'fit_transform')
+        function_info = FunctionInfo('sklearn.preprocessing._discretization', 'KBinsDiscretizer')
+        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+
+        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+        backend_result = SklearnBackend.after_call(operator_context,
+                                                   input_infos,
+                                                   result)
+        new_return_value = backend_result.annotated_dfobject.result_data
+        assert isinstance(new_return_value, MlinspectNdarray)
+
+        # TO_SQL: ###############################################################################################
+        op_id = singleton.get_next_op_id()
+        name, ti, target_cols, res_for_map, cols_to_drop = find_target(self, args[0], result)
+        tracking_cols = ti.tracking_cols
+        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+
+        num_bins = self.n_bins
+
+        if not (self.encode == "ordinal", self.strategy == "uniform"):
+            raise NotImplementedError
+
+        select_block = []
+        step_size_block = ""
+        for col in target_cols:
+            count_table, count_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
+
+            step_size_block += count_code + ", \n"
+
+            select_block_sub = "\tCASE\n"
+            for i in range(num_bins - 1):
+                select_block_sub += f"\t\tWHEN {col} < (SELECT MIN({col}) from {name}) + " \
+                                    f"{i + 1} * (SELECT step FROM {count_table}) THEN {i}\n"
+            select_block_sub += f"\t\tELSE {num_bins}\n\tEND"
+            select_block.append(select_block_sub)
+
+        # Add the counting columns to the pipeline_container
+        singleton.pipeline_container.add_statement_to_pipe(count_table, step_size_block)
+
+        # TODO: -> in cte in view
+        # if singleton.sql_obj.mode == SQLObjRep.VIEW:
+        #     singleton.dbms_connector.run(count_block)
+        # TODO -> return to ColTrans for optimization!
+        # if col_trans:
+        #     # Store everything non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))necessary to afterwards optimize if necessary!
+        #     global select_block_col_trans, column_map
+        #     select_block_col_trans.append(select_block)
+        #     column_map = {**column_map, **dict(zip(cols_to_impute, select_block))}
+
+        select_block = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+
+        sql_code = "WITH " + step_size_block[:-3] + "\n" \
+                                                    f"SELECT \n{select_block} \n" \
+                                                    f"FROM {name}"
+
+        all_remaining_cols = non_tracking_cols_rest + target_cols
+
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+                                                                 tracking_cols=tracking_cols,
+                                                                 non_tracking_cols=all_remaining_cols,
+                                                                 operation_type=OperatorType.TRANSFORMER,
+                                                                 cte_name=f"block_kbin_mlinid{op_id}",
+                                                                 update_name_in_map=not (
+                                                                         new_return_value is res_for_map))
+
+        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=all_remaining_cols)
+
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        # TO_SQL DONE! ##########################################################################################
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("K-Bins Discretizer", ['array']),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
 

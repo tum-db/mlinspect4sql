@@ -40,11 +40,8 @@ test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
 
 impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])
-impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean'))
-                            # ,('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))
-                            ])
-# impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
-#                             ('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))])
+impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
+                            ('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))])
 
 featurizer = ColumnTransformer(transformers=[
     ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
