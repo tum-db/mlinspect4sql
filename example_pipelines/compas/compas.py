@@ -37,16 +37,22 @@ test_data = test_data.replace('Medium', "Low")
 
 train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
 test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
-#
-# impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
-#                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])
+
+impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
+                               ('onehot', OneHotEncoder(handle_unknown='ignore'))])
+impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean'))
+                            # ,('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))
+                            ])
 # impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
 #                             ('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))])
-#
-# featurizer = ColumnTransformer(transformers=[
-#     ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
-#     ('impute2_and_bin', impute2_and_bin, ['age'])
-# ])
+
+featurizer = ColumnTransformer(transformers=[
+    ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+    ('impute2_and_bin', impute2_and_bin, ['age'])
+])
+# featurizer.fit_transform(train_data, train_labels.ravel())
+featurizer.fit_transform(train_data)
+
 #
 # pipeline = Pipeline([
 #     ('features', featurizer),

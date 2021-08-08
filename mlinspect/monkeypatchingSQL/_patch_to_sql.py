@@ -1269,7 +1269,6 @@ class SklearnSimpleImputerPatching:
         non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))
 
         if self.strategy == "most_frequent":
-            # Most frequent:
             select_block = []
             count_block = ""
             for col in target_cols:
@@ -1295,13 +1294,29 @@ class SklearnSimpleImputerPatching:
             #     select_block_col_trans.append(select_block)
             #     column_map = {**column_map, **dict(zip(cols_to_impute, select_block))}
 
-            count_block = "WITH " + count_block if singleton.sql_obj.mode == SQLObjRep.VIEW else count_block
             select_block = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
 
-            sql_code = count_block[:-3] + "\n" \
-                                          f"SELECT \n{select_block} \n" \
-                                          f"FROM {name}"
+            sql_code = "WITH " + count_block[:-3] + "\n" \
+                                                    f"SELECT \n{select_block} \n" \
+                                                    f"FROM {name}"
+        elif self.strategy == "mean":
+            select_block = []
+            for col in target_cols:
+                select_block.append(f"\tCOALESCE({col}, (SELECT AVG({col}) FROM {name})) AS {col}")
 
+            # TODO: -> in cte in view
+            # if singleton.sql_obj.mode == SQLObjRep.VIEW:
+            #     singleton.dbms_connector.run(count_block)
+            # TODO -> return to ColTrans for optimization!
+            # if col_trans:
+            #     # Store everything non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols))necessary to afterwards optimize if necessary!
+            #     global select_block_col_trans, column_map
+            #     select_block_col_trans.append(select_block)
+            #     column_map = {**column_map, **dict(zip(cols_to_impute, select_block))}
+
+            select_block = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+            sql_code = f"SELECT \n{select_block} \n" \
+                       f"FROM {name}"
         else:
             raise NotImplementedError
 
@@ -1391,14 +1406,14 @@ class SklearnOneHotEncoderPatching:
 
         oh_block = ""
         select_block = []
-        where_block = ""
         from_block = ""
+        where_block = ""
         for col in target_cols:
             oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
 
             oh_block += oh_code + ", \n"
 
-            select_block.append(f"\t{col[:-1]}_one_hot\" AS {col},\n")
+            select_block.append(f"\t{col[:-1]}_one_hot\" AS {col}")
             where_block += f"\t{name}.{col} = {oh_table}.{col} AND \n"
             from_block += f"{oh_table}, "
 
@@ -1415,13 +1430,14 @@ class SklearnOneHotEncoderPatching:
         #     select_block_col_trans.append(select_block)
         #     column_map = {**column_map, **dict(zip(cols_to_impute, select_block))}
 
-        select_block += "\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+        select_block = ",\n".join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
 
-        sql_code = f"SELECT \n{select_block} \n" \
+        sql_code = f"WITH {oh_block[:-3]}\n" \
+                   f"SELECT \n{select_block} \n" \
                    f"FROM {name}, {from_block[:-2]}\n" \
                    f"WHERE\n {where_block[:-5]}"
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, new_return_value,
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols_addition=target_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,

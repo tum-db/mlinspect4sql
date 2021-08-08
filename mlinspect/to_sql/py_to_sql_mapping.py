@@ -105,7 +105,10 @@ class DfToStringMapping:
         self.mapping[index] = new_name, self.mapping[index][1]
 
     def update_name_df(self, data_object, new_name):
-        index = [ti.data_object for (x, ti) in self.mapping].index(data_object)
+        index = None
+        for i, obj in enumerate([ti.data_object for (x, ti) in self.mapping]):
+            if obj is data_object:
+                index = i
         self.mapping[index] = new_name, self.mapping[index][1]
 
     def get_ti_from_name(self, name_to_find: str) -> TableInfo:
