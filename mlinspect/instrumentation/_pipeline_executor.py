@@ -56,7 +56,6 @@ class PipelineExecutor:
 
     # user input flags:
     to_sql = False
-    sql_one_run = False
     dbms_connector = None
 
     # for intern use:
@@ -85,7 +84,6 @@ class PipelineExecutor:
             track_code_references: bool = True,
             custom_monkey_patching: List[any] = None,
             to_sql: bool = False,
-            sql_one_run: bool = False,
             dbms_connector: Connector = None,
             mode: str = "",
             materialize: bool = False,
@@ -107,7 +105,6 @@ class PipelineExecutor:
 
             self.sql_obj = SQLMode(SQLObjRep.CTE if mode == "CTE" else SQLObjRep.VIEW, materialize)
 
-            self.sql_one_run = sql_one_run
             self.dbms_connector = dbms_connector
             if not self.dbms_connector:  # is None
                 print("\nJust translation to SQL is performed! "
@@ -123,7 +120,7 @@ class PipelineExecutor:
             self.mapping = DfToStringMapping()
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql, sql_obj=self.sql_obj)
             self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
-                                                      one_run=self.sql_one_run, sql_obj=self.sql_obj)
+                                                       sql_obj=self.sql_obj)
             sql_logic_id = 1
             if self.sql_logic:  # Necessary to avoid duplicate names, when running multiple inspections in a row!
                 sql_logic_id = self.sql_logic.id
@@ -156,7 +153,6 @@ class PipelineExecutor:
             check_inspections.update(check.required_inspections)
             if isinstance(check, NoBiasIntroducedFor) and self.to_sql:
                 check._to_sql = self.to_sql
-                check._sql_one_run = self.sql_one_run
                 check.mapping = self.mapping
                 check.pipeline_container = self.pipeline_container
                 check.dbms_connector = self.dbms_connector
@@ -230,7 +226,7 @@ class PipelineExecutor:
             self.mapping = DfToStringMapping()
             self.pipeline_container = SQLQueryContainer(self.root_dir_to_sql, sql_obj=self.sql_obj)
             self.update_hist = SQLHistogramForColumns(self.dbms_connector, self.mapping, self.pipeline_container,
-                                                      self.sql_one_run, sql_obj=self.sql_obj)
+                                                       sql_obj=self.sql_obj)
             sql_logic_id = 1
             if self.sql_logic:  # Necessary to avoid duplicate names, when running multiple inspections in a row!
                 sql_logic_id = self.sql_logic.id

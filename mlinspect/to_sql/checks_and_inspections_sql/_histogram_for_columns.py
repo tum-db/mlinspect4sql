@@ -14,21 +14,18 @@ from mlinspect.to_sql._mode import SQLObjRep
 # Keep updates like this? INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
 
 class SQLHistogramForColumns:
-    def __init__(self, dbms_connector, mapping: DfToStringMapping, pipeline_container: SQLQueryContainer, one_run,
+    def __init__(self, dbms_connector, mapping: DfToStringMapping, pipeline_container: SQLQueryContainer,
                  sql_obj):
         """
         Args:
             dbms_connector:
             mapping:
             pipeline_container:
-            one_run(bool): In case this is set, the "NoBiasIntroduced" inspection will happen once and full in SQL.
-                So nothing needs to be done here.
         """
         self.current_hist = {}
         self.dbms_connector = dbms_connector
         self.mapping = mapping
         self.pipeline_container = pipeline_container
-        self.one_run = one_run
         self.sql_obj = sql_obj
 
     def sql_update_backend_result(self, result, backend_result: BackendResult,
@@ -41,10 +38,6 @@ class SQLHistogramForColumns:
             The sql_obj from wich we want to know the ratio, will be the ones materialized, as they are part of the
             entire query.
         """
-        # print("\n\n" + "#" * 20)
-
-        if self.one_run:
-            return backend_result
 
         if curr_sql_expr_columns is None:
             curr_sql_expr_columns = []

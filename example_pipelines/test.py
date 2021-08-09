@@ -31,7 +31,7 @@ ADULT_COMPLEX_BIAS = ["race"]
 ADULT_SIMPLE_BIAS = ["race"]
 
 
-def run_inspection(file_location, bias, to_sql, sql_one_run=False, dbms_connector=None, mode=None, materialize=None):
+def run_inspection(file_location, bias, to_sql, dbms_connector=None, mode=None, materialize=None):
     from PIL import Image
     import matplotlib.pyplot as plt
     from mlinspect.visualisation import save_fig_to_path
@@ -47,7 +47,7 @@ def run_inspection(file_location, bias, to_sql, sql_one_run=False, dbms_connecto
 
     if to_sql:
         assert (dbms_connector)
-        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector, sql_one_run=sql_one_run,
+        inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector,
                                                            mode=mode, materialize=materialize, row_wise=False)
     else:
         inspector_result = inspector_result.execute()
@@ -73,7 +73,7 @@ def run_inspection(file_location, bias, to_sql, sql_one_run=False, dbms_connecto
             print(distribution_change.before_and_after_df.to_markdown())
 
 
-def run_for_all(file_location, bias, one_pass=False, mode="", materialize=None):
+def run_for_all(file_location, bias, mode="", materialize=None):
 
     t0 = time.time()
     run_inspection(file_location=file_location, bias=bias,  to_sql=False)
@@ -82,12 +82,12 @@ def run_for_all(file_location, bias, one_pass=False, mode="", materialize=None):
 
 
     t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode, materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, sql_one_run=one_pass, mode=mode, materialize=materialize)
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode, materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
@@ -102,7 +102,7 @@ dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca
                                        host="localhost")
 
 if __name__ == "__main__":
-    # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, one_pass=False, mode="VIEW", materialize=False)
-    run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, mode="VIEW", materialize=False)
+    run_for_all(file_location=COMPAS_FILE_PY, bias=COMPAS_BIAS, mode="VIEW", materialize=False)
     # run_for_all(file_location=ADULT_SIMPLE_FILE_PY, bias=ADULT_SIMPLE_BIAS, one_pass=False, mode="VIEW", materialize=False)
-    # run_for_all(file_location=ADULT_COMPLEX_FILE_PY, bias=ADULT_COMPLEX_BIAS, one_pass=False, mode="VIEW", materialize=False)
+    run_for_all(file_location=ADULT_COMPLEX_FILE_PY, bias=ADULT_COMPLEX_BIAS, mode="VIEW", materialize=False)
