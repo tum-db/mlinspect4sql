@@ -139,11 +139,16 @@ class SQLLogic:
         return new_table, new_content, new_tracking_columns
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, operation_type, non_tracking_cols_addition=[],
-                        origin_context=None, cte_name="", update_name_in_map=False, non_tracking_cols=None):
+                        origin_context=None, cte_name="", update_name_in_map=False, non_tracking_cols=None,
+                        no_wrap=False):
         """
         Helper that: wraps the code and stores it in the mapping.
         """
-        final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
+        if not no_wrap:
+            final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
+        else:
+            assert cte_name != ""
+            final_cte_name = cte_name
         if not non_tracking_cols:
             if isinstance(result, pandas.Series):
                 non_tracking_cols = f"\"{result.name}\""
@@ -172,53 +177,52 @@ class SQLLogic:
         return final_cte_name, sql_code
 
     @staticmethod
-    def __column_ratio(table, column_name, prefix=""):
+    def __column_ratio(table, column, ctid, prefix=""):
         """
         Here the query for the original ratio of the values inside the passed column is provided.
         """
-        column_name = column_name.replace("\"", "")
-        table_name = f"{prefix}_ratio_{column_name}"
+        clean_column_name = column.replace('\"', '')
+        table_name = f"{prefix}_ratio_{clean_column_name}"
         return table_name, f"{table_name} AS (\n" \
-                           f"\tSELECT {column_name}, (COUNT(*) * 1.0 / (SELECT COUNT(*) FROM {table})) AS ratio\n" \
+                           f"\tSELECT {ctid}, (COUNT(*) * 1.0 / (SELECT COUNT(*) FROM {table})) AS ratio\n" \
                            f"\tFROM {table} \n" \
-                           f"\tGROUP BY {column_name}\n" \
+                           f"\tGROUP BY {ctid}\n" \
                            "),\n"
 
     @staticmethod
-    def __column_ratio_with_join(table_orig, table_new, column_name, prefix, join_ctid):
+    def __column_ratio_with_join(table_orig, table_new, column, ctid, prefix, join_ctid):
         """
         Here the query for the new/current ratio of the values inside the passed column is provided.
         """
-        column_name_title = column_name.replace("\"", "")
-        table_name = f"{prefix}_ratio_{column_name_title}"
+        clean_column_name = column.replace('\"', '')
+        table_name = f"{prefix}_ratio_{clean_column_name}"
         return table_name, f"{table_name} AS (\n" \
-                           f"\tSELECT o.{column_name}, (COUNT(*) * 1.0 / (SELECT count(*) " \
+                           f"\tSELECT o.{ctid}, (COUNT(*) * 1.0 / (SELECT count(*) " \
                            f"FROM {table_new})) AS ratio\n" \
                            f"\tFROM {table_new} n " \
                            f"JOIN {table_orig} o " \
                            f"ON n.{join_ctid}=o.{join_ctid}\n" \
-                           f"\tGROUP BY o.{column_name}\n" \
+                           f"\tGROUP BY o.{ctid}\n" \
                            "),\n"
 
     @staticmethod
-    def __overview_ratio(table_new, column_name, ratio_table_new, ratio_table_old):
+    def __overview_ratio(table_new, column, ctid, ratio_table_new, ratio_table_old):
         """
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
-        column_name = column_name.replace("\"", "")
-        cte_name = f"overview_{column_name}_{table_new}"
+        clean_column_name = column.replace('\"', '')
+        cte_name = f"overview_{clean_column_name}_{table_new}"
         return cte_name, f"{cte_name} AS (\n" \
-                         f"\tSELECT n.{column_name}, n.ratio AS ratio_new, o.ratio AS ratio_original \n" \
+                         f"\tSELECT n.{ctid}, n.ratio AS ratio_new, o.ratio AS ratio_original \n" \
                          f"\tFROM {ratio_table_new} n " \
                          f"RIGHT JOIN {ratio_table_old} o " \
-                         f"ON o.{column_name} = n.{column_name})"
+                         f"ON o.{ctid} = n.{ctid})"
 
     @staticmethod
-    def __overview_bias(new_ratio, origin_ratio, column_name, threshold, suffix=""):
+    def __overview_bias(new_ratio, origin_ratio, ctid, threshold, suffix):
         """
         Note: Naming convention: the ctid of the original table that gets tracked is called '*original_table_name*_ctid'
         """
-        column_name_title = column_name.replace("\"", "")
         cte_name = f"overview_{suffix}"
         return cte_name, f"{cte_name} AS (\n" \
                          f"\tSELECT SUM(CASE WHEN ABS((n.ratio - o.ratio)/o.ratio) " \
@@ -227,11 +231,12 @@ class SQLLogic:
                          f"no_bias_introduced_flag\n" \
                          f"\tFROM {new_ratio} n " \
                          f"RIGHT JOIN {origin_ratio} o " \
-                         f"ON o.{column_name} = n.{column_name} OR " \
-                         f"(o.{column_name} IS NULL AND n.{column_name} IS NULL)\n),\n"
+                         f"ON o.{ctid} = n.{ctid}\n),\n"
+                         # f"OR " \
+                         # f"(o.{ctid} IS NULL AND n.{ctid} IS NULL)\n),\n"
 
     @staticmethod
-    def ratio_track_original_ref(origin_table: str, column_name: str):
+    def ratio_track_original_ref(origin_table: str, column:str, ctid: str):
         """
         Creates the query for the original table.
 
@@ -242,10 +247,10 @@ class SQLLogic:
             (<sql_code>, <new_object_name>) the generated code, as well as
         """
 
-        return SQLLogic.__column_ratio(origin_table, column_name=column_name, prefix="original")
+        return SQLLogic.__column_ratio(origin_table, column, ctid=ctid, prefix="original")
 
     @staticmethod
-    def ratio_track_curr(origin_sql_obj: str, current_table: str, column_name: str, threshold: float,
+    def ratio_track_curr(origin_sql_obj: str, current_table: str, column:str, ctid: str, threshold: float,
                          origin_ratio_table: str, join_ctid: str = None):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
@@ -254,7 +259,7 @@ class SQLLogic:
             origin_sql_obj(str): original table reference name of the data source
             origin_ratio_table(str): original ration table (returned by SQLLogic.ratio_track_original_ref)
             current_table:
-            column_name:
+            ctid:
             join_ctid: If a join needs to be performed to make the comparison.
             threshold: Threshold for which the bias is considered not a problem.
         Return:
@@ -268,20 +273,21 @@ class SQLLogic:
 
             current_table_ratio, sql_code_addition = SQLLogic.__column_ratio_with_join(origin_sql_obj,
                                                                                        table_new=current_table,
-                                                                                       column_name=column_name,
+                                                                                       column=column,
+                                                                                       ctid=ctid,
                                                                                        prefix=prefix,
                                                                                        join_ctid=join_ctid)
 
             sql_code += sql_code_addition
         else:
-            current_table_ratio, sql_code_addition = SQLLogic.__column_ratio(current_table, column_name=column_name,
+            current_table_ratio, sql_code_addition = SQLLogic.__column_ratio(current_table, ctid=ctid, column=column,
                                                                              prefix=prefix)
             sql_code += sql_code_addition
 
-        overview_suffix = column_name.replace('\"', '') + "_" + current_table
+        overview_suffix = column.replace('\"', '') + "_" + current_table
         cte_name, sql_code_addition = SQLLogic.__overview_bias(new_ratio=current_table_ratio,
                                                                origin_ratio=origin_ratio_table,
-                                                               column_name=column_name,
+                                                               ctid=ctid,
                                                                threshold=threshold, suffix=overview_suffix)
 
         return cte_name, sql_code + sql_code_addition

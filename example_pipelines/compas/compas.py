@@ -52,6 +52,7 @@ featurizer = ColumnTransformer(transformers=[
 # featurizer.fit_transform(train_data, train_labels.ravel()) is equal to:
 # featurizer.fit_transform(train_data)
 featurizer.fit_transform(train_data)
+# featurizer.fit_transform(test_data)
 
 #
 # pipeline = Pipeline([

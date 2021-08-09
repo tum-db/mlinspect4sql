@@ -160,6 +160,7 @@ class PipelineExecutor:
                 check.mapping = self.mapping
                 check.pipeline_container = self.pipeline_container
                 check.dbms_connector = self.dbms_connector
+                check.sql_obj = self.sql_obj
 
         all_inspections = list(set(inspections).union(check_inspections))
         self.inspections = all_inspections

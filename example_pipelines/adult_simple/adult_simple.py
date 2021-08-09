@@ -16,7 +16,7 @@ data = raw_data.dropna()
 labels = preprocessing.label_binarize(data['income-per-year'], classes=['>50K', '<=50K'])
 
 feature_transformation = compose.ColumnTransformer(transformers=[
-    ('categorical', preprocessing.OneHotEncoder(handle_unknown='ignore'), ['education', 'workclass']),
+    # ('categorical', preprocessing.OneHotEncoder(handle_unknown='ignore'), ['education', 'workclass']),
     ('numeric', preprocessing.StandardScaler(), ['age', 'hours-per-week'])
 ])
 feature_transformation.fit_transform(data, labels)

@@ -2,6 +2,7 @@ from typing import List
 
 from mlinspect.inspections._inspection_input import OperatorType
 from dataclasses import dataclass
+from sklearn.compose import ColumnTransformer
 import pandas
 from typing import Dict, List
 
@@ -14,14 +15,28 @@ def is_operation_sql_obj(name):
 
 
 @dataclass
-class PipelineLevel:
+class ColumnTransformerLevel:
+    """
+    Contains all info to replicate the operation with parallelization.
+    """
+    pre_cte_queries: list
+    column_map: dict
+    from_block: set
+    where_block: set
+    sql_source: list  # is needed to substitute the old names resulting form the unoptimized translation.
+
+
+@dataclass
+class ColumnTransformerInfo:
     """
     This class will help store all necessary information to optimize sklearn.Pipelines and sklearn.ColumnTransformer.
+
+    Note: for more details on levels, see: Bachelor-paper.
     """
-    # levels = None
-    # pre_cte_queries: list
-    # column_map: dict
-    op_to_col_map: Dict[str, List[str]]  # pipeline-operation name to target columns
+    self: any
+    levels: List[ColumnTransformerLevel]
+    levels_map: Dict[str, int]  # code_reference to level
+    cr_to_col_map: Dict[str, List[str]]  # pipeline-operation code_reference to target columns
     target_obj: any
     cols_to_drop: list
 
@@ -149,14 +164,6 @@ class DfToStringMapping:
                 return True
         return False
 
-    def get_columns_no_track(self, name: str) -> list:
-        ti = self.get_ti_from_name(name)
-        return ti.non_tracking_cols
-
-    def get_columns_track(self, name: str) -> list:
-        ti = self.get_ti_from_name(name)
-        return ti.tracking_cols
-
     def is_projection(self, name: str) -> bool:
         ti = self.get_ti_from_name(name)
         op_tree = ti.origin_context
@@ -177,6 +184,3 @@ class DfToStringMapping:
                 return orig_t, orig_ti.tracking_cols[0]
         return None, None  # The input combination is wrong!
 
-    def get_latest_name_cols(self):
-        entry = self.mapping[0]
-        return entry[0], entry[1].non_tracking_cols

@@ -18,6 +18,7 @@ from mlinspect.inspections._inspection_input import OperatorType, FunctionInfo
 from mlinspect.instrumentation._dag_node import DagNode
 from mlinspect.inspections._inspection_result import InspectionResult
 from mlinspect.to_sql.checks_and_inspections_sql._no_bias_introduced_for import SQLNoBiasIntroducedFor
+from mlinspect.to_sql._mode import SQLObjRep
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
@@ -81,6 +82,9 @@ class NoBiasIntroducedFor(Check):
         if hasattr(self, "_sql_one_run") and hasattr(self, "mapping") and hasattr(self, "pipeline_container") and \
                 hasattr(self, "dbms_connector") and self._sql_one_run:
             # TODO: ATTENTION ONLY ONE CHECK BEFORE AND AFTER!!
+            if relevant_nodes == []:
+                # No bias possible:
+                return NoBiasIntroducedForResult(self, CheckStatus.SUCCESS, "", {})
 
             relevant_ids = [f"_mlinid{x.node_id}" for x in relevant_nodes]
             relevant_sql_objs = [(name, ti) for (name, ti) in self.mapping.mapping if
@@ -91,8 +95,11 @@ class NoBiasIntroducedFor(Check):
             sql_code = nbif.no_bias_introduced_sql_evaluate_total(self.sensitive_columns,
                                                                   threshold=self.min_allowed_relative_ratio_change,
                                                                   relevant_sql_objs=relevant_sql_objs)
-            full_sql_code = self.pipeline_container.get_pipe_without_selection() + ",\n" + sql_code
 
+            full_sql_code = (self.pipeline_container.get_pipe_without_selection() if
+                             self.sql_obj.mode == SQLObjRep.CTE else "WITH ") + sql_code + "\n"
+
+            print()
             result = self.dbms_connector.run(full_sql_code)
 
             col_stat = dict()

@@ -27,8 +27,6 @@ class SQLNoBiasIntroducedFor:
                                               relevant_sql_objs):
         # TODO: only_passed also allow to return the query result!!
         # TO_SQL: ###############################################################################################
-        # print(("#" * 10) + f"NoBiasIntroducedFor ({', '.join(sensitive_columns)}):" + ("#" * 10) +
-        #       "\n -> Files can be found under mlinspect/to_sql/generated_code\n\n")
 
         sensitive_columns = [f"\"{x}\"" for x in sensitive_columns]
         sql_code_final = ""
@@ -51,7 +49,7 @@ class SQLNoBiasIntroducedFor:
                 origin_table, origin_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
 
                 if not (origin_table, sc) in origin_to_ratio_mapping:
-                    sql_obj_name, sql_code = SQLLogic.ratio_track_original_ref(origin_table, sc)
+                    sql_obj_name, sql_code = SQLLogic.ratio_track_original_ref(origin_table, sc, ctid=origin_ctid)
                     origin_to_ratio_mapping[(origin_table, sc)] = sql_obj_name
                     sql_code_final += sql_code
 
@@ -59,7 +57,7 @@ class SQLNoBiasIntroducedFor:
                     # check ratio of "normal" columns:
 
                     sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name,
-                                                                       sc, threshold=threshold,
+                                                                       sc, ctid=origin_ctid, threshold=threshold,
                                                                        origin_ratio_table=origin_to_ratio_mapping[
                                                                            (origin_table, sc)])
                     sql_obj_final.append(sql_obj_name)
@@ -69,7 +67,7 @@ class SQLNoBiasIntroducedFor:
 
                     if bool(origin_ctid):
                         sql_obj_name, sql_code = SQLLogic.ratio_track_curr(origin_table, name,
-                                                                           sc, threshold=threshold,
+                                                                           sc, ctid=origin_ctid, threshold=threshold,
                                                                            join_ctid=origin_ctid,
                                                                            origin_ratio_table=origin_to_ratio_mapping[
                                                                                (origin_table, sc)])
