@@ -49,24 +49,16 @@ impute_and_one_hot_encode = Pipeline([
 featurisation = ColumnTransformer(transformers=[
     ("impute_and_one_hot_encode", impute_and_one_hot_encode,
         ['smoker', 'county', 'race']),
+    # ('word2vec', MyW2VTransformer(min_count=2), ['last_name']),
     ('numeric', StandardScaler(), ['num_children', 'income']),
 ], remainder='drop')
+neural_net = MyKerasClassifier(build_fn=create_model,
+     epochs=10, batch_size=1, verbose=0)
+pipeline = Pipeline([
+    ('features', featurisation),
+    ('learner', neural_net)])
 
-featurisation.fit_transform(data)
+train_data, test_data = train_test_split(data)
 
-# featurisation = ColumnTransformer(transformers=[
-#     ("impute_and_one_hot_encode", impute_and_one_hot_encode,
-#         ['smoker', 'county', 'race']),
-#     ('word2vec', MyW2VTransformer(min_count=2), ['last_name']),
-#     ('numeric', StandardScaler(), ['num_children', 'income']),
-# ], remainder='drop')
-# neural_net = MyKerasClassifier(build_fn=create_model,
-#      epochs=10, batch_size=1, verbose=0)
-# pipeline = Pipeline([
-#     ('features', featurisation),
-#     ('learner', neural_net)])
-#
-# train_data, test_data = train_test_split(data)
-# model = pipeline.fit(train_data, train_data['label'])
-# print(f"Mean accuracy:
-#     {model.score(test_data, test_data['label'])}")
+model = pipeline.fit(train_data, train_data['label'])
+print(f"Mean accuracy: {model.score(test_data, test_data['label'])}")

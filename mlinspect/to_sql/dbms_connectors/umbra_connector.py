@@ -109,7 +109,7 @@ class UmbraConnector(Connector):
         try:
             index_col = -1
             if self.add_mlinspect_serial:
-                if "index_col" in kwargs:
+                if "index_col" in kwargs and kwargs["index_col"] != -1:
                     index_col = kwargs["index_col"]  # This will be used as serial
                 else:
                     _, path_to_tmp = tempfile.mkstemp(prefix=table_name, suffix=".csv")
@@ -137,7 +137,7 @@ class UmbraConnector(Connector):
                 sql_code += "\n" + create_index
 
         finally:
-            if self.add_mlinspect_serial:
+            if self.add_mlinspect_serial and not "index_col" in kwargs:
                 os.remove(path_to_tmp)  # do cleanup
         return col_names, sql_code
 

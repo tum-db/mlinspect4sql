@@ -21,6 +21,23 @@ from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
     execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
+from sklearn import preprocessing, compose, tree, impute, linear_model, model_selection
+import gorilla
+import numpy
+import pandas
+from sklearn import preprocessing, compose, tree, impute, linear_model, model_selection
+from tensorflow.keras.wrappers import scikit_learn as keras_sklearn_external  # pylint: disable=no-name-in-module
+from tensorflow.python.keras.wrappers import scikit_learn as keras_sklearn_internal  # pylint: disable=no-name-in-module
+
+from mlinspect.backends._backend import BackendResult
+from mlinspect.backends._sklearn_backend import SklearnBackend
+from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo, OperatorType
+from mlinspect.instrumentation import _pipeline_executor
+from mlinspect.instrumentation._dag_node import DagNode, BasicCodeLocation, DagNodeDetails, CodeReference
+from mlinspect.instrumentation._pipeline_executor import singleton
+from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
+    execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
+from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
@@ -51,9 +68,7 @@ class PandasPatchingSQL:
             operator_context = OperatorContext(OperatorType.DATA_SOURCE, function_info)
             # Add the restriction to only load 10 rows of the csv and add the Dataframe to the wrapper.
 
-            debug_check_sql_pandas_resutl_equality = True
-            if not debug_check_sql_pandas_resutl_equality:
-                kwargs["nrows"] = 1
+            kwargs["nrows"] = 10
 
             result = original(*args, **kwargs)
             # TO_SQL: ###############################################################################################
@@ -103,8 +118,12 @@ class PandasPatchingSQL:
             sql_code = f"SELECT *, ctid AS {table_name}_ctid\n" \
                        f"FROM {table_name}"
 
+            tracking_columns = [tracking_column]
+            if "index_mlinspect" in col_names:
+                tracking_columns.append("index_mlinspect")
+
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
-                                                                     tracking_cols=[tracking_column],
+                                                                     tracking_cols=tracking_columns,
                                                                      operation_type=OperatorType.DATA_SOURCE,
                                                                      cte_name=table_name + "_ctid",
                                                                      force_name=True)
@@ -1758,6 +1777,203 @@ class SklearnPreprocessingPatching:
             return new_return_value
 
         return execute_patched_func(original, execute_inspections, *args, **kwargs)
+
+
+@gorilla.patches(model_selection)
+class SklearnModelSelectionPatching:
+    """ Patches for sklearn """
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('train_test_split')
+    @gorilla.settings(allow_hit=True)
+    def patched_train_test_split(*args, **kwargs):
+        """ Patch for ('sklearn.model_selection._split', 'train_test_split') """
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(model_selection, 'train_test_split')
+
+        def execute_inspections(op_id, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            # pylint: disable=too-many-locals
+            function_info = FunctionInfo('sklearn.model_selection._split', 'train_test_split')
+            input_info = get_input_info(args[0], caller_filename, lineno, function_info, optional_code_reference,
+                                        optional_source_code)
+
+            operator_context = OperatorContext(OperatorType.TRAIN_TEST_SPLIT, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context,
+                                                       input_infos,
+                                                       result)  # We ignore the test set for now
+            train_backend_result = BackendResult(backend_result.annotated_dfobject,
+                                                 backend_result.dag_node_annotation)
+            test_backend_result = BackendResult(backend_result.optional_second_annotated_dfobject,
+                                                backend_result.optional_second_dag_node_annotation)
+            new_return_value = (train_backend_result.annotated_dfobject.result_data,
+                                test_backend_result.annotated_dfobject.result_data)
+            # TO_SQL: ###############################################################################################
+            train_part = 0.75
+            target_obj = args[0]
+            if len(args) != 1:
+                raise NotImplementedError
+
+            name, ti = singleton.mapping.get_name_and_ti(target_obj)
+
+            row_num_addition = f"WITH row_num_mlinspect_split AS(\n" \
+                               f"\tSELECT *, (ROW_NUMBER() OVER()) AS row_number_mlinspect\n" \
+                               f"\tFROM {name}\n" \
+                               f")\n"
+            sql_code_train = f"{row_num_addition}" \
+                             f"SELECT *\n" \
+                             f"FROM row_num_mlinspect_split\n" \
+                             f"WHERE row_number_mlinspect < {train_part} * (SELECT COUNT(*) FROM {name})"
+
+
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code_train, op_id, new_return_value[0],
+                                                                     tracking_cols=ti.tracking_cols,
+                                                                     non_tracking_cols=ti.non_tracking_cols,
+                                                                     operation_type=OperatorType.TRANSFORMER,
+                                                                     cte_name=f"block_train_split_mlinid{op_id}")
+
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+            train_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[0], train_backend_result,
+                                                                                   curr_sql_expr_name=cte_name,
+                                                                                   curr_sql_expr_columns=
+                                                                                   ti.non_tracking_cols)
+
+            sql_code_test = f"{row_num_addition}" \
+                            f"SELECT *\n" \
+                            f"FROM row_num_mlinspect_split\n" \
+                            f"WHERE row_number_mlinspect >= {train_part} * (SELECT COUNT(*) FROM {name})"
+
+            cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code_test, op_id, new_return_value[1],
+                                                                     tracking_cols=ti.tracking_cols,
+                                                                     non_tracking_cols=ti.non_tracking_cols,
+                                                                     operation_type=OperatorType.TRANSFORMER,
+                                                                     cte_name=f"block_test_split_mlinid{op_id}")
+
+            singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+            test_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[1], test_backend_result,
+                                                                                  curr_sql_expr_name=cte_name,
+                                                                                  curr_sql_expr_columns=
+                                                                                  ti.non_tracking_cols)
+            # TO_SQL DONE! ##########################################################################################
+
+            description = "(Train Data)"
+            columns = list(result[0].columns)
+            dag_node = DagNode(op_id,
+                               BasicCodeLocation(caller_filename, lineno),
+                               operator_context,
+                               DagNodeDetails(description, columns),
+                               get_optional_code_info_or_none(optional_code_reference, optional_source_code))
+            add_dag_node(dag_node, [input_info.dag_node], train_backend_result)
+
+            description = "(Test Data)"
+            columns = list(result[1].columns)
+            dag_node = DagNode(singleton.get_next_op_id(),
+                               BasicCodeLocation(caller_filename, lineno),
+                               operator_context,
+                               DagNodeDetails(description, columns),
+                               get_optional_code_info_or_none(optional_code_reference, optional_source_code))
+            add_dag_node(dag_node, [input_info.dag_node], test_backend_result)
+
+            return new_return_value
+
+        return execute_patched_func(original, execute_inspections, *args, **kwargs)
+
+
+class SklearnKerasClassifierPatching:
+    """ Patches for tensorflow KerasClassifier"""
+
+    # pylint: disable=too-few-public-methods
+    @gorilla.patch(keras_sklearn_internal.BaseWrapper, name='__init__', settings=gorilla.Settings(allow_hit=True))
+    def patched__init__(self, build_fn=None, mlinspect_caller_filename=None, mlinspect_lineno=None,
+                        mlinspect_optional_code_reference=None, mlinspect_optional_source_code=None,
+                        **sk_params):
+        """ Patch for ('tensorflow.python.keras.wrappers.scikit_learn', 'KerasClassifier') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init, too-many-locals, too-many-arguments
+        original = gorilla.get_original_attribute(keras_sklearn_internal.BaseWrapper, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, build_fn=build_fn, **sk_params)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, build_fn=build_fn, **sk_params)
+
+    @gorilla.patch(keras_sklearn_external.KerasClassifier, name='fit', settings=gorilla.Settings(allow_hit=True))
+    def patched_fit(self, *args, **kwargs):
+        """ Patch for ('tensorflow.python.keras.wrappers.scikit_learn.KerasClassifier', 'fit') """
+        # pylint: disable=no-method-argument, too-many-locals
+        original = gorilla.get_original_attribute(keras_sklearn_external.KerasClassifier, 'fit')
+        function_info = FunctionInfo('tensorflow.python.keras.wrappers.scikit_learn', 'KerasClassifier')
+
+        # Train data
+        input_info_train_data = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                               function_info, self.mlinspect_optional_code_reference,
+                                               self.mlinspect_optional_source_code)
+        train_data_op_id = singleton.get_next_op_id()
+        operator_context = OperatorContext(OperatorType.TRAIN_DATA, function_info)
+        train_data_dag_node = DagNode(train_data_op_id,
+                                      BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                      operator_context,
+                                      DagNodeDetails("Train Data", ["array"]),
+                                      get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                     self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_data.annotated_dfobject])
+        data_backend_result = SklearnBackend.after_call(operator_context,
+                                                        input_infos,
+                                                        args[0])
+        add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
+        train_data_result = data_backend_result.annotated_dfobject.result_data
+
+        # Train labels
+        operator_context = OperatorContext(OperatorType.TRAIN_LABELS, function_info)
+        input_info_train_labels = get_input_info(args[1], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                                 function_info, self.mlinspect_optional_code_reference,
+                                                 self.mlinspect_optional_source_code)
+        train_label_op_id = singleton.get_next_op_id()
+        train_labels_dag_node = DagNode(train_label_op_id,
+                                        BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                        operator_context,
+                                        DagNodeDetails("Train Labels", ["array"]),
+                                        get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                       self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_labels.annotated_dfobject])
+        label_backend_result = SklearnBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         args[1])
+        add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
+        train_labels_result = label_backend_result.annotated_dfobject.result_data
+
+        # Estimator
+        operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
+        input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
+        input_infos = SklearnBackend.before_call(operator_context, input_dfs)
+        original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
+        estimator_backend_result = SklearnBackend.after_call(operator_context,
+                                                             input_infos,
+                                                             None)
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Neural Network", []),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
+        return self
 
 
 # ################################## UTILITY ##########################################
