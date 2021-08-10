@@ -15,7 +15,7 @@ class SQLLogic:
         self.dbms_connector = dbms_connector
         self.id = id
 
-    def wrap_in_sql_obj(self, sql_code, position_id=-1, block_name="", force_cte=False):
+    def wrap_in_sql_obj(self, sql_code, position_id=-1, block_name="", force_cte=False, force_name=False):
         """
         Wraps the passed sql code in a WITH... AS or VIEW block. Takes into account, that WITH only needs to be
         used once.
@@ -25,6 +25,8 @@ class SQLLogic:
         """
         if block_name == "":
             block_name = f"{sql_obj_prefix}_mlinid{position_id}_{self.get_unique_id()}"
+        else:
+            block_name += f'_{self.get_unique_id()}' if not force_name else ""
         sql_code = sql_code.replace('\n', '\n\t')  # for nice formatting
         if self.sql_obj.mode == SQLObjRep.CTE or force_cte:
             sql_code = f"{block_name} AS (\n\t{sql_code}\n)"
@@ -140,12 +142,12 @@ class SQLLogic:
 
     def finish_sql_call(self, sql_code, line_id, result, tracking_cols, operation_type, non_tracking_cols_addition=[],
                         origin_context=None, cte_name="", update_name_in_map=False, non_tracking_cols=None,
-                        no_wrap=False):
+                        no_wrap=False, force_name=False):
         """
         Helper that: wraps the code and stores it in the mapping.
         """
         if not no_wrap:
-            final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, block_name=cte_name)
+            final_cte_name, sql_code = self.wrap_in_sql_obj(sql_code, line_id, cte_name, force_name=force_name)
         else:
             assert cte_name != ""
             final_cte_name = cte_name

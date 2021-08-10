@@ -63,7 +63,7 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            # print(q)
+            # print(q)  # Very helpful for debugging
             self.cur.execute(q)
             try:
                 results.append(self.cur.fetchall())
