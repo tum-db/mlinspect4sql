@@ -13,7 +13,7 @@ from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConn
 from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 
 
-#   pylint: disable=protected-access
+# pylint: disable=protected-access
 # !/usr/bin/env python -W ignore::DeprecationWarning
 class TestInspectionOutput(unittest.TestCase):
     HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
@@ -49,19 +49,12 @@ class TestInspectionOutput(unittest.TestCase):
             .add_required_inspection(MaterializeFirstOutputRows(5))
 
         if to_sql:
-            # assert (dbms_connector)
             inspector_result = inspector_result.execute_in_sql(dbms_connector=dbms_connector,
                                                                mode=mode, materialize=materialize, row_wise=False)
             if dbms_connector is None:
                 return
         else:
             inspector_result = inspector_result.execute()
-
-        # extracted_dag = inspector_result.dag
-        # filename = os.path.join(str(get_project_root()), "demo", "feature_overview", "healthcare.png")
-        # save_fig_to_path(extracted_dag, filename)
-        # im = Image.open(filename)
-        # plt.imshow(im)
 
         check_results = inspector_result.check_to_check_results
         no_bias_check_result = check_results[NoBiasIntroducedFor(bias)]

@@ -629,7 +629,7 @@ class DataFrameGroupByPatchingSQL:
                 if f == "mean":
                     agg_funcs[i] = "avg"
                 elif f == "std":
-                    agg_funcs[i] = "stddev"
+                    agg_funcs[i] = "stddev_pop"
                 elif f == "var":
                     agg_funcs[i] = "variance"
 
@@ -1037,6 +1037,7 @@ class SklearnCallInfo:
 
 
 call_info_singleton = SklearnCallInfo()
+column_transformer_share = None
 
 
 @gorilla.patches(compose.ColumnTransformer)
@@ -1092,10 +1093,13 @@ class SklearnComposePatching:
         op_id = singleton.get_next_op_id()
         name, ti = singleton.mapping.get_name_and_ti(args[0])
 
+
         cr_to_col_map = {}  # code_reference to column mapping
         cr_to_level_map = {}  # code_reference to level mapping
+        cols_to_keep = []
         for level, (_, op_obj, target_cols) in enumerate(self.transformers):
             target_cols = [f"\"{x}\"" for x in target_cols]
+            cols_to_keep += target_cols
             if isinstance(op_obj, pipeline.Pipeline):
                 for level_s, (_, step) in enumerate(op_obj.steps):  # need to take pipeline apart
                     cr = step.mlinspect_optional_code_reference
@@ -1110,8 +1114,7 @@ class SklearnComposePatching:
                        range(max(cr_to_level_map.values()) + 1)]
 
         # HANDLE "drop" case:
-        cols_to_keep = list({x for list in cr_to_col_map.values() for x in list})
-        cols_to_drop = []
+        cols_to_keep = list(dict.fromkeys(cols_to_keep)) # keeps order
         if self.remainder == "drop":
             cols_to_drop = list(set(ti.non_tracking_cols) - set(cols_to_keep))
         else:
@@ -1125,11 +1128,7 @@ class SklearnComposePatching:
                                                          cr_to_col_map=cr_to_col_map,
                                                          target_obj=args[0], cols_to_drop=cols_to_drop)
 
-        print()
-
         result = original(self, *args, **kwargs)
-
-        print()
 
         query_levels = column_transformer_share.levels
         # Query optimization for further executions:
@@ -1283,42 +1282,47 @@ class SklearnSimpleImputerPatching:
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
+        selection_map = {}
         help_cte_block = []
         select_block = []
         help_cte_block_s = ""
         if self.strategy == "most_frequent":
-            for col in target_cols:
-                count_table, count_code = singleton.sql_logic.column_count(name, col)
-                help_cte_block.append(count_code)
-                select_block.append(f"\tCOALESCE({col}, "
-                                    f"(SELECT {col} "
-                                    f"FROM {count_table} "
-                                    f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col}")
-
+            for col in all_cols:
+                if col in target_cols:
+                    count_table, count_code = singleton.sql_logic.column_count(name, col)
+                    help_cte_block.append(count_code)
+                    select_block.append(f"\tCOALESCE({col}, "
+                                        f"(SELECT {col} "
+                                        f"FROM {count_table} "
+                                        f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col}")
+                    selection_map[col] = select_block[-1]
+                else:
+                    select_block.append(f"\t{col}")
             help_cte_block_s = "WITH " + " ,\n".join(help_cte_block) + "\n"
 
         elif self.strategy == "mean":
-            for col in target_cols:
-                select_block.append(f"\tCOALESCE({col}, (SELECT AVG({col}) FROM {name})) AS {col}")
+            for col in all_cols:
+                if col in target_cols:
+                    select_block.append(f"\tCOALESCE({col}, (SELECT AVG({col}) FROM {name})) AS {col}")
+                    selection_map[col] = select_block[-1]
+                else:
+                    select_block.append(f"\t{col}")
         else:
             raise NotImplementedError
 
-        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
 
         sql_code = f"{help_cte_block_s}" \
                    f"SELECT \n{select_block_s} \n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=dict(zip(target_cols, select_block)),
-                         code_ref=code_ref, sql_source=name)
-
-        all_remaining_cols = non_tracking_cols_rest + target_cols
+        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_remaining_cols,
+                                                                 non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_impute_mlinid{op_id}",
                                                                  update_name_in_map=False)
@@ -1326,7 +1330,7 @@ class SklearnSimpleImputerPatching:
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_remaining_cols)
+                                                                         curr_sql_expr_columns=all_cols)
         # TO_SQL DONE! ##########################################################################################
         dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
@@ -1395,26 +1399,31 @@ class SklearnOneHotEncoderPatching:
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
+        selection_map = {}
         help_cte_block = []
         select_block = []
         from_block = []
         where_block = []
 
-        for col in target_cols:
-            oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
+        for col in all_cols:
+            if col in target_cols:
+                oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
 
-            help_cte_block.append(oh_code)
-            select_block.append(f"\t{col[:-1]}_one_hot\" AS {col}")
-            from_block.append(f"{oh_table}")
-            where_block.append(f"\t{name}.{col} = {oh_table}.{col}")
+                help_cte_block.append(oh_code)
+                select_block.append(f"\t{col[:-1]}_one_hot\" AS {col}")
+                from_block.append(f"{oh_table}")
+                where_block.append(f"\t{name}.{col} = {oh_table}.{col}")
 
+                selection_map[col] = select_block[-1]
+            else:
+                select_block.append(f"\t{col}")
         # Add the one hot columns to the pipeline_container
         # singleton.pipeline_container.add_statement_to_pipe(oh_table, help_cte_block)
 
         help_cte_block_s = ",\n".join(help_cte_block)
-        select_block_s = ",\n".join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+        select_block_s = ",\n".join(select_block) + ",\n\t" + ", ".join(tracking_cols)
         from_block_s = ", ".join(from_block + [name])
         where_block_s = " AND \n".join(where_block)
 
@@ -1423,19 +1432,19 @@ class SklearnOneHotEncoderPatching:
                    f"FROM {from_block_s}\n" \
                    f"WHERE\n {where_block_s}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=dict(zip(target_cols, select_block)),
-                         from_block=from_block, where_block=where_block, code_ref=code_ref, sql_source=name)
-        all_remaining_cols = non_tracking_cols_rest + target_cols
+        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, from_block=from_block,
+                         where_block=where_block, code_ref=code_ref, sql_source=name)
+
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_remaining_cols,
+                                                                 non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"onehot_mlinid{op_id}",
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_remaining_cols)
+                                                                         curr_sql_expr_columns=all_cols)
         # TO_SQL DONE! ##########################################################################################
 
         dag_node = DagNode(op_id,
@@ -1504,28 +1513,32 @@ class SklearnStandardScalerPatching:
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
+        selection_map = {}
         if not (self.with_mean and self.with_std):
             raise NotImplementedError
 
         select_block = []
-        for col in target_cols:
-            select_block.append(f"\t(({col} - (SELECT AVG({col}) FROM {name})) / (SELECT STDDEV({col}) FROM {name}))"
-                                f" AS {col}")
+        for col in all_cols:
+            if col in target_cols:
+                select_block.append(
+                    f"\t(({col} - (SELECT AVG({col}) FROM {name})) / (SELECT STDDEV_POP({col}) FROM {name}))"
+                    f" AS {col}")
+                selection_map[col] = select_block[-1]
+            else:
+                select_block.append(f"\t{col}")
 
-        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
 
         sql_code = f"SELECT \n{select_block_s} \n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block="", selection_map=dict(zip(target_cols, select_block)), code_ref=code_ref,
-                         sql_source=name)
+        add_to_col_trans(help_cte_block="", selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
-        all_remaining_cols = non_tracking_cols_rest + target_cols
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_remaining_cols,
+                                                                 non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_stdscaler_mlinid{op_id}",
                                                                  update_name_in_map=False)
@@ -1540,7 +1553,7 @@ class SklearnStandardScalerPatching:
                                                           self.mlinspect_optional_source_code))
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_remaining_cols)
+                                                                         curr_sql_expr_columns=all_cols)
         add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
 
@@ -1601,48 +1614,52 @@ class SklearnKBinsDiscretizerPatching:
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
-        non_tracking_cols_rest = list(set(ti.non_tracking_cols) - set(target_cols) - set(cols_to_drop))
+        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
         num_bins = self.n_bins
 
         if not (self.encode == "ordinal", self.strategy == "uniform"):
             raise NotImplementedError
 
+        selection_map = {}
         select_block = []
         help_cte_block = []
-        for col in target_cols:
-            count_table, count_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
-            help_cte_block.append(count_code)
+        for col in all_cols:
+            if col in target_cols:
+                count_table, count_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
+                help_cte_block.append(count_code)
 
-            select_block_sub = "\tCASE\n"
-            for i in range(num_bins - 1):
-                select_block_sub += f"\t\tWHEN {col} < (SELECT MIN({col}) from {name}) + " \
-                                    f"{i + 1} * (SELECT step FROM {count_table}) THEN {i}\n"
-            select_block_sub += f"\t\tELSE {num_bins}\n\tEND"
+                select_block_sub = "\tCASE\n"
+                for i in range(num_bins - 1):
+                    select_block_sub += f"\t\tWHEN {col} < (SELECT MIN({col}) from {name}) + " \
+                                        f"{i + 1} * (SELECT step FROM {count_table}) THEN {i}\n"
+                select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND"
 
-            select_block.append(select_block_sub)
+                select_block.append(select_block_sub)
+                selection_map[col] = select_block[-1]
+            else:
+                select_block.append(f"\t{col}")
 
         # Add the counting columns to the pipeline_container
         # singleton.pipeline_container.add_statement_to_pipe(count_table, help_cte_block)
         help_cte_block_s = ",\n".join(help_cte_block)
-        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(non_tracking_cols_rest + tracking_cols)
+        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
 
         sql_code = f"WITH {help_cte_block_s}\n" \
                    f"SELECT \n{select_block_s}\n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=dict(zip(target_cols, select_block)),
-                         code_ref=code_ref, sql_source=name)
-        all_remaining_cols = non_tracking_cols_rest + target_cols
+        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, code_ref=code_ref, sql_source=name)
+
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_remaining_cols,
+                                                                 non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
                                                                  cte_name=f"block_kbin_mlinid{op_id}",
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_remaining_cols)
+                                                                         curr_sql_expr_columns=all_cols)
         # TO_SQL DONE! ##########################################################################################
 
         dag_node = DagNode(singleton.get_next_op_id(),

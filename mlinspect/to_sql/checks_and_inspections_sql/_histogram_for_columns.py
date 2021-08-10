@@ -44,7 +44,7 @@ class SQLHistogramForColumns:
 
         # print(curr_sql_expr_name)
 
-        old_dat_node_annotations = backend_result.dag_node_annotation
+        old_dag_node_annotations = backend_result.dag_node_annotation
 
         # is_unary_operator = len(curr_sql_expr_columns) == 1
         is_input_data_source = not is_operation_sql_obj(curr_sql_expr_name)
@@ -53,7 +53,7 @@ class SQLHistogramForColumns:
             curr_sql_expr_name = curr_sql_expr_name.replace("_ctid", "")  # This is the data_source table.
         # is_nary_operator = len(curr_sql_expr_columns) > 1
 
-        for annotation in old_dat_node_annotations.keys():  # iterate in search for HistColumn inspections
+        for annotation in old_dag_node_annotations.keys():  # iterate in search for HistColumn inspections
 
             if not isinstance(annotation, HistogramForColumns):
                 continue
@@ -105,7 +105,7 @@ class SQLHistogramForColumns:
                 self.current_hist[sc] = new_dict[sc]
 
             # Update the annotation:
-            old_dat_node_annotations[annotation] = new_dict
+            old_dag_node_annotations[annotation] = new_dict
 
         self.__set_optional_attribute(result, backend_result)
         return backend_result
@@ -135,9 +135,10 @@ class SQLHistogramForColumns:
             sc_hist_result = self.dbms_connector.run(query)[0]
 
         # self.pipeline_container.write_to_side_query(query, f"ratio_query_{curr_sql_expr_name}")
-
-        return {float("nan") if str(x) == "None" else
-                str(x): y for x, y in zip(list(sc_hist_result[0]), list(sc_hist_result[1]))}, new_name
+        sc_hist_result_t = sc_hist_result.transpose()
+        sc_hist_result_dict = list(zip(list(sc_hist_result_t[0]), list(sc_hist_result_t[1].astype(int))))
+        # print(f"{sc_hist_result_dict}" + 20 * "#")
+        return dict((float("nan"), y) if str(x) == "None" else (x, y) for (x, y) in sc_hist_result_dict), new_name
 
     @staticmethod
     def __set_optional_attribute(result, backend_result):
@@ -146,8 +147,13 @@ class SQLHistogramForColumns:
             return
         if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
                 not hasattr(result, "_mlinspect_annotation"):
-            result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
+            try:
+                result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
+            except AttributeError:
+                pass
         if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
                 not hasattr(result, "_mlinspect_dag_node"):
-            result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
-
+            try:
+                result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
+            except AttributeError:
+                pass

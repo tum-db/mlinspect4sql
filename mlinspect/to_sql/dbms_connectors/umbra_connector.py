@@ -1,6 +1,6 @@
-from abc import ABC
 from mlinspect.to_sql.data_source_sql_handling import CreateTablesFromDataSource
 from .dbms_connector import Connector
+from .connector_utility import results_to_np_array
 import psycopg2
 import subprocess
 import time
@@ -66,11 +66,13 @@ class UmbraConnector(Connector):
             # print(q)  # Very helpful for debugging
             self.cur.execute(q)
             try:
-                results.append(self.cur.fetchall())
+                query_output = self.cur.fetchall()
+                column_names = [c.name for c in self.cur.description]
+                results.append((column_names, query_output))
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
-                # print(q + "\n" + "#" * 20)
                 continue
-        return [pandas.DataFrame(r) for r in results]
+
+        return results_to_np_array(results)
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         print("Executing Query in Umbra...") if verbose else 0
