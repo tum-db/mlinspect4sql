@@ -1093,11 +1093,10 @@ class SklearnComposePatching:
         op_id = singleton.get_next_op_id()
         name, ti = singleton.mapping.get_name_and_ti(args[0])
 
-
         cr_to_col_map = {}  # code_reference to column mapping
         cr_to_level_map = {}  # code_reference to level mapping
         cols_to_keep = []
-        for level, (_, op_obj, target_cols) in enumerate(self.transformers):
+        for _, (_, op_obj, target_cols) in enumerate(self.transformers):
             target_cols = [f"\"{x}\"" for x in target_cols]
             cols_to_keep += target_cols
             if isinstance(op_obj, pipeline.Pipeline):
@@ -1108,13 +1107,13 @@ class SklearnComposePatching:
             else:
                 cr = op_obj.mlinspect_optional_code_reference
                 cr_to_col_map[cr] = target_cols
-                cr_to_level_map[cr] = level
+                cr_to_level_map[cr] = 0
 
         levels_list = [ColumnTransformerLevel([], {}, set(), set(), []) for _ in
                        range(max(cr_to_level_map.values()) + 1)]
 
         # HANDLE "drop" case:
-        cols_to_keep = list(dict.fromkeys(cols_to_keep)) # keeps order
+        cols_to_keep = list(dict.fromkeys(cols_to_keep))  # keeps order
         if self.remainder == "drop":
             cols_to_drop = list(set(ti.non_tracking_cols) - set(cols_to_keep))
         else:
@@ -1142,7 +1141,7 @@ class SklearnComposePatching:
                 if col in column_map.keys():
                     select_block.append(column_map[col])
                 else:
-                    select_block.append(col)
+                    select_block.append(f"\t{col}")
 
             help_cte_block_s = ",\n".join(help_cte_block)
             select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(ti.tracking_cols)
@@ -1155,7 +1154,7 @@ class SklearnComposePatching:
             if help_cte_block_s != "":
                 sql_code = "WITH " + help_cte_block_s + "\n" + sql_code
             if where_block_s != "":
-                sql_code += "\nWHERE " + where_block_s
+                sql_code += "\nWHERE\n" + where_block_s
 
             sql_name, sql_code = singleton.sql_logic.wrap_in_sql_obj(sql_code, op_id,
                                                                      block_name=f"column_transf_lvl{i}_mlinid{op_id}")
@@ -1163,7 +1162,8 @@ class SklearnComposePatching:
             # substitute old data sources with new ones:
             for old_s in level.sql_source:
                 sql_code = sql_code.replace(old_s, last_sql_name)
-            final_sql_code += sql_code + "\n"
+            final_sql_code += sql_code
+            final_sql_code += (",\n" if singleton.sql_obj.mode == SQLObjRep.CTE and i < len(query_levels) - 1 else "\n")
 
             last_sql_name = sql_name
 
@@ -1174,7 +1174,7 @@ class SklearnComposePatching:
                                                                  cte_name=last_sql_name,
                                                                  no_wrap=True)
 
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
         # TO_SQL DONE! ##########################################################################################
 
         call_info_singleton.column_transformer_active = False
@@ -1628,11 +1628,11 @@ class SklearnKBinsDiscretizerPatching:
                 count_table, count_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
                 help_cte_block.append(count_code)
 
-                select_block_sub = "\tCASE\n"
+                select_block_sub = "\t(CASE\n"
                 for i in range(num_bins - 1):
                     select_block_sub += f"\t\tWHEN {col} < (SELECT MIN({col}) from {name}) + " \
                                         f"{i + 1} * (SELECT step FROM {count_table}) THEN {i}\n"
-                select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND"
+                select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
 
                 select_block.append(select_block_sub)
                 selection_map[col] = select_block[-1]
