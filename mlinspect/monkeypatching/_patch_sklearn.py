@@ -771,6 +771,7 @@ class SklearnKerasClassifierPatching:
         operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
         input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
         input_infos = SklearnBackend.before_call(operator_context, input_dfs)
+
         original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
         estimator_backend_result = SklearnBackend.after_call(operator_context,
                                                              input_infos,

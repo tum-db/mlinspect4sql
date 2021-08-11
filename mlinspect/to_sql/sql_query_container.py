@@ -35,6 +35,20 @@ class SQLQueryContainer:
         select_line = self.__write_to_pipe_query(last_cte_name, sql_code, cols_to_keep)
         self.pipeline_query.append(select_line)
 
+    def update_pipe_head(self, head, comment_last_selection=False, user_info=""):
+        # Uncomment last pipeline head:
+        if comment_last_selection:
+            with self.file_path_pipe.open(mode="r") as f:
+                content = f.read()
+                head = f"/*{user_info}\nSELECT" + content.split("SELECT")[-1] + "\n*/\n" + head
+
+        SQLQueryContainer.__del_select_line(self.file_path_pipe, self.sql_obj.mode == SQLObjRep.CTE)
+
+        with self.file_path_pipe.open(mode="a") as f:
+            f.write(head)
+        self.pipeline_query.append(head)
+        return
+
     def write_to_init_file(self, sql_code):
         """
         Stores and writes the code for the table creation to "mlinspect/to_sql/generated_code/create_table.sql"

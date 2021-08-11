@@ -38,7 +38,7 @@ class PostgresqlConnector(Connector):
             return []
 
         for q in super()._prepare_query(sql_query):
-            # print(q)  # Very helpful for debugging
+            print(q)  # Very helpful for debugging
             self.cur.execute(q)
             # print("DONE")
             try:
@@ -85,8 +85,9 @@ class PostgresqlConnector(Connector):
 
         create_index = ""
         if self.add_mlinspect_serial:
-            create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
-            self.run(create_index)
+            col_names.append(self.index_col_name)
+            # create_index = f"CREATE UNIQUE INDEX id_mlinspect_{table_name} ON {table_name} (index_mlinspect);"
+            # self.run(create_index)
 
         return col_names, sql_code + "\n" + create_index
 

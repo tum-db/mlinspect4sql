@@ -47,7 +47,7 @@ class MyKerasClassifier(KerasClassifier):
         super().fit(x, y, **kwargs)
 
 
-def create_model(input_dim=10):
+def create_model(input_dim=9):
     """Create a simple neural network"""
     clf = Sequential()
     clf.add(Dense(9, activation='relu', input_dim=input_dim))

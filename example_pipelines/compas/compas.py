@@ -51,14 +51,14 @@ featurizer = ColumnTransformer(transformers=[
 # below lines are the same, as "y=..." only passes data trough to the NN:
 # featurizer.fit_transform(train_data, train_labels.ravel()) is equal to:
 # featurizer.fit_transform(train_data)
-featurizer.fit_transform(train_data)
+# featurizer.fit_transform(train_data)
 # featurizer.fit_transform(test_data)
 
-#
-# pipeline = Pipeline([
-#     ('features', featurizer),
-#     ('classifier', LogisticRegression())
-# ])
-#
-# pipeline.fit(train_data, train_labels.ravel())
-# print(pipeline.score(test_data, test_labels.ravel()))
+
+pipeline = Pipeline([
+    ('features', featurizer),
+    ('classifier', LogisticRegression())
+])
+
+pipeline.fit(train_data, train_labels.ravel())
+print(pipeline.score(test_data, test_labels.ravel()))

@@ -10,6 +10,7 @@ class Connector(abc.ABC):
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         """startup"""
+        self.index_col_name = "index_mlinspect"
         pass
 
     @abc.abstractmethod

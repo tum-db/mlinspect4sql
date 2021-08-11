@@ -5,6 +5,8 @@ import copy
 import os
 import pathlib
 
+import sklearn.pipeline
+
 from mlinspect.to_sql.py_to_sql_mapping import OpTree, ColumnTransformerInfo, ColumnTransformerLevel
 from mlinspect.backends._pandas_backend import PandasBackend
 from mlinspect.monkeypatching._monkey_patching_utils import get_dag_node_for_id
@@ -38,6 +40,8 @@ from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
     execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
+
+from .fit_data_classes import FitDataCollection
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
@@ -119,8 +123,8 @@ class PandasPatchingSQL:
                        f"FROM {table_name}"
 
             tracking_columns = [tracking_column]
-            if "index_mlinspect" in col_names:
-                tracking_columns.append("index_mlinspect")
+            if not singleton.dbms_connector.just_code and singleton.dbms_connector.index_col_name in col_names:
+                tracking_columns.append(singleton.dbms_connector.index_col_name)
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
                                                                      tracking_cols=tracking_columns,
@@ -328,7 +332,8 @@ class DataFramePatchingSQL:
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, non_tracking_cols)
             backend_result = singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                              curr_sql_expr_name=cte_name,
-                                                                             curr_sql_expr_columns=non_tracking_cols)
+                                                                             curr_sql_expr_columns=non_tracking_cols,
+                                                                             operation_type=operation_type)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -1058,6 +1063,11 @@ class SklearnCallInfo:
 call_info_singleton = SklearnCallInfo()
 column_transformer_share = None
 
+# FIT VARIABLES:
+# Here we collect mappings of Pipeline_elements to their fitted variables!
+# Necessary to run data trough the same pipeline multiple times:
+simple_imputer_fit_variables_map = {}
+
 
 @gorilla.patches(compose.ColumnTransformer)
 class SklearnComposePatching:
@@ -1128,7 +1138,7 @@ class SklearnComposePatching:
                 cr_to_col_map[cr] = target_cols
                 cr_to_level_map[cr] = 0
 
-        levels_list = [ColumnTransformerLevel([], {}, set(), set(), []) for _ in
+        levels_list = [ColumnTransformerLevel({}, set(), set(), []) for _ in
                        range(max(cr_to_level_map.values()) + 1)]
 
         # HANDLE "drop" case:
@@ -1154,7 +1164,6 @@ class SklearnComposePatching:
         last_sql_name = name
         for i, level in enumerate(query_levels):
             select_block = []
-            help_cte_block = level.pre_cte_queries
             column_map = level.column_map
             for col in cols_to_keep:
                 if col in column_map.keys():
@@ -1162,7 +1171,6 @@ class SklearnComposePatching:
                 else:
                     select_block.append(f"\t{col}")
 
-            help_cte_block_s = ",\n".join(help_cte_block)
             select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(ti.tracking_cols)
             from_block_s = ", ".join(level.from_block | {last_sql_name})
             where_block_s = " AND \n".join(level.where_block)
@@ -1170,8 +1178,6 @@ class SklearnComposePatching:
             sql_code = f"SELECT \n{select_block_s} \n" \
                        f"FROM {from_block_s}"
 
-            if help_cte_block_s != "":
-                sql_code = "WITH " + help_cte_block_s + "\n" + sql_code
             if where_block_s != "":
                 sql_code += "\nWHERE\n" + where_block_s
 
@@ -1199,6 +1205,18 @@ class SklearnComposePatching:
         call_info_singleton.column_transformer_active = False
 
         return result
+    #
+    # @gorilla.name('fit')
+    # @gorilla.settings(allow_hit=True)
+    # def patched_fit_transform(self, *args, **kwargs):
+    #     original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit')
+    #     return original(self, *args, **kwargs)
+
+    # @gorilla.name('transform')
+    # @gorilla.settings(allow_hit=True)
+    # def patched_fit_transform(self, *args, **kwargs):
+    #     original = gorilla.get_original_attribute(compose.ColumnTransformer, 'transform')
+    #     return original(self, *args, **kwargs)
 
     @gorilla.name('_hstack')
     @gorilla.settings(allow_hit=True)
@@ -1304,40 +1322,66 @@ class SklearnSimpleImputerPatching:
         all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
         selection_map = {}
-        help_cte_block = []
         select_block = []
-        help_cte_block_s = ""
+
+        if hasattr(self, "_fit_data"):
+            fit_data = self._fit_data
+        else:
+            self._fit_data = FitDataCollection({}, fully_set=False)
+            fit_data = self._fit_data
+
+        # STRATEGY 1: ###
         if self.strategy == "most_frequent":
             for col in all_cols:
                 if col in target_cols:
-                    count_table, count_code = singleton.sql_logic.column_count(name, col)
-                    help_cte_block.append(count_code)
+
+                    # Access fitted data if possible:
+                    if not fit_data or not fit_data.fully_set:
+                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_count(name, col)
+                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                            singleton.dbms_connector.run(fit_lookup_code)
+                    else:
+                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
                     select_block.append(f"\tCOALESCE({col}, "
                                         f"(SELECT {col} "
-                                        f"FROM {count_table} "
-                                        f"WHERE count = (SELECT MAX(count) FROM {count_table}))) AS {col}")
+                                        f"FROM {fit_lookup_table} "
+                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}))) AS {col}")
                     selection_map[col] = select_block[-1]
                 else:
                     select_block.append(f"\t{col}")
-            help_cte_block_s = "WITH " + " ,\n".join(help_cte_block) + "\n"
 
+        # STRATEGY 2: ###
         elif self.strategy == "mean":
             for col in all_cols:
                 if col in target_cols:
-                    select_block.append(f"\tCOALESCE({col}, (SELECT AVG({col}) FROM {name})) AS {col}")
+
+                    # Access fitted data if possible:
+                    if not fit_data or not fit_data.fully_set:
+                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_mean(name, col)
+                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                            singleton.dbms_connector.run(fit_lookup_code)
+                    else:
+                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
+                    select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
                     selection_map[col] = select_block[-1]
                 else:
                     select_block.append(f"\t{col}")
+        # STRATEGY X: ###
         else:
             raise NotImplementedError
 
         select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
 
-        sql_code = f"{help_cte_block_s}" \
-                   f"SELECT \n{select_block_s} \n" \
+        sql_code = f"SELECT \n{select_block_s} \n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, code_ref=code_ref, sql_source=name)
+        add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
@@ -1350,6 +1394,8 @@ class SklearnSimpleImputerPatching:
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=all_cols)
+
+        fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
         dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
@@ -1421,37 +1467,46 @@ class SklearnOneHotEncoderPatching:
         all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
         selection_map = {}
-        help_cte_block = []
         select_block = []
         from_block = []
         where_block = []
 
+        if hasattr(self, "_fit_data"):
+            fit_data = self._fit_data
+        else:
+            self._fit_data = FitDataCollection({}, fully_set=False)
+            fit_data = self._fit_data
+
         for col in all_cols:
             if col in target_cols:
-                oh_table, oh_code = singleton.sql_logic.column_one_hot_encoding(name, col)
 
-                help_cte_block.append(oh_code)
+                # Access fitted data if possible:
+                if not fit_data or not fit_data.fully_set:
+                    fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_one_hot_encoding(name, col)
+                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                    if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                        singleton.dbms_connector.run(fit_lookup_code)
+                else:
+                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
                 select_block.append(f"\t{col[:-1]}_one_hot\" AS {col}")
-                from_block.append(f"{oh_table}")
-                where_block.append(f"\t{name}.{col} = {oh_table}.{col}")
+                from_block.append(f"{fit_lookup_table}")
+                where_block.append(f"\t{name}.{col} = {fit_lookup_table}.{col}")
 
                 selection_map[col] = select_block[-1]
             else:
                 select_block.append(f"\t{col}")
-        # Add the one hot columns to the pipeline_container
-        # singleton.pipeline_container.add_statement_to_pipe(oh_table, help_cte_block)
 
-        help_cte_block_s = ",\n".join(help_cte_block)
         select_block_s = ",\n".join(select_block) + ",\n\t" + ", ".join(tracking_cols)
         from_block_s = ", ".join(from_block + [name])
         where_block_s = " AND \n".join(where_block)
 
-        sql_code = f"WITH {help_cte_block_s}\n" \
-                   f"SELECT \n{select_block_s} \n" \
+        sql_code = f"SELECT \n{select_block_s} \n" \
                    f"FROM {from_block_s}\n" \
                    f"WHERE\n {where_block_s}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, from_block=from_block,
+        add_to_col_trans(selection_map=selection_map, from_block=from_block,
                          where_block=where_block, code_ref=code_ref, sql_source=name)
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
@@ -1464,6 +1519,8 @@ class SklearnOneHotEncoderPatching:
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=all_cols)
+
+        fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
 
         dag_node = DagNode(op_id,
@@ -1538,12 +1595,30 @@ class SklearnStandardScalerPatching:
         if not (self.with_mean and self.with_std):
             raise NotImplementedError
 
+        if hasattr(self, "_fit_data"):
+            fit_data = self._fit_data
+        else:
+            self._fit_data = FitDataCollection({}, fully_set=False)
+            fit_data = self._fit_data
+
         select_block = []
         for col in all_cols:
             if col in target_cols:
+
+                # Access fitted data if possible:
+                if not fit_data or not fit_data.fully_set:
+                    fit_lookup_table, fit_lookup_code = singleton.sql_logic.std_scalar_values(name, col)
+                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                    if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                        singleton.dbms_connector.run(fit_lookup_code)
+                else:
+                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
                 select_block.append(
-                    f"\t(({col} - (SELECT AVG({col}) FROM {name})) / (SELECT STDDEV_POP({col}) FROM {name}))"
-                    f" AS {col}")
+                    f"\t(({col} - (SELECT avg_col_std_scal FROM {fit_lookup_table})) / "
+                    f"(SELECT std_dev_col_std_scal FROM {fit_lookup_table})) "
+                    f"AS {col}")
                 selection_map[col] = select_block[-1]
             else:
                 select_block.append(f"\t{col}")
@@ -1553,7 +1628,7 @@ class SklearnStandardScalerPatching:
         sql_code = f"SELECT \n{select_block_s} \n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block="", selection_map=selection_map, code_ref=code_ref, sql_source=name)
+        add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
@@ -1562,6 +1637,8 @@ class SklearnStandardScalerPatching:
                                                                  cte_name=f"block_stdscaler_mlinid{op_id}",
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
 
         dag_node = DagNode(singleton.get_next_op_id(),
@@ -1641,16 +1718,39 @@ class SklearnKBinsDiscretizerPatching:
 
         selection_map = {}
         select_block = []
-        help_cte_block = []
+
+        if hasattr(self, "_fit_data"):
+            fit_data = self._fit_data
+        else:
+            self._fit_data = FitDataCollection({}, fully_set=False)
+            fit_data = self._fit_data
+            # create table for min:
+            fit_lookup_table = f"block_kbin_fit_{singleton.sql_logic.get_unique_id()}_min"
+            fit_lookup_code = "SELECT MIN({col}) from {name} AS kbin_lookup_min_val"
+            fit_lookup_table, fit_lookup_code = self.wrap_in_sql_obj(fit_lookup_code, block_name=fit_lookup_table)
+            singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+            if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                singleton.dbms_connector.run(fit_lookup_code)
+
+        min_lookup_table = fit_data.extra_info
+
         for col in all_cols:
             if col in target_cols:
-                count_table, count_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
-                help_cte_block.append(count_code)
+
+                # Access fitted data if possible:
+                if not fit_data or not fit_data.fully_set:
+                    fit_lookup_table, fit_lookup_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
+                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                    if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                        singleton.dbms_connector.run(fit_lookup_code)
+                else:
+                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
 
                 select_block_sub = "\t(CASE\n"
                 for i in range(num_bins - 1):
-                    select_block_sub += f"\t\tWHEN {col} < (SELECT MIN({col}) from {name}) + " \
-                                        f"{i + 1} * (SELECT step FROM {count_table}) THEN {i}\n"
+                    select_block_sub += f"\t\tWHEN {col} < (SELECT * from {min_lookup_table}) + " \
+                                        f"{i + 1} * (SELECT step FROM {fit_lookup_table}) THEN {i}\n"
                 select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
 
                 select_block.append(select_block_sub)
@@ -1658,16 +1758,12 @@ class SklearnKBinsDiscretizerPatching:
             else:
                 select_block.append(f"\t{col}")
 
-        # Add the counting columns to the pipeline_container
-        # singleton.pipeline_container.add_statement_to_pipe(count_table, help_cte_block)
-        help_cte_block_s = ",\n".join(help_cte_block)
         select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
 
-        sql_code = f"WITH {help_cte_block_s}\n" \
-                   f"SELECT \n{select_block_s}\n" \
+        sql_code = f"SELECT \n{select_block_s}\n" \
                    f"FROM {name}"
 
-        add_to_col_trans(help_cte_block=help_cte_block, selection_map=selection_map, code_ref=code_ref, sql_source=name)
+        add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
                                                                  tracking_cols=tracking_cols,
@@ -1679,6 +1775,8 @@ class SklearnKBinsDiscretizerPatching:
         backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=all_cols)
+
+        fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
 
         dag_node = DagNode(singleton.get_next_op_id(),
@@ -1817,17 +1915,20 @@ class SklearnModelSelectionPatching:
             if len(args) != 1:
                 raise NotImplementedError
 
+            index_mlinspect = ""
+            if singleton.dbms_connector.add_mlinspect_serial:
+                index_mlinspect = f"ORDER BY {singleton.dbms_connector.index_col_name} ASC"
+
             name, ti = singleton.mapping.get_name_and_ti(target_obj)
 
             row_num_addition = f"WITH row_num_mlinspect_split AS(\n" \
-                               f"\tSELECT *, (ROW_NUMBER() OVER()) AS row_number_mlinspect\n" \
+                               f"\tSELECT *, (ROW_NUMBER() OVER({index_mlinspect})) AS row_number_mlinspect\n" \
                                f"\tFROM {name}\n" \
                                f")\n"
             sql_code_train = f"{row_num_addition}" \
                              f"SELECT *\n" \
                              f"FROM row_num_mlinspect_split\n" \
                              f"WHERE row_number_mlinspect < {train_part} * (SELECT COUNT(*) FROM {name})"
-
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code_train, op_id, new_return_value[0],
                                                                      tracking_cols=ti.tracking_cols,
@@ -1837,7 +1938,8 @@ class SklearnModelSelectionPatching:
 
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
-            train_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[0], train_backend_result,
+            train_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[0],
+                                                                                   train_backend_result,
                                                                                    curr_sql_expr_name=cte_name,
                                                                                    curr_sql_expr_columns=
                                                                                    ti.non_tracking_cols)
@@ -1855,7 +1957,8 @@ class SklearnModelSelectionPatching:
 
             singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
-            test_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[1], test_backend_result,
+            test_backend_result = singleton.update_hist.sql_update_backend_result(new_return_value[1],
+                                                                                  test_backend_result,
                                                                                   curr_sql_expr_name=cte_name,
                                                                                   curr_sql_expr_columns=
                                                                                   ti.non_tracking_cols)
@@ -1884,6 +1987,11 @@ class SklearnModelSelectionPatching:
         return execute_patched_func(original, execute_inspections, *args, **kwargs)
 
 
+# SKLEAN MODELS:
+just_the_model = None
+pipeline_input = None
+
+
 class SklearnKerasClassifierPatching:
     """ Patches for tensorflow KerasClassifier"""
 
@@ -1904,6 +2012,9 @@ class SklearnKerasClassifierPatching:
         def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             original(self, build_fn=build_fn, **sk_params)
+
+            global just_the_model
+            just_the_model = copy.deepcopy(self)
 
             self.mlinspect_caller_filename = caller_filename
             self.mlinspect_lineno = lineno
@@ -1938,7 +2049,7 @@ class SklearnKerasClassifierPatching:
         add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
         train_data_result = data_backend_result.annotated_dfobject.result_data
 
-        # Train labels
+        # Test labels
         operator_context = OperatorContext(OperatorType.TRAIN_LABELS, function_info)
         input_info_train_labels = get_input_info(args[1], self.mlinspect_caller_filename, self.mlinspect_lineno,
                                                  function_info, self.mlinspect_optional_code_reference,
@@ -1961,7 +2072,7 @@ class SklearnKerasClassifierPatching:
         operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
         input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
         input_infos = SklearnBackend.before_call(operator_context, input_dfs)
-        original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
+        # original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
         estimator_backend_result = SklearnBackend.after_call(operator_context,
                                                              input_infos,
                                                              None)
@@ -1973,7 +2084,84 @@ class SklearnKerasClassifierPatching:
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
         add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
-        return self
+
+        global just_the_model
+        args_0 = retrieve_data_from_dbms(args[0])
+        args_1 = retrieve_data_from_dbms(args[1])
+        original(just_the_model, args_0, args_1)
+
+        return just_the_model
+
+    # @gorilla.patch(keras_sklearn_external.KerasClassifier, name='predict', settings=gorilla.Settings(allow_hit=True))
+    # def patched_fit(self, *args, **kwargs):
+    #     """ Patch for ('tensorflow.python.keras.wrappers.scikit_learn.KerasClassifier', 'predict') """
+    #     # pylint: disable=no-method-argument, too-many-locals
+    #     original = gorilla.get_original_attribute(keras_sklearn_external.KerasClassifier, 'predict')
+    #     return self
+    #
+    # @gorilla.patch(keras_sklearn_external.KerasClassifier, name='score', settings=gorilla.Settings(allow_hit=True))
+    # def patched_fit(self, *args, **kwargs):
+    #     """ Patch for ('tensorflow.python.keras.wrappers.scikit_learn.KerasClassifier', 'score') """
+    #     # pylint: disable=no-method-argument, too-many-locals
+    #     original = gorilla.get_original_attribute(keras_sklearn_external.KerasClassifier, 'score')
+    #     args_0 = retrieve_data_from_dbms(args[0])
+    #     args_1 = retrieve_data_from_dbms(args[1])
+    #     return original(just_the_model, args_0, args_1, *args, **kwargs)
+
+
+# @gorilla.patches(sklearn.pipeline.Pipeline)
+# class SklearnPipeline:
+#     """ Patches for tensorflow KerasClassifier"""
+#
+#     # @gorilla.name('predict')
+#     # @gorilla.settings(allow_hit=True)
+#     # def patched_fit(self, *args, **kwargs):
+#     #     # pylint: disable=no-method-argument, too-many-locals
+#     #     global pipeline_input
+#     #     pipeline_input = args
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'predict')
+#     #     return original(self, *args, **kwargs)
+#     #
+#     # @gorilla.name('fit')
+#     # @gorilla.settings(allow_hit=True)
+#     # def patched_fit(self, *args, **kwargs):
+#     #     # pylint: disable=no-method-argument, too-many-locals
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'fit')
+#     #     print()
+#     #     return original(self, *args, **kwargs)
+#
+#     # @gorilla.name('_fit')
+#     # @gorilla.settings(allow_hit=True)
+#     # def patched_fit_transform(self, *args, **kwargs):
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, '_fit')
+#     #     args_0 = self.steps[0][1].fit_transform(args[0])
+#     #     args_1 = retrieve_data_from_dbms(args[1])
+#     #     return original(self, *args, **kwargs)
+#
+#     # @gorilla.patch(sklearn.pipeline.Pipeline, name='fit', settings=gorilla.Settings(allow_hit=True))
+#     # def patched_fit(self, *args, **kwargs):
+#     #     # pylint: disable=no-method-argument, too-many-locals
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'fit')
+#     #     return original(self, *args, **kwargs)
+#     #
+#     # @gorilla.name('fit_transform')
+#     # @gorilla.settings(allow_hit=True)
+#     # def patched_fit(self, *args, **kwargs):
+#     #     # pylint: disable=no-method-argument, too-many-locals
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'fit_transform')
+#     #     return original(self, *args, **kwargs)
+#     #
+#     # @gorilla.name('score')
+#     # @gorilla.settings(allow_hit=True)
+#     # def patched_fit(self, *args, **kwargs):
+#     #     # pylint: disable=no-method-argument, too-many-locals
+#     #     global pipeline_input
+#     #     pipeline_input = args
+#     #     original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
+#     #     args_0 = self.steps[0][1].transform(args[0])
+#     #     args_0 = retrieve_data_from_dbms(args[0])
+#     #     args_1 = retrieve_data_from_dbms(args[1])
+#     #     return just_the_model(args_0, args_1)
 
 
 # ################################## UTILITY ##########################################
@@ -1992,14 +2180,51 @@ def find_target(code_ref, arg, target_obj):
     return name, ti, target_cols, target_obj, cols_to_drop
 
 
-def add_to_col_trans(help_cte_block, selection_map, code_ref, sql_source, from_block=[], where_block=[]):
+def add_to_col_trans(selection_map, code_ref, sql_source, from_block=[], where_block=[]):
     global column_transformer_share
     if not (column_transformer_share is None):
         level = column_transformer_share.levels_map[code_ref]
         ct_level = column_transformer_share.levels[level]
         ct_level.column_map = {**selection_map, **ct_level.column_map}
-        ct_level.pre_cte_queries += help_cte_block
         ct_level.from_block |= set(from_block)
         ct_level.where_block |= set(where_block)
         ct_level.sql_source.append(sql_source)
         # ct_level.tracking_cols += [tc for tc in tracking_cols if tc not in ct_level.tracking_cols]
+
+
+def retrieve_data_from_dbms_get_backend(train_obj, comment_last_selection=False, user_info=""):
+    name, ti = singleton.mapping.get_name_and_ti(train_obj)
+
+    cols = ti.non_tracking_cols
+    if isinstance(cols, str):  # working with a pandas series.
+        cols = [cols]
+
+    sql_code = f"SELECT {', '.join(cols)} " \
+               f"FROM {name}"
+
+    train_data = singleton.dbms_connector.run(sql_code)[0]
+
+    singleton.pipeline_container.update_pipe_head(sql_code, comment_last_selection, user_info)
+
+    return train_data
+    # , singleton.update_hist.sql_update_backend_result(train_data,
+    #                                                                old_backend_result,
+    #                                                                curr_sql_expr_name=f"{name}",
+    #                                                                curr_sql_expr_columns=ti.non_tracking_cols,
+    #                                                                keep_previous_res=True)
+
+
+def retrieve_data_from_dbms(train_obj):
+    name, ti = singleton.mapping.get_name_and_ti(train_obj)
+
+    cols = ti.non_tracking_cols
+    if isinstance(cols, str):  # working with a pandas series.
+        cols = [cols]
+
+    sql_code = f"SELECT {', '.join(cols)} " \
+               f"FROM {name}"
+
+    output = singleton.dbms_connector.run(sql_code)[0]
+    if isinstance(ti.data_object, pandas.Series) and ti.data_object.dtype == "bool":
+        output = pandas.Series(output.squeeze(), dtype=bool)
+    return output

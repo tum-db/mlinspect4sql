@@ -50,8 +50,6 @@ class CreateTablesFromDataSource:
         if add_mlinspect_serial:
             if index_col != -1:
                 names[index_col] = "\"index_mlinspect\""
-            else:
-                names.append("\"index_mlinspect\"")
 
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
             [i + " " + j for i, j in zip(names, data_types)])

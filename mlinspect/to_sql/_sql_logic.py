@@ -316,15 +316,21 @@ class SQLLogic:
     # ################################################ SKLEARN #########################################################
 
     def column_count(self, table, column_name):
-        table_name = f"{table}_{self.get_unique_id()}_count"
+        table_name = f"block_impute_fit_{self.get_unique_id()}_count"
         sql_code = f"SELECT {column_name}, COUNT(*) AS count\n" \
                    f"FROM {table} \n" \
                    f"GROUP BY {column_name}"
-        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
+        return block_name, sql_code
+
+    def column_mean(self, table, column_name):
+        table_name = f"block_impute_fit_{self.get_unique_id()}_mean"
+        sql_code = f"SELECT (SELECT AVG({column_name}) FROM {table})) AS {column_name}\n"
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code
 
     def column_one_hot_encoding(self, table, col):
-        table_name = f"{table}_{self.get_unique_id()}_onehot"
+        table_name = f"block_one_hot_fit_{self.get_unique_id()}"
         sql_code = f"select {col}, \n" \
                    f"(array_fill(0, ARRAY[\"rank\" - 1]) || 1 ) || " \
                    f"array_fill(0, ARRAY[ cast((select count(distinct({col})) from {table}) as int) - " \
@@ -333,16 +339,28 @@ class SQLLogic:
                    f"\tselect {col}, CAST(ROW_NUMBER() OVER() AS int) AS \"rank\" \n" \
                    f"\tfrom (select distinct({col}) from {table}) oh" \
                    f") one_hot_help"
-        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code
 
     def step_size_kbin(self, table, column_name, n_bins):
         """
         Helper for transpiling the KBinsDiscretizer.
         """
-        table_name = f"{table}_{self.get_unique_id()}_step_size"
+        table_name = f"block_kbin_fit_{self.get_unique_id()}_step_size"
         sql_code = f"SELECT (" \
                    f"(SELECT MAX({column_name}) FROM {table}) - (SELECT MIN({column_name}) FROM {table})) / {n_bins} " \
                    f"AS step\n"
-        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name, force_cte=True)
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
+        return block_name, sql_code
+
+
+    def std_scalar_values(self, table, column_name):
+        """
+        Helper for transpiling the KBinsDiscretizer.
+        """
+        table_name = f"block_std_scalar_fit_{self.get_unique_id()}_step_size"
+        sql_code = f"SELECT " \
+                   f"(SELECT AVG({column_name}) FROM {table}) AS avg_col_std_scal," \
+                   f"(SELECT STDDEV_POP({column_name}) FROM {table}) AS std_dev_col_std_scal"
+        block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code

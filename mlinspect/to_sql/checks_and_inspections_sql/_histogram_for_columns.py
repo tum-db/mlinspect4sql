@@ -30,10 +30,13 @@ class SQLHistogramForColumns:
 
     def sql_update_backend_result(self, result, backend_result: BackendResult,
                                   curr_sql_expr_name="",
-                                  curr_sql_expr_columns=None):
+                                  curr_sql_expr_columns=None,
+                                  keep_previous_res=False,
+                                  operation_type=None):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
-
+        Args:
+            keep_previous_res(bool): forces to keep previous results
         Note:
             The sql_obj from wich we want to know the ratio, will be the ones materialized, as they are part of the
             entire query.
@@ -70,6 +73,11 @@ class SQLHistogramForColumns:
             # print(f"curr_sql_expr_columns: {curr_sql_expr_columns}")
 
             for sc in sensitive_columns:  # update the values based on current table.
+
+                if keep_previous_res or operation_type == OperatorType.PROJECTION:
+                    new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
+                    continue
+
                 if sc in curr_sql_expr_columns:
 
                     query = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
@@ -143,17 +151,16 @@ class SQLHistogramForColumns:
     @staticmethod
     def __set_optional_attribute(result, backend_result):
         # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
+
         if result is None:
             return
-        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
-                not hasattr(result, "_mlinspect_annotation"):
-            try:
+        try:
+            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
+                    not hasattr(result, "_mlinspect_annotation"):
                 result._mlinspect_annotation = backend_result.annotated_dfobject.result_data._mlinspect_annotation
-            except AttributeError:
-                pass
-        if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
-                not hasattr(result, "_mlinspect_dag_node"):
-            try:
+
+            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node") and \
+                    not hasattr(result, "_mlinspect_dag_node"):
                 result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
-            except AttributeError:
-                pass
+        except AttributeError:
+            pass

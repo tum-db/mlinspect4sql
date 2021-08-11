@@ -19,7 +19,6 @@ class ColumnTransformerLevel:
     """
     Contains all info to replicate the operation with parallelization.
     """
-    pre_cte_queries: list
     column_map: dict
     from_block: set
     where_block: set
