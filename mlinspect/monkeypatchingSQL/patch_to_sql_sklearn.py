@@ -12,18 +12,7 @@ from mlinspect.backends._pandas_backend import PandasBackend
 from mlinspect.monkeypatching._monkey_patching_utils import get_dag_node_for_id
 from mlinspect.monkeypatching._patch_sklearn import call_info_singleton
 from mlinspect.to_sql._mode import SQLMode, SQLObjRep
-import gorilla
-import numpy
-import pandas
-from sklearn import preprocessing, compose, impute, pipeline
-from mlinspect.backends._sklearn_backend import SklearnBackend
-from mlinspect.inspections._inspection_input import OperatorContext, FunctionInfo, OperatorType
-from mlinspect.instrumentation._dag_node import DagNode, BasicCodeLocation, DagNodeDetails, CodeReference
-from mlinspect.instrumentation._pipeline_executor import singleton
-from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
-    execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
-from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
-from sklearn import preprocessing, compose, tree, impute, linear_model, model_selection
+from sklearn import pipeline
 import gorilla
 import numpy
 import pandas
@@ -61,7 +50,7 @@ class SklearnCallInfo:
 
 call_info_singleton = SklearnCallInfo()
 column_transformer_share = None
-only_transform_run = False  # whether we are fitting or transforming. | Adapt behaviour!
+just_transform_run = {}  # whether we are fitting or transforming. | Adapt behaviour!
 
 
 @gorilla.patches(compose.ColumnTransformer)
@@ -101,20 +90,28 @@ class SklearnComposePatching:
     def patched_fit_transform(self, *args, **kwargs):
         """ Patch for ('sklearn.compose._column_transformer', 'ColumnTransformer') """
         # pylint: disable=no-method-argument
-        call_info_singleton.transformer_filename = self.mlinspect_filename
-        call_info_singleton.transformer_lineno = self.mlinspect_lineno
-        call_info_singleton.transformer_function_info = FunctionInfo('sklearn.compose._column_transformer',
-                                                                     'ColumnTransformer')
-        call_info_singleton.transformer_optional_code_reference = self.mlinspect_optional_code_reference
-        call_info_singleton.transformer_optional_source_code = self.mlinspect_optional_source_code
+        # TO_SQL: ###############################################################################################
+        fit_data, just_transform = differentiate_fit_transform(self, args[0], set_attributes=False)
+        # TO_SQL DONE! ##########################################################################################
+        if not just_transform:
+            call_info_singleton.transformer_filename = self.mlinspect_filename
+            call_info_singleton.transformer_lineno = self.mlinspect_lineno
+            call_info_singleton.transformer_function_info = FunctionInfo('sklearn.compose._column_transformer',
+                                                                         'ColumnTransformer')
+            call_info_singleton.transformer_optional_code_reference = self.mlinspect_optional_code_reference
+            call_info_singleton.transformer_optional_source_code = self.mlinspect_optional_source_code
 
-        call_info_singleton.column_transformer_active = True
-        original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit_transform')
+            call_info_singleton.column_transformer_active = True
+            original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit_transform')
+            op_id = singleton.get_next_op_id()
+        else:
+            original = gorilla.get_original_attribute(compose.ColumnTransformer, 'transform')
+            op_id = singleton.sql_logic.get_unique_id()
 
         # TO_SQL: ###############################################################################################
         # When calling original(self, *args, **kwargs) the overwritten Pipeline-functions (like SimpleImpute)
         # will be called with the relevant slice of the table.
-        op_id = singleton.get_next_op_id()
+
         name, ti = singleton.mapping.get_name_and_ti(args[0])
 
         cr_to_col_map = {}  # code_reference to column mapping
@@ -196,9 +193,11 @@ class SklearnComposePatching:
                                                                  no_wrap=True)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
-        # TO_SQL DONE! ##########################################################################################
 
-        call_info_singleton.column_transformer_active = False
+        fit_data.fully_set = True
+        # TO_SQL DONE! ##########################################################################################
+        if not just_transform:
+            call_info_singleton.column_transformer_active = False
 
         return result
 
@@ -206,8 +205,8 @@ class SklearnComposePatching:
     @gorilla.settings(allow_hit=True)
     def patched_transform(self, *args, **kwargs):
         # pylint: disable=no-method-argument
-        original = gorilla.get_original_attribute(compose.ColumnTransformer, 'transform')
-        return original(self, *args, **kwargs)
+        original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
+        return transform_logic(original, self, *args, **kwargs)  # fit_transform knows only to execute transform
 
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
@@ -215,8 +214,6 @@ class SklearnComposePatching:
     #     # pylint: disable=no-method-argument
     #     original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit')
     #     return original(self, *args, **kwargs)
-
-
 
     @gorilla.name('_hstack')
     @gorilla.settings(allow_hit=True)
@@ -298,27 +295,34 @@ class SklearnSimpleImputerPatching:
     def patched_fit_transform(self, *args, **kwargs):
         """ Patch for ('sklearn.preprocessing._encoders.OneHotEncoder', 'fit_transform') """
         # pylint: disable=no-method-argument
-        original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit_transform')
         # TO_SQL: ###############################################################################################
-        set_mlinspect_attributes(args[0])
+        fit_data, just_transform = differentiate_fit_transform(self, args[0])
         # TO_SQL DONE! ##########################################################################################
-        function_info = FunctionInfo('sklearn.impute._base', 'SimpleImputer')
-        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
-                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
 
-        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
-        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
-        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
-        backend_result = SklearnBackend.after_call(operator_context, input_infos, result)
+        if not just_transform:
+            original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit_transform')
+            function_info = FunctionInfo('sklearn.impute._base', 'SimpleImputer')
+            input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                        self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
 
-        new_return_value = backend_result.annotated_dfobject.result_data
-        if isinstance(input_infos[0].result_data, pandas.DataFrame):
-            columns = list(input_infos[0].result_data.columns)
+            operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context, input_infos, result)
+
+            new_return_value = backend_result.annotated_dfobject.result_data
+            if isinstance(input_infos[0].result_data, pandas.DataFrame):
+                columns = list(input_infos[0].result_data.columns)
+            else:
+                columns = ['array']
+
+            op_id = singleton.get_next_op_id()
         else:
-            columns = ['array']
+            original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
+            result = original(self, *args, **kwargs)
+            op_id = singleton.sql_logic.get_unique_id()
 
         # TO_SQL: ###############################################################################################
-        op_id = singleton.get_next_op_id()
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
@@ -326,12 +330,6 @@ class SklearnSimpleImputerPatching:
 
         selection_map = {}
         select_block = []
-
-        if hasattr(self, "_fit_data"):
-            fit_data = self._fit_data
-        else:
-            self._fit_data = FitDataCollection({}, fully_set=False)
-            fit_data = self._fit_data
 
         # STRATEGY 1: ###
         if self.strategy == "most_frequent":
@@ -395,132 +393,38 @@ class SklearnSimpleImputerPatching:
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
-        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
-                                                                         curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_cols,
-                                                                         keep_previous_res=False)
+        if not just_transform:
+            backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
+                                                                             curr_sql_expr_name=cte_name,
+                                                                             curr_sql_expr_columns=all_cols,
+                                                                             keep_previous_res=False)
 
-        fit_data.fully_set = True
-        # TO_SQL DONE! ##########################################################################################
-        dag_node = DagNode(op_id,
-                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
-                           operator_context,
-                           DagNodeDetails("Simple Imputer", columns),
-                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
-                                                          self.mlinspect_optional_source_code))
-        # global only_transform_run
-        # if not only_transform_run:
-        add_dag_node(dag_node, [input_info.dag_node], backend_result)
+            fit_data.fully_set = True
+            # TO_SQL DONE! ##########################################################################################
+            dag_node = DagNode(op_id,
+                               BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                               operator_context,
+                               DagNodeDetails("Simple Imputer", columns),
+                               get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                              self.mlinspect_optional_source_code))
+            add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
-        return new_return_value
+            return new_return_value
+        return result
 
     @gorilla.name('transform')
     @gorilla.settings(allow_hit=True)
     def patched_transform(self, *args, **kwargs):
-        # pylint: disable=no-method-argument
         original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
-        # TO_SQL: ###############################################################################################
-        set_mlinspect_attributes(args[0])
-        # TO_SQL DONE! ##########################################################################################
-        result = original(self, *args, **kwargs)
-        # TO_SQL: ###############################################################################################
-        op_id = singleton.get_next_op_id()
-        code_ref = self.mlinspect_optional_code_reference
-        name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
-        tracking_cols = ti.tracking_cols
-        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
+        return transform_logic(original, self, *args, **kwargs)
 
-        selection_map = {}
-        select_block = []
 
-        if hasattr(self, "_fit_data"):
-            fit_data = self._fit_data
-        else:
-            self._fit_data = FitDataCollection({}, fully_set=False)
-            fit_data = self._fit_data
-
-        # STRATEGY 1: ###
-        if self.strategy == "most_frequent":
-            for col in all_cols:
-                if col in target_cols:
-
-                    # Access fitted data if possible:
-                    if not fit_data or not fit_data.fully_set:
-                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_count(name, col)
-                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
-                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
-                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
-                            singleton.dbms_connector.run(fit_lookup_code)
-                    else:
-                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
-
-                    select_block.append(f"\tCOALESCE({col}, "
-                                        f"(SELECT {col} "
-                                        f"FROM {fit_lookup_table} "
-                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}))) AS {col}")
-                    selection_map[col] = select_block[-1]
-                else:
-                    select_block.append(f"\t{col}")
-
-        # STRATEGY 2: ###
-        elif self.strategy == "mean":
-            for col in all_cols:
-                if col in target_cols:
-
-                    # Access fitted data if possible:
-                    if not fit_data or not fit_data.fully_set:
-                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_mean(name, col)
-                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
-                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
-                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
-                            singleton.dbms_connector.run(fit_lookup_code)
-                    else:
-                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
-
-                    select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
-                    selection_map[col] = select_block[-1]
-                else:
-                    select_block.append(f"\t{col}")
-        # STRATEGY X: ###
-        else:
-            raise NotImplementedError
-
-        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
-
-        sql_code = f"SELECT \n{select_block_s} \n" \
-                   f"FROM {name}"
-
-        add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
-
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
-                                                                 tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_cols,
-                                                                 operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_impute_mlinid{op_id}",
-                                                                 update_name_in_map=False)
-
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
-
-        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, result,
-                                                                         curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_cols,
-                                                                         keep_previous_res=False)
-
-        fit_data.fully_set = True
-        # TO_SQL DONE! ##########################################################################################
-
-        return result
-
-    @staticmethod
-    def to_sql_transform():
-        pass
-
-    # @gorilla.name('fit')
-    # @gorilla.settings(allow_hit=True)
-    # def patched_fit(self, *args, **kwargs):
-    #     # pylint: disable=no-method-argument
-    #     original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
-    #     return original(self, *args, **kwargs)
+# @gorilla.name('fit')
+# @gorilla.settings(allow_hit=True)
+# def patched_fit(self, *args, **kwargs):
+#     # pylint: disable=no-method-argument
+#     original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
+#     return original(self, *args, **kwargs)
 
 
 @gorilla.patches(preprocessing.OneHotEncoder)
@@ -560,25 +464,29 @@ class SklearnOneHotEncoderPatching:
     @gorilla.settings(allow_hit=True)
     def patched_fit_transform(self, *args, **kwargs):
         """ Patch for ('sklearn.preprocessing._encoders.OneHotEncoder', 'fit_transform') """
-        # pylint: disable=no-method-argument
         # TO_SQL: ###############################################################################################
-        set_mlinspect_attributes(args[0])
+        fit_data, just_transform = differentiate_fit_transform(self, args[0])
         # TO_SQL DONE! ##########################################################################################
-        original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'fit_transform')
-        function_info = FunctionInfo('sklearn.preprocessing._encoders', 'OneHotEncoder')
-        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
-                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+        if not just_transform:
+            original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'fit_transform')
+            function_info = FunctionInfo('sklearn.preprocessing._encoders', 'OneHotEncoder')
+            input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                        self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
 
-        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
-        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
-        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
-        backend_result = SklearnBackend.after_call(operator_context,
-                                                   input_infos,
-                                                   result)
-        new_return_value = backend_result.annotated_dfobject.result_data
-
+            operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context,
+                                                       input_infos,
+                                                       result)
+            new_return_value = backend_result.annotated_dfobject.result_data
+            op_id = singleton.get_next_op_id()
+        else:
+            original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'transform')
+            result = original(self, *args, **kwargs)
+            op_id = singleton.sql_logic.get_unique_id()
         # TO_SQL: ###############################################################################################
-        op_id = singleton.get_next_op_id()
+
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
@@ -634,31 +542,33 @@ class SklearnOneHotEncoderPatching:
                                                                  cte_name=f"block_onehot_mlinid{op_id}",
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
-        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
-                                                                         curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_cols,
-                                                                         keep_previous_res=True)
+        if not just_transform:
+            backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
+                                                                             curr_sql_expr_name=cte_name,
+                                                                             curr_sql_expr_columns=all_cols,
+                                                                             keep_previous_res=True)
 
-        fit_data.fully_set = True
-        # TO_SQL DONE! ##########################################################################################
+            fit_data.fully_set = True
+            # TO_SQL DONE! ##########################################################################################
 
-        dag_node = DagNode(op_id,
-                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
-                           operator_context,
-                           DagNodeDetails("One-Hot Encoder", ['array']),
-                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
-                                                          self.mlinspect_optional_source_code))
-        # global only_transform_run
-        # if not only_transform_run:
-        add_dag_node(dag_node, [input_info.dag_node], backend_result)
-        return new_return_value
+            dag_node = DagNode(op_id,
+                               BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                               operator_context,
+                               DagNodeDetails("One-Hot Encoder", ['array']),
+                               get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                              self.mlinspect_optional_source_code))
+            # global only_transform_run
+            # if not only_transform_run:
+            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+            return new_return_value
+        return result
 
     @gorilla.name('transform')
     @gorilla.settings(allow_hit=True)
     def patched_transform(self, *args, **kwargs):
         # pylint: disable=no-method-argument
         original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'transform')
-        return original(self, *args, **kwargs)
+        return transform_logic(original, self, *args, **kwargs)
 
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
@@ -706,24 +616,28 @@ class SklearnStandardScalerPatching:
         """ Patch for ('sklearn.preprocessing._data.StandardScaler', 'fit_transform') """
         # pylint: disable=no-method-argument
         # TO_SQL: ###############################################################################################
-        set_mlinspect_attributes(args[0])
+        fit_data, just_transform = differentiate_fit_transform(self, args[0])
         # TO_SQL DONE! ##########################################################################################
-        original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'fit_transform')
-        function_info = FunctionInfo('sklearn.preprocessing._data', 'StandardScaler')
-        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
-                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+        if not just_transform:
+            original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'fit_transform')
+            function_info = FunctionInfo('sklearn.preprocessing._data', 'StandardScaler')
+            input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                        self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
 
-        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
-        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
-        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
-        backend_result = SklearnBackend.after_call(operator_context,
-                                                   input_infos,
-                                                   result)
-        new_return_value = backend_result.annotated_dfobject.result_data
-        assert isinstance(new_return_value, MlinspectNdarray)
-
+            operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context,
+                                                       input_infos,
+                                                       result)
+            new_return_value = backend_result.annotated_dfobject.result_data
+            assert isinstance(new_return_value, MlinspectNdarray)
+            op_id = singleton.get_next_op_id()
+        else:
+            original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'transform')
+            result = original(self, *args, **kwargs)
+            op_id = singleton.sql_logic.get_unique_id()
         # TO_SQL: ###############################################################################################
-        op_id = singleton.get_next_op_id()
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
@@ -732,12 +646,6 @@ class SklearnStandardScalerPatching:
         selection_map = {}
         if not (self.with_mean and self.with_std):
             raise NotImplementedError
-
-        if hasattr(self, "_fit_data"):
-            fit_data = self._fit_data
-        else:
-            self._fit_data = FitDataCollection({}, fully_set=False)
-            fit_data = self._fit_data
 
         select_block = []
         for col in all_cols:
@@ -776,30 +684,32 @@ class SklearnStandardScalerPatching:
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
-        fit_data.fully_set = True
-        # TO_SQL DONE! ##########################################################################################
+        if not just_transform:
+            fit_data.fully_set = True
+            # TO_SQL DONE! ##########################################################################################
 
-        dag_node = DagNode(singleton.get_next_op_id(),
-                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
-                           operator_context,
-                           DagNodeDetails("Standard Scaler", ['array']),
-                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
-                                                          self.mlinspect_optional_source_code))
-        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
-                                                                         curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_cols,
-                                                                         keep_previous_res=True)
-        # global only_transform_run
-        # if not only_transform_run:
-        add_dag_node(dag_node, [input_info.dag_node], backend_result)
-        return new_return_value
+            dag_node = DagNode(singleton.get_next_op_id(),
+                               BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                               operator_context,
+                               DagNodeDetails("Standard Scaler", ['array']),
+                               get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                              self.mlinspect_optional_source_code))
+            backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
+                                                                             curr_sql_expr_name=cte_name,
+                                                                             curr_sql_expr_columns=all_cols,
+                                                                             keep_previous_res=True)
+            # global only_transform_run
+            # if not only_transform_run:
+            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+            return new_return_value
+        return result
 
     @gorilla.name('transform')
     @gorilla.settings(allow_hit=True)
     def patched_transform(self, *args, **kwargs):
         # pylint: disable=no-method-argument
         original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'transform')
-        return original(self, *args, **kwargs)
+        return transform_logic(original, self, *args, **kwargs)
 
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
@@ -1290,7 +1200,7 @@ class SklearnPipeline:
         # original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
         global only_transform_run
         only_transform_run = True
-        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0])) # TODO
+        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))  # TODO
         args_1 = retrieve_data_from_dbms(args[1])
         return just_the_model.score(args_0, args_1)
 
@@ -1367,7 +1277,37 @@ def mimic_implicit_dim_count_mlinspect(ti, output):
 
 
 def set_mlinspect_attributes(args_0):
+    """
+    Sets mlinspect related attributes required for DAG creation and resolution.
+    Can be set even if not used, besides redundancy not downside.
+    """
     global column_transformer_share
     input = column_transformer_share.target_obj
     args_0._mlinspect_dag_node = input._mlinspect_dag_node
     args_0._mlinspect_annotation = input._mlinspect_annotation
+
+
+def differentiate_fit_transform(self, args_0, set_attributes=True):
+    """
+    To decide whether the current call is a fit_transform vs transform call!
+    """
+    if hasattr(self, "_fit_data"):
+        fit_data = self._fit_data
+    else:
+        self._fit_data = FitDataCollection({}, fully_set=False)
+        fit_data = self._fit_data
+    just_transform = fit_data.fully_set  # if already fitted => only transform => no mlinspect functions
+    if set_attributes and not just_transform:
+        set_mlinspect_attributes(args_0)
+    return fit_data, just_transform  # split this way for better readability
+
+
+def transform_logic(original, self, *args, **kwargs):
+    """
+    This function calls the correct function based on the intend of fit_transform vs transform.
+    """
+    # pylint: disable=no-method-argument
+    if self._fit_data.fully_set:
+        return self.fit_transform(*args, **kwargs)
+    # only in the first fit_transform call:
+    return original(self, *args, **kwargs)
