@@ -209,12 +209,12 @@ class SklearnComposePatching:
         original = gorilla.get_original_attribute(compose.ColumnTransformer, 'transform')
         return original(self, *args, **kwargs)
 
-    @gorilla.name('fit')
-    @gorilla.settings(allow_hit=True)
-    def patched_fit(self, *args, **kwargs):
-        # pylint: disable=no-method-argument
-        original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit')
-        return original(self, *args, **kwargs)
+    # @gorilla.name('fit')
+    # @gorilla.settings(allow_hit=True)
+    # def patched_fit(self, *args, **kwargs):
+    #     # pylint: disable=no-method-argument
+    #     original = gorilla.get_original_attribute(compose.ColumnTransformer, 'fit')
+    #     return original(self, *args, **kwargs)
 
 
 
@@ -408,9 +408,9 @@ class SklearnSimpleImputerPatching:
                            DagNodeDetails("Simple Imputer", columns),
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
-        global only_transform_run
-        if not only_transform_run:
-            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        # global only_transform_run
+        # if not only_transform_run:
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
         return new_return_value
 
@@ -419,14 +419,108 @@ class SklearnSimpleImputerPatching:
     def patched_transform(self, *args, **kwargs):
         # pylint: disable=no-method-argument
         original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
-        return original(self, *args, **kwargs)
+        # TO_SQL: ###############################################################################################
+        set_mlinspect_attributes(args[0])
+        # TO_SQL DONE! ##########################################################################################
+        result = original(self, *args, **kwargs)
+        # TO_SQL: ###############################################################################################
+        op_id = singleton.get_next_op_id()
+        code_ref = self.mlinspect_optional_code_reference
+        name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
+        tracking_cols = ti.tracking_cols
+        all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
-    @gorilla.name('fit')
-    @gorilla.settings(allow_hit=True)
-    def patched_fit(self, *args, **kwargs):
-        # pylint: disable=no-method-argument
-        original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
-        return original(self, *args, **kwargs)
+        selection_map = {}
+        select_block = []
+
+        if hasattr(self, "_fit_data"):
+            fit_data = self._fit_data
+        else:
+            self._fit_data = FitDataCollection({}, fully_set=False)
+            fit_data = self._fit_data
+
+        # STRATEGY 1: ###
+        if self.strategy == "most_frequent":
+            for col in all_cols:
+                if col in target_cols:
+
+                    # Access fitted data if possible:
+                    if not fit_data or not fit_data.fully_set:
+                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_count(name, col)
+                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                            singleton.dbms_connector.run(fit_lookup_code)
+                    else:
+                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
+                    select_block.append(f"\tCOALESCE({col}, "
+                                        f"(SELECT {col} "
+                                        f"FROM {fit_lookup_table} "
+                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}))) AS {col}")
+                    selection_map[col] = select_block[-1]
+                else:
+                    select_block.append(f"\t{col}")
+
+        # STRATEGY 2: ###
+        elif self.strategy == "mean":
+            for col in all_cols:
+                if col in target_cols:
+
+                    # Access fitted data if possible:
+                    if not fit_data or not fit_data.fully_set:
+                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_mean(name, col)
+                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
+                        if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                            singleton.dbms_connector.run(fit_lookup_code)
+                    else:
+                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+
+                    select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
+                    selection_map[col] = select_block[-1]
+                else:
+                    select_block.append(f"\t{col}")
+        # STRATEGY X: ###
+        else:
+            raise NotImplementedError
+
+        select_block_s = ',\n'.join(select_block) + ",\n\t" + ", ".join(tracking_cols)
+
+        sql_code = f"SELECT \n{select_block_s} \n" \
+                   f"FROM {name}"
+
+        add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
+
+        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+                                                                 tracking_cols=tracking_cols,
+                                                                 non_tracking_cols=all_cols,
+                                                                 operation_type=OperatorType.TRANSFORMER,
+                                                                 cte_name=f"block_impute_mlinid{op_id}",
+                                                                 update_name_in_map=False)
+
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, result,
+                                                                         curr_sql_expr_name=cte_name,
+                                                                         curr_sql_expr_columns=all_cols,
+                                                                         keep_previous_res=False)
+
+        fit_data.fully_set = True
+        # TO_SQL DONE! ##########################################################################################
+
+        return result
+
+    @staticmethod
+    def to_sql_transform():
+        pass
+
+    # @gorilla.name('fit')
+    # @gorilla.settings(allow_hit=True)
+    # def patched_fit(self, *args, **kwargs):
+    #     # pylint: disable=no-method-argument
+    #     original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
+    #     return original(self, *args, **kwargs)
 
 
 @gorilla.patches(preprocessing.OneHotEncoder)
@@ -554,18 +648,18 @@ class SklearnOneHotEncoderPatching:
                            DagNodeDetails("One-Hot Encoder", ['array']),
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
-        global only_transform_run
-        if not only_transform_run:
-            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        # global only_transform_run
+        # if not only_transform_run:
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
 
-    # @gorilla.name('transform')
-    # @gorilla.settings(allow_hit=True)
-    # def patched_transform(self, *args, **kwargs):
-    #     # pylint: disable=no-method-argument
-    #     original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'transform')
-    #     return original(self, *args, **kwargs)
-    #
+    @gorilla.name('transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_transform(self, *args, **kwargs):
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.OneHotEncoder, 'transform')
+        return original(self, *args, **kwargs)
+
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
     # def patched_fit(self, *args, **kwargs):
@@ -695,18 +789,18 @@ class SklearnStandardScalerPatching:
                                                                          curr_sql_expr_name=cte_name,
                                                                          curr_sql_expr_columns=all_cols,
                                                                          keep_previous_res=True)
-        global only_transform_run
-        if not only_transform_run:
-            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        # global only_transform_run
+        # if not only_transform_run:
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
 
-    # @gorilla.name('transform')
-    # @gorilla.settings(allow_hit=True)
-    # def patched_transform(self, *args, **kwargs):
-    #     # pylint: disable=no-method-argument
-    #     original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'transform')
-    #     return original(self, *args, **kwargs)
-    #
+    @gorilla.name('transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_transform(self, *args, **kwargs):
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.StandardScaler, 'transform')
+        return original(self, *args, **kwargs)
+
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
     # def patched_fit(self, *args, **kwargs):
@@ -850,17 +944,17 @@ class SklearnKBinsDiscretizerPatching:
                            DagNodeDetails("K-Bins Discretizer", ['array']),
                            get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                           self.mlinspect_optional_source_code))
-        global only_transform_run
-        if not only_transform_run:
-            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+        # global only_transform_run
+        # if not only_transform_run:
+        add_dag_node(dag_node, [input_info.dag_node], backend_result)
         return new_return_value
 
-    # @gorilla.name('transform')
-    # @gorilla.settings(allow_hit=True)
-    # def patched_fit(self, *args, **kwargs):
-    #     # pylint: disable=no-method-argument
-    #     original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'transform')
-    #     return original(self, *args, **kwargs)
+    @gorilla.name('transform')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit(self, *args, **kwargs):
+        # pylint: disable=no-method-argument
+        original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'transform')
+        return original(self, *args, **kwargs)
     #
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
@@ -1096,26 +1190,93 @@ class SklearnKerasClassifierPatching:
         def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
             """ Execute inspections, add DAG node """
             original(self, build_fn=build_fn, **sk_params)
-
-            global just_the_model
-            just_the_model = copy.deepcopy(self)
-
             self.mlinspect_caller_filename = caller_filename
             self.mlinspect_lineno = lineno
             self.mlinspect_optional_code_reference = optional_code_reference
             self.mlinspect_optional_source_code = optional_source_code
+            global just_the_model
+            just_the_model = copy.deepcopy(self)
 
         return execute_patched_func_no_op_id(original, execute_inspections, self, build_fn=build_fn, **sk_params)
 
     @gorilla.patch(keras_sklearn_external.KerasClassifier, name='fit', settings=gorilla.Settings(allow_hit=True))
     def patched_fit(self, *args, **kwargs):
+        """ Patch for ('tensorflow.python.keras.wrappers.scikit_learn.KerasClassifier', 'fit') """
+        # pylint: disable=no-method-argument, too-many-locals
         original = gorilla.get_original_attribute(keras_sklearn_external.KerasClassifier, 'fit')
-        return original(self, *args, **kwargs)
+        function_info = FunctionInfo('tensorflow.python.keras.wrappers.scikit_learn', 'KerasClassifier')
 
-    @gorilla.patch(keras_sklearn_external.KerasClassifier, name='transform', settings=gorilla.Settings(allow_hit=True))
-    def patched_transform(self, *args, **kwargs):
-        original = gorilla.get_original_attribute(keras_sklearn_external.KerasClassifier, 'transform')
-        return original(self, *args, **kwargs)
+        # Train data
+        input_info_train_data = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                               function_info, self.mlinspect_optional_code_reference,
+                                               self.mlinspect_optional_source_code)
+        train_data_op_id = singleton.get_next_op_id()
+        operator_context = OperatorContext(OperatorType.TRAIN_DATA, function_info)
+        train_data_dag_node = DagNode(train_data_op_id,
+                                      BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                      operator_context,
+                                      DagNodeDetails("Train Data", ["array"]),
+                                      get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                     self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_data.annotated_dfobject])
+        data_backend_result = SklearnBackend.after_call(operator_context,
+                                                        input_infos,
+                                                        args[0])
+
+        # TO_SQL DONE! ##########################################################################################
+        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result)
+        # TO_SQL: ###############################################################################################
+
+        add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
+        # train_data_result = data_backend_result.annotated_dfobject.result_data
+
+        # Test labels
+        operator_context = OperatorContext(OperatorType.TRAIN_LABELS, function_info)
+        input_info_train_labels = get_input_info(args[1], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                                 function_info, self.mlinspect_optional_code_reference,
+                                                 self.mlinspect_optional_source_code)
+        train_label_op_id = singleton.get_next_op_id()
+        train_labels_dag_node = DagNode(train_label_op_id,
+                                        BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                        operator_context,
+                                        DagNodeDetails("Train Labels", ["array"]),
+                                        get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                       self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_labels.annotated_dfobject])
+        label_backend_result = SklearnBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         args[1])
+
+        # TO_SQL DONE! ##########################################################################################
+        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result)
+        # TO_SQL: ###############################################################################################
+
+        add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
+        # train_labels_result = label_backend_result.annotated_dfobject.result_data
+
+        # Estimator
+        operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
+        input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
+        input_infos = SklearnBackend.before_call(operator_context, input_dfs)
+        # original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
+        estimator_backend_result = SklearnBackend.after_call(operator_context,
+                                                             input_infos,
+                                                             None)
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Neural Network", []),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
+
+        global just_the_model
+        # args_0 = retrieve_data_from_dbms(args[0])
+        # args_1 = retrieve_data_from_dbms(args[1])
+        original(just_the_model, args_0, args_1)
+
+        return just_the_model
 
 
 @gorilla.patches(sklearn.pipeline.Pipeline)
@@ -1129,7 +1290,7 @@ class SklearnPipeline:
         # original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
         global only_transform_run
         only_transform_run = True
-        args_0 = retrieve_data_from_dbms(self.steps[0][1].fit_transform(args[0]))
+        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0])) # TODO
         args_1 = retrieve_data_from_dbms(args[1])
         return just_the_model.score(args_0, args_1)
 
