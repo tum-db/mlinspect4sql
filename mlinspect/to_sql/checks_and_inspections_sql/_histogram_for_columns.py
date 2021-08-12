@@ -45,77 +45,68 @@ class SQLHistogramForColumns:
         if curr_sql_expr_columns is None:
             curr_sql_expr_columns = []
 
-        # print(curr_sql_expr_name)
-
         old_dag_node_annotations = backend_result.dag_node_annotation
+        to_check_annotations = [a for a in old_dag_node_annotations.keys() if isinstance(a, HistogramForColumns)]
+        assert len(to_check_annotations) == 1
+        annotation = to_check_annotations[0]
 
-        # is_unary_operator = len(curr_sql_expr_columns) == 1
+        # Only check types where histogram changes are possible:
+        if keep_previous_res or operation_type == OperatorType.PROJECTION:
+            old_dag_node_annotations[annotation] = self.current_hist.copy()  # Nothing affected
+            self.__set_optional_attribute(result, backend_result, op_id)
+            return backend_result
+
         is_input_data_source = not is_operation_sql_obj(curr_sql_expr_name)
         if is_input_data_source:
             # Don't read from the first sql_obj, but from the origin:
             curr_sql_expr_name = curr_sql_expr_name.replace("_ctid", "")  # This is the data_source table.
-        # is_nary_operator = len(curr_sql_expr_columns) > 1
 
-        for annotation in old_dag_node_annotations.keys():  # iterate in search for HistColumn inspections
+        new_dict = {}
+        sensitive_columns = [f"\"{x}\"" for x in annotation.sensitive_columns]
 
-            if not isinstance(annotation, HistogramForColumns):
-                continue
+        # If a sensitive column is not in a table, this can have three reasons:
+        # 1) This table has nothing to do with the others => the ctids of the original tables containing our
+        #       sensitive columns are not to be found in the tracking_columns of our table
+        # 1.1) This table has nothing to do with it, because its another input file.
+        # 2) They were removed by a selection => compare original ctid with the ones present here.
+        for sc in sensitive_columns:  # update the values based on current table.
+            if sc in curr_sql_expr_columns:
 
-            new_dict = {}
-            sensitive_columns = [f"\"{x}\"" for x in annotation.sensitive_columns]
-
-            # If a sensitive column is not in a table, this can have three reasons:
-            # 1) This table has nothing to do with the others => the ctids of the original tables containing our
-            #       sensitive columns are not to be found in the tracking_columns of our table
-            # 1.1) This table has nothing to do with it, because its another input file.
-            # 2) They were removed by a selection => compare original ctid with the ones present here.
-
-            # print(f"curr_sql_expr_columns: {curr_sql_expr_columns}")
-
-            for sc in sensitive_columns:  # update the values based on current table.
-
-                if keep_previous_res or operation_type == OperatorType.PROJECTION:
-                    new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
-                    continue
-
-                if sc in curr_sql_expr_columns:
-
-                    query = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
-                    new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
-                                                                              curr_sql_expr_name=curr_sql_expr_name,
-                                                                              curr_sql_expr_columns=curr_sql_expr_columns,
-                                                                              init=is_input_data_source)
-                    self.current_hist[sc] = new_dict[sc]
-                    continue
-                elif is_input_data_source:
-                    # Here no tracked cols are affected:
-                    new_dict[sc] = {}
-                    continue
-
-                ti = self.mapping.get_ti_from_name(curr_sql_expr_name)
-                origin_table, original_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
-
-                if original_ctid not in ti.tracking_cols:
-                    # new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
-                    new_dict[sc] = {}  # Nothing affected
-                    continue
-
-                # In the case the ctid is contained, we need to join:
-                query = f"SELECT tb_orig.{sc}, count(*) " \
-                        f"FROM {curr_sql_expr_name} tb_curr " \
-                        f"JOIN {origin_table} tb_orig " \
-                        f"ON tb_curr.{original_ctid}=tb_orig.{original_ctid} " \
-                        f"GROUP BY tb_orig.{sc};"
-
+                query = f"SELECT {sc}, count(*) FROM {curr_sql_expr_name} GROUP BY {sc};"
                 new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
                                                                           curr_sql_expr_name=curr_sql_expr_name,
                                                                           curr_sql_expr_columns=curr_sql_expr_columns,
                                                                           init=is_input_data_source)
                 self.current_hist[sc] = new_dict[sc]
+                continue
+            elif is_input_data_source:
+                # Here no tracked cols are affected:
+                new_dict[sc] = {}
+                continue
 
-            # Update the annotation:
-            old_dag_node_annotations[annotation] = new_dict
-            break
+            ti = self.mapping.get_ti_from_name(curr_sql_expr_name)
+            origin_table, original_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
+
+            if original_ctid not in ti.tracking_cols:
+                # new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
+                new_dict[sc] = {}  # Nothing affected
+                continue
+
+            # In the case the ctid is contained, we need to join:
+            query = f"SELECT tb_orig.{sc}, count(*) " \
+                    f"FROM {curr_sql_expr_name} tb_curr " \
+                    f"JOIN {origin_table} tb_orig " \
+                    f"ON tb_curr.{original_ctid}=tb_orig.{original_ctid} " \
+                    f"GROUP BY tb_orig.{sc};"
+
+            new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
+                                                                      curr_sql_expr_name=curr_sql_expr_name,
+                                                                      curr_sql_expr_columns=curr_sql_expr_columns,
+                                                                      init=is_input_data_source)
+            self.current_hist[sc] = new_dict[sc]
+
+        # Update the annotation:
+        old_dag_node_annotations[annotation] = new_dict
 
         self.__set_optional_attribute(result, backend_result, op_id)
         return backend_result

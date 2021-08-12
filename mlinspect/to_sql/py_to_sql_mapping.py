@@ -29,7 +29,13 @@ class ColumnTransformerLevel:
 class ColumnTransformerInfo:
     """
     This class will help store all necessary information to optimize sklearn.Pipelines and sklearn.ColumnTransformer.
-
+    Args:
+        self: The ColumnTransformer Object
+        levels: list of the different level info objects.
+        levels_map: maps each code posititon to its assigned level.
+        cr_to_col_map: code_reference to target_col map
+        target_obj:
+        cols_to_drop:
     Note: for more details on levels, see: Bachelor-paper.
     """
     self: any
