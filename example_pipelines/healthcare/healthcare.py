@@ -58,12 +58,14 @@ featurisation = ColumnTransformer(transformers=[
 neural_net = MyKerasClassifier(build_fn=create_model,
                                epochs=10, batch_size=1, verbose=0)
 
-pipeline = Pipeline([
-    ('features', featurisation),
-    ('learner', neural_net)])
+featurisation.fit_transform(data)
 
-train_data, test_data = train_test_split(data)
-
-model = pipeline.fit(train_data, train_data['label'])
-
-print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
+# pipeline = Pipeline([
+#     ('features', featurisation),
+#     ('learner', neural_net)])
+#
+# train_data, test_data = train_test_split(data)
+#
+# model = pipeline.fit(train_data, train_data['label'])
+#
+# print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))

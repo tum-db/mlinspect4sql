@@ -19,6 +19,7 @@ import pandas
 from sklearn import preprocessing, compose, tree, impute, linear_model, model_selection
 from tensorflow.keras.wrappers import scikit_learn as keras_sklearn_external  # pylint: disable=no-name-in-module
 from tensorflow.python.keras.wrappers import scikit_learn as keras_sklearn_internal  # pylint: disable=no-name-in-module
+from mlinspect.inspections._histogram_for_columns import HistogramForColumns
 
 from mlinspect.backends._backend import BackendResult
 from mlinspect.backends._sklearn_backend import SklearnBackend
@@ -30,7 +31,8 @@ from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func
     execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
 from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
 
-from .fit_data_classes import FitDataCollection
+from dataclasses import dataclass
+from typing import Dict
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
@@ -46,6 +48,16 @@ class SklearnCallInfo:
     transformer_optional_code_reference: CodeReference or None = None
     transformer_optional_source_code: str or None = None
     column_transformer_active: bool = False
+
+
+@dataclass
+class FitDataCollection:
+    """
+    Data Container for the fitted variables of SimpleImpute.
+    """
+    impute_col_to_fit_block_name: Dict[str, str]
+    fully_set: bool
+    extra_info = {}  # For the KBin
 
 
 call_info_singleton = SklearnCallInfo()
@@ -221,6 +233,7 @@ class SklearnComposePatching:
         """ Patch for ('sklearn.compose._column_transformer', 'ColumnTransformer') """
         # pylint: disable=no-method-argument, unused-argument, too-many-locals
         original = gorilla.get_original_attribute(compose.ColumnTransformer, '_hstack')
+        op_id = singleton.get_next_op_id()
 
         if not call_info_singleton.column_transformer_active:
             return original(self, *args, **kwargs)
@@ -243,7 +256,15 @@ class SklearnComposePatching:
                                                    result)
         result = backend_result.annotated_dfobject.result_data
 
-        dag_node = DagNode(singleton.get_next_op_id(),
+        # Concat doesn't contain ratios: -> Empty
+        old_dag_node_annotations = backend_result.dag_node_annotation
+        to_check_annotations = [a for a in old_dag_node_annotations.keys() if isinstance(a, HistogramForColumns)]
+        assert len(to_check_annotations) == 1
+        annotation = to_check_annotations[0]
+        old_dag_node_annotations[to_check_annotations[0]] = {x: {} for x in
+                                                             [f"\"{x}\"" for x in annotation.sensitive_columns]}
+
+        dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_filename, self.mlinspect_lineno),
                            operator_context,
                            DagNodeDetails(None, ['array']),
@@ -337,7 +358,7 @@ class SklearnSimpleImputerPatching:
                 if col in target_cols:
 
                     # Access fitted data if possible:
-                    if not fit_data or not fit_data.fully_set:
+                    if not fit_data.fully_set:
                         fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_count(name, col)
                         fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                         singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
@@ -360,7 +381,7 @@ class SklearnSimpleImputerPatching:
                 if col in target_cols:
 
                     # Access fitted data if possible:
-                    if not fit_data or not fit_data.fully_set:
+                    if not fit_data.fully_set:
                         fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_mean(name, col)
                         fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                         singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
@@ -497,17 +518,11 @@ class SklearnOneHotEncoderPatching:
         from_block = []
         where_block = []
 
-        if hasattr(self, "_fit_data"):
-            fit_data = self._fit_data
-        else:
-            self._fit_data = FitDataCollection({}, fully_set=False)
-            fit_data = self._fit_data
-
         for col in all_cols:
             if col in target_cols:
 
                 # Access fitted data if possible:
-                if not fit_data or not fit_data.fully_set:
+                if not fit_data.fully_set:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_one_hot_encoding(name, col)
                     fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
@@ -557,8 +572,7 @@ class SklearnOneHotEncoderPatching:
                                DagNodeDetails("One-Hot Encoder", ['array']),
                                get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
                                                               self.mlinspect_optional_source_code))
-            # global only_transform_run
-            # if not only_transform_run:
+
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
             return new_return_value
         return result
@@ -652,7 +666,7 @@ class SklearnStandardScalerPatching:
             if col in target_cols:
 
                 # Access fitted data if possible:
-                if not fit_data or not fit_data.fully_set:
+                if not fit_data.fully_set:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.std_scalar_values(name, col)
                     fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
@@ -698,8 +712,6 @@ class SklearnStandardScalerPatching:
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=all_cols,
                                                                              keep_previous_res=True)
-            # global only_transform_run
-            # if not only_transform_run:
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
             return new_return_value
         return result
@@ -757,24 +769,30 @@ class SklearnKBinsDiscretizerPatching:
         """ Patch for ('sklearn.preprocessing._discretization.KBinsDiscretizer', 'fit_transform') """
         # pylint: disable=no-method-argument
         # TO_SQL: ###############################################################################################
-        set_mlinspect_attributes(args[0])
+        fit_data, just_transform = differentiate_fit_transform(self, args[0])
         # TO_SQL DONE! ##########################################################################################
-        original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'fit_transform')
-        function_info = FunctionInfo('sklearn.preprocessing._discretization', 'KBinsDiscretizer')
-        input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
-                                    self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
+        if not just_transform:
+            original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'fit_transform')
+            function_info = FunctionInfo('sklearn.preprocessing._discretization', 'KBinsDiscretizer')
+            input_info = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno, function_info,
+                                        self.mlinspect_optional_code_reference, self.mlinspect_optional_source_code)
 
-        operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
-        input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
-        result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
-        backend_result = SklearnBackend.after_call(operator_context,
-                                                   input_infos,
-                                                   result)
-        new_return_value = backend_result.annotated_dfobject.result_data
-        assert isinstance(new_return_value, MlinspectNdarray)
+            operator_context = OperatorContext(OperatorType.TRANSFORMER, function_info)
+            input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
+            result = original(self, input_infos[0].result_data, *args[1:], **kwargs)
+            backend_result = SklearnBackend.after_call(operator_context,
+                                                       input_infos,
+                                                       result)
+            new_return_value = backend_result.annotated_dfobject.result_data
+            assert isinstance(new_return_value, MlinspectNdarray)
+            op_id = singleton.get_next_op_id()
+        else:
+            original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'transform')
+            result = original(self, *args, **kwargs)
+            op_id = singleton.sql_logic.get_unique_id()
 
         # TO_SQL: ###############################################################################################
-        op_id = singleton.get_next_op_id()
+
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
         tracking_cols = ti.tracking_cols
@@ -787,26 +805,22 @@ class SklearnKBinsDiscretizerPatching:
         selection_map = {}
         select_block = []
 
-        if hasattr(self, "_fit_data"):
-            fit_data = self._fit_data
-        else:
-            self._fit_data = FitDataCollection({}, fully_set=False)
-            fit_data = self._fit_data
-            # create table for min:
-            fit_lookup_table = f"block_kbin_fit_{singleton.sql_logic.get_unique_id()}_min"
-            fit_lookup_code = "SELECT MIN({col}) from {name} AS kbin_lookup_min_val"
-            fit_lookup_table, fit_lookup_code = self.wrap_in_sql_obj(fit_lookup_code, block_name=fit_lookup_table)
-            singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
-            if singleton.sql_obj.mode == SQLObjRep.VIEW:
-                singleton.dbms_connector.run(fit_lookup_code)
-
-        min_lookup_table = fit_data.extra_info
-
         for col in all_cols:
             if col in target_cols:
 
                 # Access fitted data if possible:
-                if not fit_data or not fit_data.fully_set:
+                if not fit_data.fully_set:
+                    # create table for min:
+                    min_lookup_table = f"block_kbin_fit_{singleton.sql_logic.get_unique_id()}_min"
+                    min_lookup_code = f"SELECT MIN({col}) AS min_val from {name} "
+                    min_lookup_table, min_lookup_code = singleton.sql_logic.wrap_in_sql_obj(min_lookup_code,
+                                                                                            block_name=min_lookup_table)
+                    singleton.pipeline_container.add_statement_to_pipe(min_lookup_table, min_lookup_code)
+                    if singleton.sql_obj.mode == SQLObjRep.VIEW:
+                        singleton.dbms_connector.run(min_lookup_code)
+                    fit_data.extra_info[col] = min_lookup_table
+
+                    # create table for step_sizes:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
                     fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
@@ -814,10 +828,11 @@ class SklearnKBinsDiscretizerPatching:
                         singleton.dbms_connector.run(fit_lookup_code)
                 else:
                     fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                    min_lookup_table = fit_data.extra_info[col]
 
                 select_block_sub = "\t(CASE\n"
                 for i in range(num_bins - 1):
-                    select_block_sub += f"\t\tWHEN {col} < (SELECT * from {min_lookup_table}) + " \
+                    select_block_sub += f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) + " \
                                         f"{i + 1} * (SELECT step FROM {fit_lookup_table}) THEN {i}\n"
                 select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
 
@@ -840,31 +855,33 @@ class SklearnKBinsDiscretizerPatching:
                                                                  cte_name=f"block_kbin_mlinid{op_id}",
                                                                  update_name_in_map=False)
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
-        backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
-                                                                         curr_sql_expr_name=cte_name,
-                                                                         curr_sql_expr_columns=all_cols,
-                                                                         keep_previous_res=True)
 
-        fit_data.fully_set = True
-        # TO_SQL DONE! ##########################################################################################
+        if not just_transform:
+            backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
+                                                                             curr_sql_expr_name=cte_name,
+                                                                             curr_sql_expr_columns=all_cols,
+                                                                             keep_previous_res=True)
 
-        dag_node = DagNode(singleton.get_next_op_id(),
-                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
-                           operator_context,
-                           DagNodeDetails("K-Bins Discretizer", ['array']),
-                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
-                                                          self.mlinspect_optional_source_code))
-        # global only_transform_run
-        # if not only_transform_run:
-        add_dag_node(dag_node, [input_info.dag_node], backend_result)
-        return new_return_value
+            fit_data.fully_set = True
+            # TO_SQL DONE! ##########################################################################################
+
+            dag_node = DagNode(singleton.get_next_op_id(),
+                               BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                               operator_context,
+                               DagNodeDetails("K-Bins Discretizer", ['array']),
+                               get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                              self.mlinspect_optional_source_code))
+
+            add_dag_node(dag_node, [input_info.dag_node], backend_result)
+            return new_return_value
+        return result
 
     @gorilla.name('transform')
     @gorilla.settings(allow_hit=True)
     def patched_fit(self, *args, **kwargs):
         # pylint: disable=no-method-argument
         original = gorilla.get_original_attribute(preprocessing.KBinsDiscretizer, 'transform')
-        return original(self, *args, **kwargs)
+        return transform_logic(original, self, *args, **kwargs)
     #
     # @gorilla.name('fit')
     # @gorilla.settings(allow_hit=True)
@@ -1029,8 +1046,7 @@ class SklearnModelSelectionPatching:
                                                                                    train_backend_result,
                                                                                    curr_sql_expr_name=cte_name,
                                                                                    curr_sql_expr_columns=
-                                                                                   ti.non_tracking_cols,
-                                                                                   op_id=op_id)
+                                                                                   ti.non_tracking_cols)
 
             sql_code_test = f"{row_num_addition}" \
                             f"SELECT *\n" \
@@ -1049,8 +1065,7 @@ class SklearnModelSelectionPatching:
                                                                                   test_backend_result,
                                                                                   curr_sql_expr_name=cte_name,
                                                                                   curr_sql_expr_columns=
-                                                                                  ti.non_tracking_cols,
-                                                                                  op_id=op_id_2)
+                                                                                  ti.non_tracking_cols)
             # TO_SQL DONE! ##########################################################################################
 
             description = "(Train Data)"
@@ -1134,7 +1149,8 @@ class SklearnKerasClassifierPatching:
                                                         args[0])
 
         # TO_SQL DONE! ##########################################################################################
-        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result)
+        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+                                                                          OperatorType.TRAIN_DATA)
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
@@ -1158,7 +1174,8 @@ class SklearnKerasClassifierPatching:
                                                          args[1])
 
         # TO_SQL DONE! ##########################################################################################
-        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result)
+        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+                                                                           OperatorType.TRAIN_LABELS)
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
@@ -1182,8 +1199,262 @@ class SklearnKerasClassifierPatching:
         add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
 
         global just_the_model
-        # args_0 = retrieve_data_from_dbms(args[0])
-        # args_1 = retrieve_data_from_dbms(args[1])
+        original(just_the_model, args_0, args_1)
+
+        return just_the_model
+
+
+@gorilla.patches(tree.DecisionTreeClassifier)
+class SklearnDecisionTreePatching:
+    """ Patches for sklearn DecisionTree"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, *, criterion="gini", splitter="best", max_depth=None, min_samples_split=2,
+                        min_samples_leaf=1, min_weight_fraction_leaf=0., max_features=None, random_state=None,
+                        max_leaf_nodes=None, min_impurity_decrease=0., min_impurity_split=None, class_weight=None,
+                        presort='deprecated', ccp_alpha=0.0, mlinspect_caller_filename=None,
+                        mlinspect_lineno=None, mlinspect_optional_code_reference=None,
+                        mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.tree._classes', 'DecisionTreeClassifier') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init, too-many-locals
+        original = gorilla.get_original_attribute(tree.DecisionTreeClassifier, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, criterion=criterion, splitter=splitter, max_depth=max_depth,
+                     min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf,
+                     min_weight_fraction_leaf=min_weight_fraction_leaf, max_features=max_features,
+                     random_state=random_state, max_leaf_nodes=max_leaf_nodes,
+                     min_impurity_decrease=min_impurity_decrease, min_impurity_split=min_impurity_split,
+                     class_weight=class_weight, presort=presort, ccp_alpha=ccp_alpha)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+            global just_the_model
+            just_the_model = copy.deepcopy(self)
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, criterion=criterion,
+                                             splitter=splitter, max_depth=max_depth,
+                                             min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf,
+                                             min_weight_fraction_leaf=min_weight_fraction_leaf,
+                                             max_features=max_features,
+                                             random_state=random_state, max_leaf_nodes=max_leaf_nodes,
+                                             min_impurity_decrease=min_impurity_decrease,
+                                             min_impurity_split=min_impurity_split,
+                                             class_weight=class_weight, presort=presort, ccp_alpha=ccp_alpha)
+
+    @gorilla.name('fit')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit(self, *args, **kwargs):
+        """ Patch for ('sklearn.tree._classes.DecisionTreeClassifier', 'fit') """
+        # pylint: disable=no-method-argument, too-many-locals
+        original = gorilla.get_original_attribute(tree.DecisionTreeClassifier, 'fit')
+        function_info = FunctionInfo('sklearn.tree._classes', 'DecisionTreeClassifier')
+
+        # Train data
+        input_info_train_data = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                               function_info, self.mlinspect_optional_code_reference,
+                                               self.mlinspect_optional_source_code)
+        train_data_op_id = _pipeline_executor.singleton.get_next_op_id()
+        operator_context = OperatorContext(OperatorType.TRAIN_DATA, function_info)
+        train_data_dag_node = DagNode(train_data_op_id,
+                                      BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                      operator_context,
+                                      DagNodeDetails("Train Data", ["array"]),
+                                      get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                     self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_data.annotated_dfobject])
+        data_backend_result = SklearnBackend.after_call(operator_context,
+                                                        input_infos,
+                                                        args[0])
+        add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
+        # train_data_result = data_backend_result.annotated_dfobject.result_data
+
+        # TO_SQL DONE! ##########################################################################################
+        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+                                                                          OperatorType.TRAIN_DATA)
+        # TO_SQL: ###############################################################################################
+
+        # Train labels
+        operator_context = OperatorContext(OperatorType.TRAIN_LABELS, function_info)
+        input_info_train_labels = get_input_info(args[1], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                                 function_info, self.mlinspect_optional_code_reference,
+                                                 self.mlinspect_optional_source_code)
+        train_label_op_id = _pipeline_executor.singleton.get_next_op_id()
+        train_labels_dag_node = DagNode(train_label_op_id,
+                                        BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                        operator_context,
+                                        DagNodeDetails("Train Labels", ["array"]),
+                                        get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                       self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_labels.annotated_dfobject])
+        label_backend_result = SklearnBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         args[1])
+        add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
+        # train_labels_result = label_backend_result.annotated_dfobject.result_data
+
+        # TO_SQL DONE! ##########################################################################################
+        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+                                                                           OperatorType.TRAIN_LABELS)
+        # TO_SQL: ###############################################################################################
+
+        # Estimator
+        operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
+        input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
+        input_infos = SklearnBackend.before_call(operator_context, input_dfs)
+        # original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
+        estimator_backend_result = SklearnBackend.after_call(operator_context,
+                                                             input_infos,
+                                                             None)
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Decision Tree", []),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
+
+        global just_the_model
+        original(just_the_model, args_0, args_1)
+
+        return just_the_model
+
+
+@gorilla.patches(linear_model.LogisticRegression)
+class SklearnLogisticRegressionPatching:
+    """ Patches for sklearn LogisticRegression"""
+
+    # pylint: disable=too-few-public-methods
+
+    @gorilla.name('__init__')
+    @gorilla.settings(allow_hit=True)
+    def patched__init__(self, penalty='l2', *, dual=False, tol=1e-4, C=1.0,  # pylint: disable=invalid-name
+                        fit_intercept=True, intercept_scaling=1, class_weight=None,
+                        random_state=None, solver='lbfgs', max_iter=100,
+                        multi_class='auto', verbose=0, warm_start=False, n_jobs=None,
+                        l1_ratio=None, mlinspect_caller_filename=None,
+                        mlinspect_lineno=None, mlinspect_optional_code_reference=None,
+                        mlinspect_optional_source_code=None):
+        """ Patch for ('sklearn.linear_model._logistic', 'LogisticRegression') """
+        # pylint: disable=no-method-argument, attribute-defined-outside-init, too-many-locals
+        original = gorilla.get_original_attribute(linear_model.LogisticRegression, '__init__')
+
+        self.mlinspect_caller_filename = mlinspect_caller_filename
+        self.mlinspect_lineno = mlinspect_lineno
+        self.mlinspect_optional_code_reference = mlinspect_optional_code_reference
+        self.mlinspect_optional_source_code = mlinspect_optional_source_code
+
+        def execute_inspections(_, caller_filename, lineno, optional_code_reference, optional_source_code):
+            """ Execute inspections, add DAG node """
+            original(self, penalty=penalty, dual=dual, tol=tol, C=C,
+                     fit_intercept=fit_intercept, intercept_scaling=intercept_scaling, class_weight=class_weight,
+                     random_state=random_state, solver=solver, max_iter=max_iter,
+                     multi_class=multi_class, verbose=verbose, warm_start=warm_start, n_jobs=n_jobs,
+                     l1_ratio=l1_ratio)
+
+            self.mlinspect_caller_filename = caller_filename
+            self.mlinspect_lineno = lineno
+            self.mlinspect_optional_code_reference = optional_code_reference
+            self.mlinspect_optional_source_code = optional_source_code
+
+            global just_the_model
+            just_the_model = copy.deepcopy(self)
+
+        return execute_patched_func_no_op_id(original, execute_inspections, self, penalty=penalty, dual=dual, tol=tol,
+                                             C=C, fit_intercept=fit_intercept, intercept_scaling=intercept_scaling,
+                                             class_weight=class_weight,
+                                             random_state=random_state, solver=solver, max_iter=max_iter,
+                                             multi_class=multi_class, verbose=verbose, warm_start=warm_start,
+                                             n_jobs=n_jobs,
+                                             l1_ratio=l1_ratio)
+
+    @gorilla.name('fit')
+    @gorilla.settings(allow_hit=True)
+    def patched_fit(self, *args, **kwargs):
+        """ Patch for ('sklearn.linear_model._logistic.LogisticRegression', 'fit') """
+        # pylint: disable=no-method-argument, too-many-locals
+        original = gorilla.get_original_attribute(linear_model.LogisticRegression, 'fit')
+        function_info = FunctionInfo('sklearn.linear_model._logistic', 'LogisticRegression')
+
+        # Train data
+        input_info_train_data = get_input_info(args[0], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                               function_info, self.mlinspect_optional_code_reference,
+                                               self.mlinspect_optional_source_code)
+        train_data_op_id = _pipeline_executor.singleton.get_next_op_id()
+        operator_context = OperatorContext(OperatorType.TRAIN_DATA, function_info)
+        train_data_dag_node = DagNode(train_data_op_id,
+                                      BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                      operator_context,
+                                      DagNodeDetails("Train Data", ["array"]),
+                                      get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                     self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_data.annotated_dfobject])
+        data_backend_result = SklearnBackend.after_call(operator_context,
+                                                        input_infos,
+                                                        args[0])
+        add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
+        train_data_result = data_backend_result.annotated_dfobject.result_data
+
+        # TO_SQL DONE! ##########################################################################################
+        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+                                                                          OperatorType.TRAIN_DATA)
+        # TO_SQL: ###############################################################################################
+
+        # Train labels
+        operator_context = OperatorContext(OperatorType.TRAIN_LABELS, function_info)
+        input_info_train_labels = get_input_info(args[1], self.mlinspect_caller_filename, self.mlinspect_lineno,
+                                                 function_info, self.mlinspect_optional_code_reference,
+                                                 self.mlinspect_optional_source_code)
+        train_label_op_id = _pipeline_executor.singleton.get_next_op_id()
+        train_labels_dag_node = DagNode(train_label_op_id,
+                                        BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                                        operator_context,
+                                        DagNodeDetails("Train Labels", ["array"]),
+                                        get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                                       self.mlinspect_optional_source_code))
+        input_infos = SklearnBackend.before_call(operator_context, [input_info_train_labels.annotated_dfobject])
+        label_backend_result = SklearnBackend.after_call(operator_context,
+                                                         input_infos,
+                                                         args[1])
+        add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
+        train_labels_result = label_backend_result.annotated_dfobject.result_data
+
+        # TO_SQL DONE! ##########################################################################################
+        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+                                                                           OperatorType.TRAIN_LABELS)
+        # TO_SQL: ###############################################################################################
+
+        # Estimator
+        operator_context = OperatorContext(OperatorType.ESTIMATOR, function_info)
+        input_dfs = [data_backend_result.annotated_dfobject, label_backend_result.annotated_dfobject]
+        input_infos = SklearnBackend.before_call(operator_context, input_dfs)
+        original(self, train_data_result, train_labels_result, *args[2:], **kwargs)
+        estimator_backend_result = SklearnBackend.after_call(operator_context,
+                                                             input_infos,
+                                                             None)
+
+        dag_node = DagNode(singleton.get_next_op_id(),
+                           BasicCodeLocation(self.mlinspect_caller_filename, self.mlinspect_lineno),
+                           operator_context,
+                           DagNodeDetails("Logistic Regression", []),
+                           get_optional_code_info_or_none(self.mlinspect_optional_code_reference,
+                                                          self.mlinspect_optional_source_code))
+        add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
+
+        global just_the_model
         original(just_the_model, args_0, args_1)
 
         return just_the_model
@@ -1198,11 +1469,20 @@ class SklearnPipeline:
     def patched_score(self, *args, **kwargs):
         # pylint: disable=no-method-argument, too-many-locals
         # original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
-        global only_transform_run
-        only_transform_run = True
-        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))  # TODO
+        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))
         args_1 = retrieve_data_from_dbms(args[1])
+        # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
         return just_the_model.score(args_0, args_1)
+
+    @gorilla.name('predict')
+    @gorilla.settings(allow_hit=True)
+    def patched_predict(self, *args, **kwargs):
+        if hasattr(self, "steps"):
+            args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))
+        else:
+            args_0 = retrieve_data_from_dbms(args[0])
+        # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
+        return just_the_model.predict(args_0)
 
 
 # ################################## UTILITY ##########################################
@@ -1233,7 +1513,7 @@ def add_to_col_trans(selection_map, code_ref, sql_source, from_block=[], where_b
         # ct_level.tracking_cols += [tc for tc in tracking_cols if tc not in ct_level.tracking_cols]
 
 
-def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, comment_last_selection=False, user_info=""):
+def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type):
     name, ti = singleton.mapping.get_name_and_ti(train_obj)
 
     cols = ti.non_tracking_cols
@@ -1243,16 +1523,22 @@ def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, comment_l
     sql_code = f"SELECT {', '.join(cols)} " \
                f"FROM {name}"
 
-    train_data = singleton.dbms_connector.run(sql_code)[0]
+    if singleton.sql_obj.mode == SQLObjRep.CTE:
+        train_data = \
+        singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
+    else:
+        train_data = singleton.dbms_connector.run(sql_code)[0]
 
-    singleton.pipeline_container.update_pipe_head(sql_code, comment_last_selection, user_info)
+    singleton.pipeline_container.update_pipe_head(sql_code)
 
     train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
 
     return train_data, singleton.update_hist.sql_update_backend_result(train_data,
                                                                        old_backend_result,
                                                                        curr_sql_expr_name=name,
-                                                                       curr_sql_expr_columns=ti.non_tracking_cols)
+                                                                       curr_sql_expr_columns=ti.non_tracking_cols,
+                                                                       operation_type=op_type,
+                                                                       previous_res_node=name)
 
 
 def retrieve_data_from_dbms(train_obj):
@@ -1265,14 +1551,19 @@ def retrieve_data_from_dbms(train_obj):
     sql_code = f"SELECT {', '.join(cols)} " \
                f"FROM {name}"
 
-    output = singleton.dbms_connector.run(sql_code)[0]
-    output = mimic_implicit_dim_count_mlinspect(ti, output)
-    return output
+    if singleton.sql_obj.mode == SQLObjRep.CTE:
+        train_data = \
+            singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
+    else:
+        train_data = singleton.dbms_connector.run(sql_code)[0]
+    train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
+    return train_data
 
 
 def mimic_implicit_dim_count_mlinspect(ti, output):
     if isinstance(ti.data_object, pandas.Series) and ti.data_object.dtype == "bool":
         return pandas.Series(output.squeeze(), dtype=bool)
+    global just_the_model
     return output
 
 

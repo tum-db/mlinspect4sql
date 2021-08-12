@@ -325,7 +325,7 @@ class SQLLogic:
 
     def column_mean(self, table, column_name):
         table_name = f"block_impute_fit_{self.get_unique_id()}_mean"
-        sql_code = f"SELECT (SELECT AVG({column_name}) FROM {table})) AS {column_name}\n"
+        sql_code = f"SELECT (SELECT AVG({column_name}) FROM {table}) AS {column_name}"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code
 
@@ -349,7 +349,7 @@ class SQLLogic:
         table_name = f"block_kbin_fit_{self.get_unique_id()}_step_size"
         sql_code = f"SELECT (" \
                    f"(SELECT MAX({column_name}) FROM {table}) - (SELECT MIN({column_name}) FROM {table})) / {n_bins} " \
-                   f"AS step\n"
+                   f"AS step"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code
 

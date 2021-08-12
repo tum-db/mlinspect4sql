@@ -9,6 +9,7 @@ from mlinspect.to_sql.py_to_sql_mapping import DfToStringMapping, is_operation_s
 from mlinspect.to_sql.sql_query_container import SQLQueryContainer
 from mlinspect.inspections._inspection_input import OperatorType
 from mlinspect.to_sql._mode import SQLObjRep
+from typing import Dict
 
 
 # Keep updates like this? INSPECTION_RESULTS_TO_SUBSTITUTE = [HistogramForColumns]
@@ -22,7 +23,8 @@ class SQLHistogramForColumns:
             mapping:
             pipeline_container:
         """
-        self.current_hist = {}
+        self.current_hist: Dict[str, Dict] = {}
+        self.last_hist = None  # as dicts are unordered.
         self.dbms_connector = dbms_connector
         self.mapping = mapping
         self.pipeline_container = pipeline_container
@@ -32,8 +34,8 @@ class SQLHistogramForColumns:
                                   curr_sql_expr_name="",
                                   curr_sql_expr_columns=None,
                                   keep_previous_res=False,
-                                  operation_type=None,
-                                  op_id=-1):
+                                  previous_res_node=None,
+                                  operation_type=None):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
         Args:
@@ -51,9 +53,15 @@ class SQLHistogramForColumns:
         annotation = to_check_annotations[0]
 
         # Only check types where histogram changes are possible:
-        if keep_previous_res or operation_type == OperatorType.PROJECTION:
-            old_dag_node_annotations[annotation] = self.current_hist.copy()  # Nothing affected
-            self.__set_optional_attribute(result, backend_result, op_id)
+        if operation_type in {OperatorType.TRAIN_LABELS, OperatorType.TRAIN_DATA, OperatorType.PROJECTION} and \
+                previous_res_node in self.current_hist.keys():
+            self.last_hist = self.current_hist[previous_res_node].copy()
+            old_dag_node_annotations[annotation] = self.last_hist  # Nothing affected
+            self.__set_optional_attribute(result, backend_result)
+            return backend_result
+        elif keep_previous_res:
+            old_dag_node_annotations[annotation] = self.last_hist  # Nothing affected
+            self.__set_optional_attribute(result, backend_result)
             return backend_result
 
         is_input_data_source = not is_operation_sql_obj(curr_sql_expr_name)
@@ -77,7 +85,6 @@ class SQLHistogramForColumns:
                                                                           curr_sql_expr_name=curr_sql_expr_name,
                                                                           curr_sql_expr_columns=curr_sql_expr_columns,
                                                                           init=is_input_data_source)
-                self.current_hist[sc] = new_dict[sc]
                 continue
             elif is_input_data_source:
                 # Here no tracked cols are affected:
@@ -88,7 +95,6 @@ class SQLHistogramForColumns:
             origin_table, original_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
 
             if original_ctid not in ti.tracking_cols:
-                # new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
                 new_dict[sc] = {}  # Nothing affected
                 continue
 
@@ -103,12 +109,12 @@ class SQLHistogramForColumns:
                                                                       curr_sql_expr_name=curr_sql_expr_name,
                                                                       curr_sql_expr_columns=curr_sql_expr_columns,
                                                                       init=is_input_data_source)
-            self.current_hist[sc] = new_dict[sc]
 
         # Update the annotation:
         old_dag_node_annotations[annotation] = new_dict
-
-        self.__set_optional_attribute(result, backend_result, op_id)
+        self.current_hist[curr_sql_expr_name] = new_dict
+        self.last_hist = new_dict
+        self.__set_optional_attribute(result, backend_result)
         return backend_result
 
     def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False):
@@ -135,24 +141,28 @@ class SQLHistogramForColumns:
 
             sc_hist_result = self.dbms_connector.run(query)[0]
 
-        # self.pipeline_container.write_to_side_query(query, f"ratio_query_{curr_sql_expr_name}")
         sc_hist_result_t = sc_hist_result.transpose()
         sc_hist_result_dict = list(zip(list(sc_hist_result_t[0]), list(sc_hist_result_t[1].astype(int))))
-        # print(f"{sc_hist_result_dict}" + 20 * "#")
-        return dict((float("nan"), y) if str(x) == "None" else (x, y) for (x, y) in sc_hist_result_dict), new_name
+        result = dict((float("nan"), y) if str(x) == "None" else (x, y) for (x, y) in sc_hist_result_dict)
+        # mimic mlinspect behaviour:
+
+        if len([x for x in result.keys() if (not isinstance(x, str)) and (not str(x) == "nan")]) != 0:
+            # columns are floats, int, .. => mlinspect sets them to "None" -> could be reconstructed using ct_id tho...
+            return {None: int(sc_hist_result_t[-1].sum())}, new_name
+        return result, new_name
 
     @staticmethod
-    def __set_optional_attribute(result, backend_result, op_id):
+    def __set_optional_attribute(result, backend_result):
         # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
 
         if result is None:
             return
 
         # result._mlinspect_annotation = backend_result.dag_node_annotation
-        if op_id != -1:
-            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node"):
-                assert backend_result.annotated_dfobject.result_data._mlinspect_dag_node == op_id
-            result._mlinspect_dag_node = op_id
+        # if op_id != -1:
+        #     if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node"):
+        #         assert backend_result.annotated_dfobject.result_data._mlinspect_dag_node == op_id
+        #     result._mlinspect_dag_node = op_id
 
         try:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \

@@ -39,9 +39,6 @@ from mlinspect.instrumentation._dag_node import DagNode, BasicCodeLocation, DagN
 from mlinspect.instrumentation._pipeline_executor import singleton
 from mlinspect.monkeypatching._monkey_patching_utils import execute_patched_func, add_dag_node, \
     execute_patched_func_indirect_allowed, get_input_info, execute_patched_func_no_op_id, get_optional_code_info_or_none
-from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
-
-from .fit_data_classes import FitDataCollection
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
@@ -123,7 +120,8 @@ class PandasPatchingSQL:
                        f"FROM {table_name}"
 
             tracking_columns = [tracking_column]
-            if not singleton.dbms_connector.just_code and singleton.dbms_connector.index_col_name in col_names:
+            if (not hasattr(singleton.dbms_connector, "just_code") or not singleton.dbms_connector.just_code) \
+                    and singleton.dbms_connector.index_col_name in col_names:
                 tracking_columns.append(singleton.dbms_connector.index_col_name)
 
             cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, result,
@@ -292,6 +290,7 @@ class DataFramePatchingSQL:
             tb1_name, tb1_ti = singleton.mapping.get_name_and_ti(tb1)
             source = args[0]
             columns_tracking = tb1_ti.tracking_cols
+            origin = tb1_name
             if isinstance(source, str):  # Projection to Series
                 operation_type = OperatorType.PROJECTION
                 non_tracking_cols = [f"\"{source}\""]
@@ -319,7 +318,7 @@ class DataFramePatchingSQL:
                 else:
                     # row-wise
                     raise NotImplementedError
-
+                origin = tables[0]
             else:
                 sql_code = f"SELECT {', '.join(non_tracking_cols + columns_tracking)}\n" \
                            f"FROM {tb1_name}"
@@ -334,7 +333,7 @@ class DataFramePatchingSQL:
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=non_tracking_cols,
                                                                              operation_type=operation_type,
-                                                                             op_id=op_id)
+                                                                             previous_res_node=origin)
             # TO_SQL DONE! ##########################################################################################
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
 
@@ -746,7 +745,8 @@ class LocIndexerPatchingSQL:
             add_dag_node(dag_node, [input_info.dag_node],
                          singleton.update_hist.sql_update_backend_result(result, backend_result,
                                                                          curr_sql_expr_name=name,
-                                                                         curr_sql_expr_columns=ti.non_tracking_cols))
+                                                                         curr_sql_expr_columns=ti.non_tracking_cols,
+                                                                         previous_res_node=name))
 
         else:
             result = original(self, *args, **kwargs)
