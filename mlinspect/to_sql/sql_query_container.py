@@ -35,15 +35,16 @@ class SQLQueryContainer:
         select_line = self.__write_to_pipe_query(last_cte_name, sql_code, cols_to_keep)
         self.pipeline_query.append(select_line)
 
-    def update_pipe_head(self, head, comment_last_selection=False, user_info=""):
+    def update_pipe_head(self, head, comment=""):
         self.pipeline_query = self.pipeline_query[:-1]
         # Uncomment last pipeline head:
-        if comment_last_selection:
+        if not comment == "":
             with self.file_path_pipe.open(mode="r") as f:
                 content = f.read()
-                head = f"/*{user_info}\nSELECT" + content.split("SELECT")[-1] + "\n*/\n" + head
+                head = f"\n/*ATTENTION: {comment}\n" \
+                       f"SELECT" + content.split("SELECT")[-1] + "\n*/\n\n" + head
 
-        SQLQueryContainer.__del_select_line(self.file_path_pipe, self.sql_obj.mode == SQLObjRep.CTE)
+        SQLQueryContainer.__del_select_line(self.file_path_pipe, False)
 
         with self.file_path_pipe.open(mode="a") as f:
             f.write(head)
@@ -64,7 +65,7 @@ class SQLQueryContainer:
         if len(file_name.split(".")) == 1:
             file_name = file_name + ".sql"
         path = self.root_dir_to_sql / file_name
-        with path.open(mode="a")as file:
+        with path.open(mode="a") as file:
             file.write(full_sql_code)
 
     def __write_to_pipe_query(self, last_cte_name, sql_code, cols_to_keep=None):

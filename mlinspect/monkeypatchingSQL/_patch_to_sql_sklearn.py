@@ -1150,7 +1150,8 @@ class SklearnKerasClassifierPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA)
+                                                                          OperatorType.TRAIN_DATA,
+                                                                          "TRAIN MODEL FIT: LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
@@ -1175,7 +1176,8 @@ class SklearnKerasClassifierPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS)
+                                                                           OperatorType.TRAIN_LABELS,
+                                                                           "TEST MODEL FIT: LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
@@ -1283,7 +1285,8 @@ class SklearnDecisionTreePatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA)
+                                                                          OperatorType.TRAIN_DATA,
+                                                                          "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         # Train labels
@@ -1307,7 +1310,8 @@ class SklearnDecisionTreePatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS)
+                                                                           OperatorType.TRAIN_LABELS,
+                                                                           "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         # Estimator
@@ -1410,7 +1414,8 @@ class SklearnLogisticRegressionPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA)
+                                                                          OperatorType.TRAIN_DATA,
+                                                                          "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         # Train labels
@@ -1434,7 +1439,8 @@ class SklearnLogisticRegressionPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS)
+                                                                           OperatorType.TRAIN_LABELS,
+                                                                           "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         # Estimator
@@ -1469,8 +1475,8 @@ class SklearnPipeline:
     def patched_score(self, *args, **kwargs):
         # pylint: disable=no-method-argument, too-many-locals
         # original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
-        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))
-        args_1 = retrieve_data_from_dbms(args[1])
+        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]), "MODEL SCORE: INPUT DATA")
+        args_1 = retrieve_data_from_dbms(args[1], "MODEL SCORE: EXPECTED OUTPUT DATA")
         # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
         return just_the_model.score(args_0, args_1)
 
@@ -1478,7 +1484,7 @@ class SklearnPipeline:
     @gorilla.settings(allow_hit=True)
     def patched_predict(self, *args, **kwargs):
         if hasattr(self, "steps"):
-            args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]))
+            args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]), "MODEL PREDICT: INPUT DATA")
         else:
             args_0 = retrieve_data_from_dbms(args[0])
         # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
@@ -1513,35 +1519,7 @@ def add_to_col_trans(selection_map, code_ref, sql_source, from_block=[], where_b
         # ct_level.tracking_cols += [tc for tc in tracking_cols if tc not in ct_level.tracking_cols]
 
 
-def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type):
-    name, ti = singleton.mapping.get_name_and_ti(train_obj)
-
-    cols = ti.non_tracking_cols
-    if isinstance(cols, str):  # working with a pandas series.
-        cols = [cols]
-
-    sql_code = f"SELECT {', '.join(cols)} " \
-               f"FROM {name}"
-
-    if singleton.sql_obj.mode == SQLObjRep.CTE:
-        train_data = \
-        singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
-    else:
-        train_data = singleton.dbms_connector.run(sql_code)[0]
-
-    singleton.pipeline_container.update_pipe_head(sql_code)
-
-    train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
-
-    return train_data, singleton.update_hist.sql_update_backend_result(train_data,
-                                                                       old_backend_result,
-                                                                       curr_sql_expr_name=name,
-                                                                       curr_sql_expr_columns=ti.non_tracking_cols,
-                                                                       operation_type=op_type,
-                                                                       previous_res_node=name)
-
-
-def retrieve_data_from_dbms(train_obj):
+def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type, comment=""):
     name, ti = singleton.mapping.get_name_and_ti(train_obj)
 
     cols = ti.non_tracking_cols
@@ -1556,6 +1534,37 @@ def retrieve_data_from_dbms(train_obj):
             singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
     else:
         train_data = singleton.dbms_connector.run(sql_code)[0]
+
+    singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
+
+    train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
+
+    return train_data, singleton.update_hist.sql_update_backend_result(train_data,
+                                                                       old_backend_result,
+                                                                       curr_sql_expr_name=name,
+                                                                       curr_sql_expr_columns=ti.non_tracking_cols,
+                                                                       operation_type=op_type,
+                                                                       previous_res_node=name)
+
+
+def retrieve_data_from_dbms(train_obj, comment=""):
+    name, ti = singleton.mapping.get_name_and_ti(train_obj)
+
+    cols = ti.non_tracking_cols
+    if isinstance(cols, str):  # working with a pandas series.
+        cols = [cols]
+
+    sql_code = f"SELECT {', '.join(cols)} " \
+               f"FROM {name}"
+
+    if singleton.sql_obj.mode == SQLObjRep.CTE:
+        train_data = \
+            singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
+    else:
+        train_data = singleton.dbms_connector.run(sql_code)[0]
+
+    if comment != "":
+        singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
     train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
     return train_data
 

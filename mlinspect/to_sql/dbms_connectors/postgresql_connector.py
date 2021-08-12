@@ -1,5 +1,3 @@
-import decimal
-
 from mlinspect.to_sql.data_source_sql_handling import CreateTablesFromDataSource
 from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 from .connector_utility import results_to_np_array
@@ -38,7 +36,7 @@ class PostgresqlConnector(Connector):
             return []
 
         for q in super()._prepare_query(sql_query):
-            print(q)  # Very helpful for debugging
+            # print(q)  # Very helpful for debugging
             self.cur.execute(q)
             # print("DONE")
             try:

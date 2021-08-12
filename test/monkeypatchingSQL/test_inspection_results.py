@@ -63,7 +63,7 @@ class TestInspectionOutput(unittest.TestCase):
             no_bias_check_result)
         result += distribution_changes_overview_df.to_markdown()
 
-        for i in list(no_bias_check_result.bias_distribution_change.items()):
+        for i in list(no_bias_check_result.bias_distribution_change.items())[:-1]:
             _, join_distribution_changes = i
             for column, distribution_change in join_distribution_changes.items():
                 result += "\n"
@@ -103,29 +103,32 @@ class TestInspectionOutput(unittest.TestCase):
 
         res6 = TestInspectionOutput.run_for_post(file_location, bias=bias, mode="VIEW", materialize=True)
 
-        return res1 == res2 == res3 == res4 == res5 == res6
+        return res1, res2, res3, res4, res5, res6
 
     def test_CTE_inspection_output_equality_healthcare(self):
         """
-        Tests that all inspection results are equal for HEALTHCARE_FILE_PY!
+        Tests that all inspection results are equal for HEALTHCARE_FILE_PY -> for non_random part!
         """
-        assert self.full_equality(self.HEALTHCARE_FILE_PY, bias=self.HEALTHCARE_BIAS)
+        res1, res2, res3, res4, res5, res6 = self.full_equality(self.HEALTHCARE_FILE_PY, bias=self.HEALTHCARE_BIAS)
+        for i in [res1, res2, res3, res4, res5, res6]:
+            print(i)
+        assert res1 == res2 == res3 == res4 == res5 == res6
 
     def test_CTE_inspection_output_equality_compas(self):
         """
-        Tests that all inspection results are equal for COMPAS_FILE_PY!
+        Tests that all inspection results are equal for COMPAS_FILE_PY -> for non_random part!
         """
         assert self.full_equality(self.COMPAS_FILE_PY, bias=self.COMPAS_BIAS)
 
     def test_CTE_inspection_output_equality_adult_simple(self):
         """
-        Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY!
+        Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY -> for non_random part!
         """
         assert self.full_equality(self.ADULT_SIMPLE_FILE_PY, bias=self.ADULT_SIMPLE_BIAS)
 
     def test_CTE_inspection_output_equality_adult_complex(self):
         """
-        Tests that all inspection results are equal for ADULT_COMPLEX_FILE_PY!
+        Tests that all inspection results are equal for ADULT_COMPLEX_FILE_PY -> for non_random part!
         """
         assert self.full_equality(self.ADULT_COMPLEX_FILE_PY, bias=self.ADULT_COMPLEX_BIAS)
 

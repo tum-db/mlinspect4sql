@@ -158,12 +158,6 @@ class SQLHistogramForColumns:
         if result is None:
             return
 
-        # result._mlinspect_annotation = backend_result.dag_node_annotation
-        # if op_id != -1:
-        #     if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node"):
-        #         assert backend_result.annotated_dfobject.result_data._mlinspect_dag_node == op_id
-        #     result._mlinspect_dag_node = op_id
-
         try:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
                     not hasattr(result, "_mlinspect_annotation"):
@@ -174,4 +168,3 @@ class SQLHistogramForColumns:
                 result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
         except AttributeError:
             pass
-        print()
