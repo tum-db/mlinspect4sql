@@ -32,7 +32,8 @@ class SQLHistogramForColumns:
                                   curr_sql_expr_name="",
                                   curr_sql_expr_columns=None,
                                   keep_previous_res=False,
-                                  operation_type=None):
+                                  operation_type=None,
+                                  op_id=-1):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
         Args:
@@ -41,7 +42,6 @@ class SQLHistogramForColumns:
             The sql_obj from wich we want to know the ratio, will be the ones materialized, as they are part of the
             entire query.
         """
-
         if curr_sql_expr_columns is None:
             curr_sql_expr_columns = []
 
@@ -96,7 +96,8 @@ class SQLHistogramForColumns:
                 origin_table, original_ctid = self.mapping.get_origin_table(sc, ti.tracking_cols)
 
                 if original_ctid not in ti.tracking_cols:
-                    new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
+                    # new_dict[sc] = self.current_hist[sc].copy()  # Nothing affected
+                    new_dict[sc] = {}  # Nothing affected
                     continue
 
                 # In the case the ctid is contained, we need to join:
@@ -114,8 +115,9 @@ class SQLHistogramForColumns:
 
             # Update the annotation:
             old_dag_node_annotations[annotation] = new_dict
+            break
 
-        self.__set_optional_attribute(result, backend_result)
+        self.__set_optional_attribute(result, backend_result, op_id)
         return backend_result
 
     def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False):
@@ -149,11 +151,18 @@ class SQLHistogramForColumns:
         return dict((float("nan"), y) if str(x) == "None" else (x, y) for (x, y) in sc_hist_result_dict), new_name
 
     @staticmethod
-    def __set_optional_attribute(result, backend_result):
+    def __set_optional_attribute(result, backend_result, op_id):
         # This attribute is set in the "add_dat_node" function!! Add it to our dummy object:
 
         if result is None:
             return
+
+        # result._mlinspect_annotation = backend_result.dag_node_annotation
+        if op_id != -1:
+            if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_dag_node"):
+                assert backend_result.annotated_dfobject.result_data._mlinspect_dag_node == op_id
+            result._mlinspect_dag_node = op_id
+
         try:
             if hasattr(backend_result.annotated_dfobject.result_data, "_mlinspect_annotation") and \
                     not hasattr(result, "_mlinspect_annotation"):
@@ -164,3 +173,4 @@ class SQLHistogramForColumns:
                 result._mlinspect_dag_node = backend_result.annotated_dfobject.result_data._mlinspect_dag_node
         except AttributeError:
             pass
+        print()

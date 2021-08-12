@@ -36,6 +36,7 @@ class SQLQueryContainer:
         self.pipeline_query.append(select_line)
 
     def update_pipe_head(self, head, comment_last_selection=False, user_info=""):
+        self.pipeline_query = self.pipeline_query[:-1]
         # Uncomment last pipeline head:
         if comment_last_selection:
             with self.file_path_pipe.open(mode="r") as f:
@@ -78,15 +79,14 @@ class SQLQueryContainer:
         and changing the name in the mapping to the new one.
         """
         assert (self.sql_obj.mode == SQLObjRep.VIEW and self.sql_obj.materialize)  # only then this op makes sense
-        for i, query in enumerate(self.pipeline_query):
-            creation_stmt = query.split("AS")[0]
-            if sql_obj_to_materialize in creation_stmt:  # This is the statements, that created the view.
-                if "MATERIALIZED" in creation_stmt:
+        for i, query in enumerate(reversed(self.pipeline_query[:-1])):
+            if sql_obj_to_materialize in query:  # This is the statements, that created the view.
+                if "MATERIALIZED" in query:
                     return None
                 new_name = sql_obj_to_materialize + "_materialized"
-                new_view_query = query.replace("CREATE VIEW", "CREATE MATERIALIZED VIEW")
-                new_view_query = new_view_query.replace(sql_obj_to_materialize, new_name)
-                self.pipeline_query[i] = new_view_query
+                query = query.split(f"CREATE VIEW {sql_obj_to_materialize}")[1]
+                new_view_query = f"CREATE MATERIALIZED VIEW {new_name}" + query
+                self.pipeline_query[len(self.pipeline_query) - i - 2] = new_view_query
 
                 self.__write_to_pipe_query(new_name, sql_code=new_view_query, cols_to_keep=cols_to_keep)
 

@@ -184,6 +184,10 @@ def add_dag_node(dag_node: DagNode, dag_node_parents: List[DagNode], backend_res
             # TODO: Remove this branching once we support all operators with DAG node mapping
             warnings.simplefilter(action='ignore', category=UserWarning)
             annotated_df.result_data._mlinspect_annotation = annotated_df.result_annotation
+        else:
+            print()
+    else:
+        print()
     if dag_node_parents:
         for parent in dag_node_parents:
             singleton.inspection_results.dag.add_edge(parent, dag_node)
