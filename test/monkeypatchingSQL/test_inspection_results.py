@@ -103,16 +103,13 @@ class TestInspectionOutput(unittest.TestCase):
 
         res6 = TestInspectionOutput.run_for_post(file_location, bias=bias, mode="VIEW", materialize=True)
 
-        return res1, res2, res3, res4, res5, res6
+        return res1 == res2 == res3 == res4 == res5 == res6
 
     def test_CTE_inspection_output_equality_healthcare(self):
         """
         Tests that all inspection results are equal for HEALTHCARE_FILE_PY -> for non_random part!
         """
-        res1, res2, res3, res4, res5, res6 = self.full_equality(self.HEALTHCARE_FILE_PY, bias=self.HEALTHCARE_BIAS)
-        for i in [res1, res2, res3, res4, res5, res6]:
-            print(i)
-        assert res1 == res2 == res3 == res4 == res5 == res6
+        assert self.full_equality(self.HEALTHCARE_FILE_PY, bias=self.HEALTHCARE_BIAS)
 
     def test_CTE_inspection_output_equality_compas(self):
         """
