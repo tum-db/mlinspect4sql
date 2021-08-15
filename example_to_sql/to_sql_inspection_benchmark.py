@@ -136,10 +136,10 @@ if __name__ == "__main__":
 
     pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="CTE",
                                   title="HealthcareInspectionComparisonCTE")
-    #
-    # print("Next benchmark starting!")
-    # pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW",
-    #                               title="HealthcareInspectionComparisonVIEW")
+
+    print("Next benchmark starting!")
+    pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW",
+                                  title="HealthcareInspectionComparisonVIEW")
 
     # print("Next benchmark starting!")
     # backup = SIZES

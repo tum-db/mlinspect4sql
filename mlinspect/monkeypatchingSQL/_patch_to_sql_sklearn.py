@@ -1540,7 +1540,8 @@ def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_t
         cols = [cols]
 
     sql_code = f"SELECT {', '.join(cols)} " \
-               f"FROM {name}"
+               f"FROM {name} " \
+               f"ORDER BY index_mlinspect"
 
     singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
 

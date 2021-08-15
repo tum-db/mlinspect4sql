@@ -6,7 +6,7 @@ import pandas
 
 
 class PostgresqlConnector(Connector):
-    def __init__(self, dbname="", user="", password="", port="", host="", just_code=False, add_mlinspect_serial=False):
+    def __init__(self, dbname="", user="", password="", port="", host="", just_code=False, add_mlinspect_serial=True):
         """
         Note: For Postgresql:
             1) install Postgresql and start the server

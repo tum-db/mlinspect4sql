@@ -12,7 +12,7 @@ import csv
 
 
 class UmbraConnector(Connector):
-    def __init__(self, dbname, user, password, port, host, umbra_dir=None, add_mlinspect_serial=False):
+    def __init__(self, dbname, user, password, port, host, umbra_dir=None, add_mlinspect_serial=True):
         """
         Starts a new empty Umbra server is 'DROP' is not implemented yet.
 

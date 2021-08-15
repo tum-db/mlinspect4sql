@@ -34,8 +34,8 @@ complications = data.groupby('age_group') \
     .agg(mean_complications=('complications', 'mean'))
 data = data.merge(complications, on=['age_group'])
 data['label'] = data['complications'] > 1.2 * data['mean_complications']
-data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
-data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
+# data =
+data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']][data['county'].isin(COUNTIES_OF_INTEREST)]
 
 impute_and_one_hot_encode = Pipeline([
     ('impute', SimpleImputer(strategy='most_frequent')),

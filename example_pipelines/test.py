@@ -80,17 +80,17 @@ def run_for_all(file_location, bias, mode="", materialize=None):
     # t1 = time.time()
     # print("\nTime spend with original: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
-    #                materialize=materialize)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
-
     t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
-                   materialize=False)
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
+                   materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    #
+    # t0 = time.time()
+    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
+    #                materialize=False)
+    # t1 = time.time()
+    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 
 umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
@@ -154,52 +154,52 @@ def full_equality(pipeline_location, mode, materialized):
 if __name__ == "__main__":
     # h = r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_1000.csv"
     # p = r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_1000.csv"
-    h = r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv"
-    p = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
-    setup_code, test_code = get_healthcare_pipe_code(path_patients=p, path_histories=h, only_pandas=False,
-                                                     include_training=False)
-    pipeline_code = setup_code + "\n" + test_code
-    script_scope = {}
-    exec(compile(pipeline_code, filename="xxx", mode="exec"), script_scope)
-    real_result = script_scope["result"]
-    print()
-
-    setup_code, test_code = get_sql_query(pipeline_code, mode="VIEW", materialize=False)
-    pipeline_code_sql = setup_code + "\n" + test_code
-    sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
-    sql_result_u = dbms_connector_u.run(pipeline_code_sql)[0].astype(float)
-    print()
-
-    result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0)) and \
-             np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(real_result.flat, axis=0))
-
-    print(result)
-
-    setup_code, test_code = get_sql_query(pipeline_code, mode="CTE", materialize=False)
-    pipeline_code_sql = setup_code + "\n" + test_code
-    sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
-    sql_result_u = dbms_connector_u.run(pipeline_code_sql)[0].astype(float)
-    print()
-
-    result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0)) and \
-             np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(real_result.flat, axis=0))
-
-    print(result)
-
-    setup_code, test_code = get_sql_query(pipeline_code, mode="VIEW", materialize=True)
-    pipeline_code_sql = setup_code + "\n" + test_code
-    sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
-    print()
-
-    result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0))
-
-    print(result)
+    # h = r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv"
+    # p = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
+    # setup_code, test_code = get_healthcare_pipe_code(path_patients=p, path_histories=h, only_pandas=False,
+    #                                                  include_training=False)
+    # pipeline_code = setup_code + "\n" + test_code
+    # script_scope = {}
+    # exec(compile(pipeline_code, filename="xxx", mode="exec"), script_scope)
+    # real_result = script_scope["result"]
+    # print()
+    #
+    # setup_code, test_code = get_sql_query(pipeline_code, mode="VIEW", materialize=False)
+    # pipeline_code_sql = setup_code + "\n" + test_code
+    # sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
+    # sql_result_u = dbms_connector_u.run(pipeline_code_sql)[0].astype(float)
+    # print()
+    #
+    # result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0)) and \
+    #          np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(real_result.flat, axis=0))
+    #
+    # print(result)
+    #
+    # setup_code, test_code = get_sql_query(pipeline_code, mode="CTE", materialize=False)
+    # pipeline_code_sql = setup_code + "\n" + test_code
+    # sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
+    # sql_result_u = dbms_connector_u.run(pipeline_code_sql)[0].astype(float)
+    # print()
+    #
+    # result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0)) and \
+    #          np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(real_result.flat, axis=0))
+    #
+    # print(result)
+    #
+    # setup_code, test_code = get_sql_query(pipeline_code, mode="VIEW", materialize=True)
+    # pipeline_code_sql = setup_code + "\n" + test_code
+    # sql_result_p = dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
+    # print()
+    #
+    # result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0))
+    #
+    # print(result)
 
     # PipelineInspector \
     #     .on_pipeline_from_string(pipeline_code) \
     #     .execute_in_sql(dbms_connector=None, mode="VIEW", materialize=True)
 
-    # run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="CTE", materialize=False)
+    run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="CTE", materialize=False)
     # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, mode="VIEW", materialize=True)
     # run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=False)
     # run_for_all(file_location=ADULT_SIMPLE_FILE_PY,     bias=ADULT_SIMPLE_BIAS,     mode="VIEW", materialize=True)
