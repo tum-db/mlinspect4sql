@@ -331,13 +331,13 @@ class SQLLogic:
 
     def column_one_hot_encoding(self, table, col):
         table_name = f"block_one_hot_fit_{self.get_unique_id()}"
-        sql_code = f"select {col}, \n" \
+        sql_code = f"SELECT {col}, \n" \
                    f"(array_fill(0, ARRAY[\"rank\" - 1]) || 1 ) || " \
-                   f"array_fill(0, ARRAY[ cast((select count(distinct({col})) from {table}) as int) - " \
-                   f"(\"rank\")]) as {col[:-1]}_one_hot\" \n" \
-                   f"\tfrom (\n" \
-                   f"\tselect {col}, CAST(ROW_NUMBER() OVER() AS int) AS \"rank\" \n" \
-                   f"\tfrom (select distinct({col}) from {table}) oh" \
+                   f"array_fill(0, ARRAY[ CAST((select COUNT(distinct({col})) FROM {table}) AS int) - " \
+                   f"(\"rank\")]) AS {col[:-1]}_one_hot\" \n" \
+                   f"\tFROM (\n" \
+                   f"\tSELECT {col}, CAST(ROW_NUMBER() OVER() AS int) AS \"rank\" \n" \
+                   f"\tFROM (SELECT distinct({col}) FROM {table}) oh" \
                    f") one_hot_help"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return block_name, sql_code

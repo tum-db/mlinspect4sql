@@ -2,9 +2,10 @@ from inspect import cleandoc
 import pathlib
 from mlinspect import PipelineInspector
 from mlinspect.utils import get_project_root
+import os
 
 
-# ########################################### FOR THE OP BENCHMARK #####################################################
+# ########################################### FOR THE SIMPLE OP BENCHMARK ##############################################
 class Join:
     """
     Code for simple join.
@@ -117,8 +118,13 @@ class GroupBy:
 # ######################################################################################################################
 
 # ########################################### FOR THE PURE PIPELINE BENCHMARK ##########################################
-def get_healthcare_pipe_code(path_patients, path_histories, add_impute_and_onehot=False):
+def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_pandas=False, include_training=True):
+    if path_patients is None or path_histories is None:
+        path_patients = os.path.join( str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
+        path_histories = os.path.join( str(get_project_root()), "example_pipelines", "healthcare", "histories.csv")
+
     setup_code = cleandoc("""
+        import warnings
         import os
         import pandas as pd
         from mlinspect.utils import get_project_root
@@ -127,8 +133,8 @@ def get_healthcare_pipe_code(path_patients, path_histories, add_impute_and_oneho
     test_code = cleandoc(f"""
         COUNTIES_OF_INTEREST = ['county2', 'county3']
 
-        patients = pd.read_csv('{path_patients}', na_values='?')
-        histories = pd.read_csv('{path_histories}', na_values='?')
+        patients = pd.read_csv('{path_patients}', na_values='')
+        histories = pd.read_csv('{path_histories}', na_values='')
 
         data = patients.merge(histories, on=['ssn'])
         complications = data.groupby('age_group') \
@@ -138,36 +144,65 @@ def get_healthcare_pipe_code(path_patients, path_histories, add_impute_and_oneho
         data = data[['smoker', 'last_name', 'county', 'num_children', 'race', 'income', 'label']]
         data = data[data['county'].isin(COUNTIES_OF_INTEREST)]
         """)
-    if add_impute_and_onehot:
-        setup_code += "\n" + cleandoc(f"""
-            from sklearn.impute import SimpleImputer
-            from sklearn.pipeline import Pipeline
-            from sklearn.preprocessing import OneHotEncoder, StandardScaler
+    if not only_pandas:
+        setup_code += "\n" + cleandoc("""
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.model_selection import train_test_split
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
+        from example_pipelines.healthcare.healthcare_utils import MyW2VTransformer, MyKerasClassifier, create_model
         """)
 
-        test_code += "\n" + cleandoc(f"""
+        test_code += "\n" + cleandoc("""
         impute_and_one_hot_encode = Pipeline([
             ('impute', SimpleImputer(strategy='most_frequent')),
             ('encode', OneHotEncoder(sparse=False, handle_unknown='ignore'))
         ])
+        featurisation = ColumnTransformer(transformers=[
+            ("impute_and_one_hot_encode", impute_and_one_hot_encode, ['smoker', 'county', 'race']),
+            # ('word2vec', MyW2VTransformer(min_count=2), ['last_name']),
+            ('numeric', StandardScaler(), ['num_children', 'income']),
+        ], remainder='drop')
+        neural_net = MyKerasClassifier(build_fn=create_model, epochs=10, batch_size=1, verbose=0)
+        pipeline = Pipeline([
+            ('features', featurisation),
+            ('learner', neural_net)
+        ])
+        train_data, test_data = train_test_split(data)
+        model = pipeline.fit(train_data, train_data['label'])
+        print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
         """)
+    if not include_training:
+        training_part = cleandoc("""
+                    neural_net = MyKerasClassifier(build_fn=create_model, epochs=10, batch_size=1, verbose=0)
+                    pipeline = Pipeline([
+                        ('features', featurisation),
+                        ('learner', neural_net)
+                    ])
+                    train_data, test_data = train_test_split(data)
+                    model = pipeline.fit(train_data, train_data['label'])
+                    print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
+                    """)
+        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(data)")
 
     return setup_code + "\n", test_code
 
 
-def get_compas_pipe_code(path_train, path_test):
+def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False, include_training=True):
+    if compas_train is None or compas_test is None:
+        compas_train = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_train.csv")'
+        compas_test = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_test.csv")'
+
     setup_code = cleandoc("""
         import os
         import pandas as pd
+        from mlinspect.utils import get_project_root
         """)
 
     test_code = cleandoc(f"""
-        train_file = os.path.join('{path_train}')
-        train_data = pd.read_csv(train_file, na_values='', index_col=0)
-        
-        test_file = os.path.join('{path_test}')
-        test_data = pd.read_csv(test_file, na_values='', index_col=0)
-        
+        train_data = pd.read_csv({compas_train}, na_values='', index_col=0)
+        test_data = pd.read_csv({compas_test}, na_values='', index_col=0)
         train_data = train_data[
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
@@ -175,15 +210,117 @@ def get_compas_pipe_code(path_train, path_test):
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
         
-        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data[
-            'days_b_screening_arrest'] >= -30)]
+        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
         train_data = train_data[train_data['is_recid'] != -1]
         train_data = train_data[train_data['c_charge_degree'] != "O"]
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
         test_data = test_data.replace('Medium', "Low")
+        
+        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
         """)
+
+    if not only_pandas:
+        setup_code += "\n" + cleandoc("""
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
+        """)
+        test_code += "\n" + cleandoc("""
+        featurizer = ColumnTransformer(transformers=[
+            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+            ('impute2_and_bin', impute2_and_bin, ['age'])
+        ])
+        pipeline = Pipeline([
+            ('features', featurizer),
+            ('classifier', LogisticRegression())
+        ])
+        pipeline.fit(train_data, train_labels.ravel())
+        print(pipeline.score(test_data, test_labels.ravel()))
+        """)
+
+    if not include_training:
+        training_part = cleandoc("""
+        pipeline = Pipeline([
+            ('features', featurizer),
+            ('classifier', LogisticRegression())
+        ])
+        pipeline.fit(train_data, train_labels.ravel())
+        print(pipeline.score(test_data, test_labels.ravel()))
+                    """)
+        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
+
+    return setup_code + "\n", test_code
+
+
+def get_adult_simple_pipe_code(compas_train=None, compas_test=None, only_pandas=False, include_training=True):
+    if compas_train is None or compas_test is None:
+        compas_train = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_train.csv")'
+        compas_test = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_test.csv")'
+
+    setup_code = cleandoc("""
+        import os
+        import pandas as pd
+        from mlinspect.utils import get_project_root
+        """)
+
+    test_code = cleandoc(f"""
+        train_data = pd.read_csv({compas_train}, na_values='', index_col=0)
+        test_data = pd.read_csv({compas_test}, na_values='', index_col=0)
+        train_data = train_data[
+            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        test_data = test_data[
+            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+
+        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
+        train_data = train_data[train_data['is_recid'] != -1]
+        train_data = train_data[train_data['c_charge_degree'] != "O"]
+        train_data = train_data[train_data['score_text'] != 'N/A']
+
+        train_data = train_data.replace('Medium', "Low")
+        test_data = test_data.replace('Medium', "Low")
+
+        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        """)
+
+    if not only_pandas:
+        setup_code += "\n" + cleandoc("""
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
+        """)
+        test_code += "\n" + cleandoc("""
+        featurizer = ColumnTransformer(transformers=[
+            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+            ('impute2_and_bin', impute2_and_bin, ['age'])
+        ])
+        pipeline = Pipeline([
+            ('features', featurizer),
+            ('classifier', LogisticRegression())
+        ])
+        pipeline.fit(train_data, train_labels.ravel())
+        print(pipeline.score(test_data, test_labels.ravel()))
+        """)
+
+    if not include_training:
+        training_part = cleandoc("""
+        pipeline = Pipeline([
+            ('features', featurizer),
+            ('classifier', LogisticRegression())
+        ])
+        pipeline.fit(train_data, train_labels.ravel())
+        print(pipeline.score(test_data, test_labels.ravel()))
+                    """)
+        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
 
     return setup_code + "\n", test_code
 
@@ -214,3 +351,22 @@ def print_generated_code():
     for file in generated_files:
         with file.open() as f:
             print(f.read())
+
+
+def get_sql_query(pipeline_code, mode, materialize):
+    PipelineInspector \
+        .on_pipeline_from_string(pipeline_code) \
+        .execute_in_sql(dbms_connector=None, mode=mode, materialize=materialize)
+
+    setup_file = \
+        pathlib.Path(get_project_root() / r"mlinspect/to_sql/generated_code/create_table.sql")
+    test_file = \
+        pathlib.Path(get_project_root() / r"mlinspect/to_sql/generated_code/pipeline.sql")
+
+    with setup_file.open("r") as file:
+        setup_code = file.read()
+
+    with test_file.open("r") as file:
+        test_code = file.read()
+
+    return setup_code, test_code

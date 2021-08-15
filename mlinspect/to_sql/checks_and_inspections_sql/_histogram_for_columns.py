@@ -49,6 +49,9 @@ class SQLHistogramForColumns:
 
         old_dag_node_annotations = backend_result.dag_node_annotation
         to_check_annotations = [a for a in old_dag_node_annotations.keys() if isinstance(a, HistogramForColumns)]
+        if len(to_check_annotations) == 0:
+            return backend_result
+
         assert len(to_check_annotations) == 1
         annotation = to_check_annotations[0]
 

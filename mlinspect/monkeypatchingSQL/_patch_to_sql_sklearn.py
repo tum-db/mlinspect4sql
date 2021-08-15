@@ -217,7 +217,7 @@ class SklearnComposePatching:
     @gorilla.settings(allow_hit=True)
     def patched_transform(self, *args, **kwargs):
         # pylint: disable=no-method-argument
-        original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
+        original = gorilla.get_original_attribute(compose.ColumnTransformer, 'transform')
         return transform_logic(original, self, *args, **kwargs)  # fit_transform knows only to execute transform
 
     # @gorilla.name('fit')
@@ -259,10 +259,11 @@ class SklearnComposePatching:
         # Concat doesn't contain ratios: -> Empty
         old_dag_node_annotations = backend_result.dag_node_annotation
         to_check_annotations = [a for a in old_dag_node_annotations.keys() if isinstance(a, HistogramForColumns)]
-        assert len(to_check_annotations) == 1
-        annotation = to_check_annotations[0]
-        old_dag_node_annotations[to_check_annotations[0]] = {x: {} for x in
-                                                             [f"\"{x}\"" for x in annotation.sensitive_columns]}
+        if len(to_check_annotations) > 0:
+            assert len(to_check_annotations) == 1
+            annotation = to_check_annotations[0]
+            old_dag_node_annotations[to_check_annotations[0]] = {x: {} for x in
+                                                                 [f"\"{x}\"" for x in annotation.sensitive_columns]}
 
         dag_node = DagNode(op_id,
                            BasicCodeLocation(self.mlinspect_filename, self.mlinspect_lineno),
@@ -370,7 +371,7 @@ class SklearnSimpleImputerPatching:
                     select_block.append(f"\tCOALESCE({col}, "
                                         f"(SELECT {col} "
                                         f"FROM {fit_lookup_table} "
-                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}))) AS {col}")
+                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}) LIMIT 1)) AS {col}")
                     selection_map[col] = select_block[-1]
                 else:
                     select_block.append(f"\t{col}")
@@ -1149,9 +1150,9 @@ class SklearnKerasClassifierPatching:
                                                         args[0])
 
         # TO_SQL DONE! ##########################################################################################
-        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+        args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
                                                                           OperatorType.TRAIN_DATA,
-                                                                          "TRAIN MODEL FIT: LABELS")
+                                                                          "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
@@ -1175,9 +1176,9 @@ class SklearnKerasClassifierPatching:
                                                          args[1])
 
         # TO_SQL DONE! ##########################################################################################
-        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+        args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
                                                                            OperatorType.TRAIN_LABELS,
-                                                                           "TEST MODEL FIT: LABELS")
+                                                                           "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
@@ -1201,6 +1202,8 @@ class SklearnKerasClassifierPatching:
         add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
 
         global just_the_model
+        if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+            return just_the_model
         original(just_the_model, args_0, args_1)
 
         return just_the_model
@@ -1284,7 +1287,7 @@ class SklearnDecisionTreePatching:
         # train_data_result = data_backend_result.annotated_dfobject.result_data
 
         # TO_SQL DONE! ##########################################################################################
-        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+        args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
                                                                           OperatorType.TRAIN_DATA,
                                                                           "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
@@ -1309,7 +1312,7 @@ class SklearnDecisionTreePatching:
         # train_labels_result = label_backend_result.annotated_dfobject.result_data
 
         # TO_SQL DONE! ##########################################################################################
-        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+        args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
                                                                            OperatorType.TRAIN_LABELS,
                                                                            "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
@@ -1332,6 +1335,8 @@ class SklearnDecisionTreePatching:
         add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
 
         global just_the_model
+        if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+            return just_the_model
         original(just_the_model, args_0, args_1)
 
         return just_the_model
@@ -1413,7 +1418,7 @@ class SklearnLogisticRegressionPatching:
         train_data_result = data_backend_result.annotated_dfobject.result_data
 
         # TO_SQL DONE! ##########################################################################################
-        args_0, data_backend_result = retrieve_data_from_dbms_get_backend(args[0], data_backend_result,
+        args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
                                                                           OperatorType.TRAIN_DATA,
                                                                           "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
@@ -1438,7 +1443,7 @@ class SklearnLogisticRegressionPatching:
         train_labels_result = label_backend_result.annotated_dfobject.result_data
 
         # TO_SQL DONE! ##########################################################################################
-        args_1, label_backend_result = retrieve_data_from_dbms_get_backend(args[1], label_backend_result,
+        args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
                                                                            OperatorType.TRAIN_LABELS,
                                                                            "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
@@ -1461,6 +1466,8 @@ class SklearnLogisticRegressionPatching:
         add_dag_node(dag_node, [train_data_dag_node, train_labels_dag_node], estimator_backend_result)
 
         global just_the_model
+        if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+            return just_the_model
         original(just_the_model, args_0, args_1)
 
         return just_the_model
@@ -1473,10 +1480,13 @@ class SklearnPipeline:
     @gorilla.name('score')
     @gorilla.settings(allow_hit=True)
     def patched_score(self, *args, **kwargs):
-        # pylint: disable=no-method-argument, too-many-locals
-        # original = gorilla.get_original_attribute(sklearn.pipeline.Pipeline, 'score')
-        args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]), "MODEL SCORE: INPUT DATA")
-        args_1 = retrieve_data_from_dbms(args[1], "MODEL SCORE: EXPECTED OUTPUT DATA")
+        args_0 = retrieve_data_from_dbms_get_opt_backend(self.steps[0][1].transform(args[0]),
+                                                         comment="MODEL SCORE: INPUT DATA")
+        args_1 = retrieve_data_from_dbms_get_opt_backend(args[1],
+                                                         comment="MODEL SCORE: EXPECTED OUTPUT DATA")
+
+        if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+            return ""
         # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
         return just_the_model.score(args_0, args_1)
 
@@ -1484,9 +1494,12 @@ class SklearnPipeline:
     @gorilla.settings(allow_hit=True)
     def patched_predict(self, *args, **kwargs):
         if hasattr(self, "steps"):
-            args_0 = retrieve_data_from_dbms(self.steps[0][1].transform(args[0]), "MODEL PREDICT: INPUT DATA")
+            args_0 = retrieve_data_from_dbms_get_opt_backend(self.steps[0][1].transform(args[0]),
+                                                             comment="MODEL PREDICT: INPUT DATA")
         else:
-            args_0 = retrieve_data_from_dbms(args[0])
+            args_0 = retrieve_data_from_dbms_get_opt_backend(args[0])
+        if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+            return ""
         # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
         return just_the_model.predict(args_0)
 
@@ -1519,7 +1532,7 @@ def add_to_col_trans(selection_map, code_ref, sql_source, from_block=[], where_b
         # ct_level.tracking_cols += [tc for tc in tracking_cols if tc not in ct_level.tracking_cols]
 
 
-def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type, comment=""):
+def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_type=None, comment=""):
     name, ti = singleton.mapping.get_name_and_ti(train_obj)
 
     cols = ti.non_tracking_cols
@@ -1528,6 +1541,13 @@ def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type, 
 
     sql_code = f"SELECT {', '.join(cols)} " \
                f"FROM {name}"
+
+    singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
+
+    if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
+        if not backend_result:
+            return train_obj
+        return train_obj, backend_result
 
     if singleton.sql_obj.mode == SQLObjRep.CTE:
         train_data = \
@@ -1538,35 +1558,14 @@ def retrieve_data_from_dbms_get_backend(train_obj, old_backend_result, op_type, 
     singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
 
     train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
-
+    if not backend_result:
+        return train_data
     return train_data, singleton.update_hist.sql_update_backend_result(train_data,
-                                                                       old_backend_result,
+                                                                       backend_result,
                                                                        curr_sql_expr_name=name,
                                                                        curr_sql_expr_columns=ti.non_tracking_cols,
                                                                        operation_type=op_type,
                                                                        previous_res_node=name)
-
-
-def retrieve_data_from_dbms(train_obj, comment=""):
-    name, ti = singleton.mapping.get_name_and_ti(train_obj)
-
-    cols = ti.non_tracking_cols
-    if isinstance(cols, str):  # working with a pandas series.
-        cols = [cols]
-
-    sql_code = f"SELECT {', '.join(cols)} " \
-               f"FROM {name}"
-
-    if singleton.sql_obj.mode == SQLObjRep.CTE:
-        train_data = \
-            singleton.dbms_connector.run(singleton.pipeline_container.get_pipe_without_selection() + "\n" + sql_code)[0]
-    else:
-        train_data = singleton.dbms_connector.run(sql_code)[0]
-
-    if comment != "":
-        singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
-    train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
-    return train_data
 
 
 def mimic_implicit_dim_count_mlinspect(ti, output):

@@ -14,7 +14,7 @@ from mlinspect import PipelineInspector
 from mlinspect.utils import get_project_root
 from _code_as_string import get_healthcare_pipe_code, get_healthcare_sql_str
 from pandas_connector import PandasConnector
-from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, SIZES, DO_CLEANUP, SIZES, BENCH_REP, \
+from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, DO_CLEANUP, SIZES, BENCH_REP, \
     MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from data_generation.compas_data_generation import generate_compas_dataset
@@ -30,7 +30,7 @@ COMPAS_DATA_PATHS = generate_compas_dataset(SIZES)
 HEALTHCARE_DATA_PATHS = generate_healthcare_dataset(SIZES)
 
 
-def pure_pipeline_benchmark(mode, materialize, add_impute_and_onehot=False, title="HealthcarePurePipeComparison"):
+def pure_pipeline_benchmark(mode, materialize, only_pandas=False, title="HealthcarePurePipeComparison"):
     umbra_times = []
     postgres_times = []
     pandas_times = []
@@ -42,8 +42,8 @@ def pure_pipeline_benchmark(mode, materialize, add_impute_and_onehot=False, titl
     for i, (path_to_csv_his, path_to_csv_pat) in enumerate(HEALTHCARE_DATA_PATHS):
         print(f"ITERATION: {i} - for table size of: {SIZES[i]}")
 
-        setup_code_orig, test_code_orig = get_healthcare_pipe_code(path_to_csv_his, path_to_csv_pat,
-                                                                   add_impute_and_onehot=add_impute_and_onehot)
+        setup_code_orig, test_code_orig = get_healthcare_pipe_code(path_to_csv_his, path_to_csv_pat, only_pandas,
+                                                                   include_training=False)
 
         setup_code, test_code = get_healthcare_sql_str(setup_code_orig + "\n" + test_code_orig, mode=mode,
                                                        materialize=materialize)
@@ -73,11 +73,11 @@ def pure_pipeline_benchmark(mode, materialize, add_impute_and_onehot=False, titl
 
 if __name__ == "__main__":
     # Just the pandas part:
-    pure_pipeline_benchmark(mode="CTE", materialize=False, add_impute_and_onehot=False,
-                            title="HealthcarePurePipeComparison")
+    # pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=True,
+    #                         title="HealthcarePurePipeComparisonOnlyPandas")
 
-    pure_pipeline_benchmark(mode="VIEW", materialize=False, add_impute_and_onehot=False,
-                            title="HealthcarePurePipeComparisonVIEW")
+    pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
+                            title="HealthcarePurePipeComparisonFull")
 
     # With OneHotEncoding and SimpleImputer:
     # pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")

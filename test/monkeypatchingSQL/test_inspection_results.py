@@ -16,12 +16,12 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 # pylint: disable=protected-access
 # !/usr/bin/env python -W ignore::DeprecationWarning
 class TestInspectionOutput(unittest.TestCase):
-    HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "healthcare.py")
-    COMPAS_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "compas", "compas.py")
-    ADULT_SIMPLE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_simple", "adult_simple.py")
-    ADULT_COMPLEX_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "adult_complex",
-                                         "adult_complex.py")
-    ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "example_pipelines", "row_wise", "row_wise.py")
+    HEALTHCARE_FILE_PY_R = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "healthcare", "healthcare_res.py")
+    HEALTHCARE_FILE_PY = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "healthcare", "healthcare.py")
+    COMPAS_FILE_PY = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas.py")
+    ADULT_SIMPLE_FILE_PY = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "adult_simple", "adult_simple.py")
+    ADULT_COMPLEX_FILE_PY = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "adult_complex", "adult_complex.py")
+    ROW_WISE_FILE_PY = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "row_wise", "row_wise.py")
 
     HEALTHCARE_BIAS = ["age_group", "race"]
     COMPAS_BIAS = ["sex", "race"]
@@ -105,29 +105,32 @@ class TestInspectionOutput(unittest.TestCase):
 
         return res1 == res2 == res3 == res4 == res5 == res6
 
+    # ATTENTION: Only use one test at a time: executing multiple will trigger a bug in gorillas, and some functions
+    # won't be caught correctly any more.
+
     def test_CTE_inspection_output_equality_healthcare(self):
         """
         Tests that all inspection results are equal for HEALTHCARE_FILE_PY -> for non_random part!
         """
-        assert self.full_equality(self.HEALTHCARE_FILE_PY, bias=self.HEALTHCARE_BIAS)
+        assert self.full_equality(self.HEALTHCARE_FILE_PY_R, bias=self.HEALTHCARE_BIAS)
 
-    def test_CTE_inspection_output_equality_compas(self):
-        """
-        Tests that all inspection results are equal for COMPAS_FILE_PY -> for non_random part!
-        """
-        assert self.full_equality(self.COMPAS_FILE_PY, bias=self.COMPAS_BIAS)
-
-    def test_CTE_inspection_output_equality_adult_simple(self):
-        """
-        Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY -> for non_random part!
-        """
-        assert self.full_equality(self.ADULT_SIMPLE_FILE_PY, bias=self.ADULT_SIMPLE_BIAS)
-
-    def test_CTE_inspection_output_equality_adult_complex(self):
-        """
-        Tests that all inspection results are equal for ADULT_COMPLEX_FILE_PY -> for non_random part!
-        """
-        assert self.full_equality(self.ADULT_COMPLEX_FILE_PY, bias=self.ADULT_COMPLEX_BIAS)
+    # def test_CTE_inspection_output_equality_compas(self):
+    #     """
+    #     Tests that all inspection results are equal for COMPAS_FILE_PY -> for non_random part!
+    #     """
+    #     assert self.full_equality(self.COMPAS_FILE_PY, bias=self.COMPAS_BIAS)
+    #
+    # def test_CTE_inspection_output_equality_adult_simple(self):
+    #     """
+    #     Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY -> for non_random part!
+    #     """
+    #     assert self.full_equality(self.ADULT_SIMPLE_FILE_PY, bias=self.ADULT_SIMPLE_BIAS)
+    #
+    # def test_CTE_inspection_output_equality_adult_complex(self):
+    #     """
+    #     Tests that all inspection results are equal for ADULT_COMPLEX_FILE_PY -> for non_random part!
+    #     """
+    #     assert self.full_equality(self.ADULT_COMPLEX_FILE_PY, bias=self.ADULT_COMPLEX_BIAS)
 
 
 if __name__ == '__main__':

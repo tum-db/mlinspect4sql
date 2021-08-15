@@ -24,7 +24,7 @@ def simple_fake_data(target_path, data_frame_rows):
 
 
 if __name__ == '__main__':
-    for k in range(2, 8, 1):
+    for k in range(2, 4, 1):
         i = pow(10, k)
         # while i <= pow(10, 7):
         print(f"data generated for: size = {i}")

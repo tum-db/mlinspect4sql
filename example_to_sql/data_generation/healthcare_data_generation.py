@@ -4,7 +4,7 @@ import random
 from example_to_sql._benchmark_utility import ROOT_DIR
 
 
-def set_some_null(input_list, null_percentage, null_symbol="?"):
+def set_some_null(input_list, null_percentage, null_symbol=""):
     """
     Generates the data, but randomly sets 'null' values while generating the others.
     """
@@ -31,7 +31,7 @@ def create_fake_histories_dataset(target_path, target_lines):
     Faker.seed(0)
     faker = Faker()
     history_ssn = [faker.ssn() for _ in range(target_lines)]
-    history_smoker = set_some_null([faker.pybool() for _ in range(target_lines)], 0.05, "?")
+    history_smoker = set_some_null([faker.pybool() for _ in range(target_lines)], 0.05, "")
     history_complications = [faker.pyint(min_value=0, max_value=10, step=1) for i in range(target_lines)]
 
     new_file = pandas.DataFrame({'smoker': history_smoker, 'complications': history_complications, 'ssn': history_ssn})
@@ -59,12 +59,12 @@ def create_fake_patients_dataset(target_path, target_lines, other_ssn):
     id = [i for i in range(target_lines)]
     first_name = [faker.first_name() for _ in range(target_lines)]
     last_name = [faker.last_name() for _ in range(target_lines)]
-    race = set_some_null(["race" + str(random.randint(1, 3)) for _ in range(target_lines)], 0.109, "?")
-    county = set_some_null(["county" + str(random.randint(1, 3)) for _ in range(target_lines)], 0.206, "?")
+    race = set_some_null(["race" + str(random.randint(1, 3)) for _ in range(target_lines)], 0.109, "")
+    county = set_some_null(["county" + str(random.randint(1, 3)) for _ in range(target_lines)], 0.206, "")
     num_children = [str(random.randint(1, 5)) for _ in range(target_lines)]
     income = [str(random.randint(10000, 300000)) for _ in range(target_lines)]
     age_group = ["group" + str(random.randint(1, 3)) for _ in range(target_lines)]
-    ssn = set_some_null(similar_value(faker.ssn, other_ssn), 0.113, "?")
+    ssn = set_some_null(similar_value(faker.ssn, other_ssn), 0.113, "")
 
     new_file = pandas.DataFrame(
         {'id': id,
