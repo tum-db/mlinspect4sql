@@ -85,7 +85,7 @@ def run_for_all(file_location, bias, mode="", materialize=None):
                    materialize=materialize)
     t1 = time.time()
     print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
-    #
+
     # t0 = time.time()
     # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
     #                materialize=False)
@@ -194,14 +194,14 @@ if __name__ == "__main__":
     # result = np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_result.flat, axis=0))
     #
     # print(result)
-
+    #
     # PipelineInspector \
     #     .on_pipeline_from_string(pipeline_code) \
     #     .execute_in_sql(dbms_connector=None, mode="VIEW", materialize=True)
-
-    run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="CTE", materialize=False)
-    # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, mode="VIEW", materialize=True)
-    # run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=False)
+    #
+    # run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="CTE", materialize=False)
+    # run_for_all(file_location=HEALTHCARE_FILE_PY, bias=HEALTHCARE_BIAS, mode="VIEW", materialize=False)
+    run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=False)
     # run_for_all(file_location=ADULT_SIMPLE_FILE_PY,     bias=ADULT_SIMPLE_BIAS,     mode="VIEW", materialize=True)
     # run_for_all(file_location=ADULT_COMPLEX_FILE_PY,    bias=ADULT_COMPLEX_BIAS,    mode="VIEW", materialize=True)
 

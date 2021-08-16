@@ -120,8 +120,8 @@ class GroupBy:
 # ########################################### FOR THE PURE PIPELINE BENCHMARK ##########################################
 def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_pandas=False, include_training=True):
     if path_patients is None or path_histories is None:
-        path_patients = os.path.join( str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
-        path_histories = os.path.join( str(get_project_root()), "example_pipelines", "healthcare", "histories.csv")
+        path_patients = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
+        path_histories = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "histories.csv")
 
     setup_code = cleandoc("""
         import warnings
@@ -154,26 +154,6 @@ def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_panda
         from example_pipelines.healthcare.healthcare_utils import MyW2VTransformer, MyKerasClassifier, create_model
         """)
 
-        test_code += "\n" + cleandoc("""
-        impute_and_one_hot_encode = Pipeline([
-            ('impute', SimpleImputer(strategy='most_frequent')),
-            ('encode', OneHotEncoder(sparse=False, handle_unknown='ignore'))
-        ])
-        featurisation = ColumnTransformer(transformers=[
-            ("impute_and_one_hot_encode", impute_and_one_hot_encode, ['smoker', 'county', 'race']),
-            # ('word2vec', MyW2VTransformer(min_count=2), ['last_name']),
-            ('numeric', StandardScaler(), ['num_children', 'income']),
-        ], remainder='drop')
-        neural_net = MyKerasClassifier(build_fn=create_model, epochs=10, batch_size=1, verbose=0)
-        pipeline = Pipeline([
-            ('features', featurisation),
-            ('learner', neural_net)
-        ])
-        train_data, test_data = train_test_split(data)
-        model = pipeline.fit(train_data, train_data['label'])
-        print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
-        """)
-    if not include_training:
         training_part = cleandoc("""
                     neural_net = MyKerasClassifier(build_fn=create_model, epochs=10, batch_size=1, verbose=0)
                     pipeline = Pipeline([
@@ -184,6 +164,19 @@ def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_panda
                     model = pipeline.fit(train_data, train_data['label'])
                     print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
                     """)
+
+        test_code += "\n" + cleandoc("""
+        impute_and_one_hot_encode = Pipeline([
+            ('impute', SimpleImputer(strategy='most_frequent')),
+            ('encode', OneHotEncoder(sparse=False, handle_unknown='ignore'))
+        ])
+        featurisation = ColumnTransformer(transformers=[
+            ("impute_and_one_hot_encode", impute_and_one_hot_encode, ['smoker', 'county', 'race']),
+            # ('word2vec', MyW2VTransformer(min_count=2), ['last_name']),
+            ('numeric', StandardScaler(), ['num_children', 'income']),
+        ], remainder='drop')
+        """) + "\n" + training_part
+    if not include_training:
         test_code = test_code.replace(training_part, "result = featurisation.fit_transform(data)")
 
     return setup_code + "\n", test_code
@@ -191,8 +184,10 @@ def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_panda
 
 def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False, include_training=True):
     if compas_train is None or compas_test is None:
-        compas_train = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_train.csv")'
-        compas_test = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_test.csv")'
+        compas_train = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                                    "compas", "compas_train.csv")
+        compas_test = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                                   "compas", "compas_test.csv")
 
     setup_code = cleandoc("""
         import os
@@ -201,8 +196,8 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         """)
 
     test_code = cleandoc(f"""
-        train_data = pd.read_csv({compas_train}, na_values='', index_col=0)
-        test_data = pd.read_csv({compas_test}, na_values='', index_col=0)
+        train_data = pd.read_csv(r\"{compas_train}\", na_values='', index_col=0)
+        test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
         train_data = train_data[
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
@@ -216,10 +211,10 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
-        test_data = test_data.replace('Medium', "Low")
+        #test_data = test_data.replace('Medium', "Low")
         
-        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        #train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        #test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
         """)
 
     if not only_pandas:
@@ -230,11 +225,8 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
         """)
-        test_code += "\n" + cleandoc("""
-        featurizer = ColumnTransformer(transformers=[
-            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
-            ('impute2_and_bin', impute2_and_bin, ['age'])
-        ])
+
+        training_part = cleandoc("""
         pipeline = Pipeline([
             ('features', featurizer),
             ('classifier', LogisticRegression())
@@ -243,16 +235,20 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         print(pipeline.score(test_data, test_labels.ravel()))
         """)
 
-    if not include_training:
-        training_part = cleandoc("""
-        pipeline = Pipeline([
-            ('features', featurizer),
-            ('classifier', LogisticRegression())
+        test_code += "\n" + cleandoc("""
+        impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
+                               ('onehot', OneHotEncoder(handle_unknown='ignore'))])                       
+        impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
+                            ('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))])             
+        featurizer = ColumnTransformer(transformers=[
+            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+            ('impute2_and_bin', impute2_and_bin, ['age'])
         ])
-        pipeline.fit(train_data, train_labels.ravel())
-        print(pipeline.score(test_data, test_labels.ravel()))
-                    """)
-        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
+        """) + "\n" + training_part
+
+        if not include_training:
+            test_code = test_code.replace(training_part, "result = featurizer.fit_transform(train_data)") \
+                .replace("#", "")
 
     return setup_code + "\n", test_code
 
@@ -298,11 +294,8 @@ def get_adult_simple_pipe_code(compas_train=None, compas_test=None, only_pandas=
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
         """)
-        test_code += "\n" + cleandoc("""
-        featurizer = ColumnTransformer(transformers=[
-            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
-            ('impute2_and_bin', impute2_and_bin, ['age'])
-        ])
+
+        training_part = cleandoc("""
         pipeline = Pipeline([
             ('features', featurizer),
             ('classifier', LogisticRegression())
@@ -311,16 +304,15 @@ def get_adult_simple_pipe_code(compas_train=None, compas_test=None, only_pandas=
         print(pipeline.score(test_data, test_labels.ravel()))
         """)
 
-    if not include_training:
-        training_part = cleandoc("""
-        pipeline = Pipeline([
-            ('features', featurizer),
-            ('classifier', LogisticRegression())
+        test_code += "\n" + cleandoc("""
+        featurizer = ColumnTransformer(transformers=[
+            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+            ('impute2_and_bin', impute2_and_bin, ['age'])
         ])
-        pipeline.fit(train_data, train_labels.ravel())
-        print(pipeline.score(test_data, test_labels.ravel()))
-                    """)
-        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
+        """) + training_part
+
+        if not include_training:
+            test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
 
     return setup_code + "\n", test_code
 
