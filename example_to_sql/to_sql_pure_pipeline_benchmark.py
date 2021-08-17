@@ -19,7 +19,7 @@ from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, DO_CLEANUP,
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from data_generation.compas_data_generation import generate_compas_dataset
 from data_generation.healthcare_data_generation import generate_healthcare_dataset
-
+from time import time
 # Data Generation:
 # To be able to benchmark and compare the different approaches, some datasets
 # will need to be generated before. The datasets are just and expansion of the
@@ -59,16 +59,22 @@ def pure_pipeline_benchmark(mode, materialize, only_pandas=False, title="Healthc
 
         ################################################################################################################
         # time Pandas:
+        t0 =time()
         pandas_times.append(pandas.benchmark_run(pandas_code=test_code_orig, setup_code=setup_code_orig,
                                                  repetitions=BENCH_REP))
         write_to_log("HEALTHCARE", SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
                      engine="Pandas", time=pandas_times[-1])
+        t1 = time()
+        print("runtime: " + str(t1-t0))
         ################################################################################################################
         # time Postgres:
+        t0 =time()
         postgres.run(setup_code)
         postgres_times.append(postgres.benchmark_run(test_code, repetitions=BENCH_REP))
         write_to_log("HEALTHCARE", SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
                      engine="Postgresql", time=postgres_times[-1])
+        t1 = time()
+        print("runtime: " + str(t1 - t0))
         ################################################################################################################
 
     print(f"Plotting..")
@@ -92,7 +98,7 @@ if __name__ == "__main__":
     #                         title="HealthcarePurePipeComparisonOnlyPandasVIEWMAT")
 
     # Attention: materialize without inspection makes no sense -> only one execution anyway!
-    pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
+    pure_pipeline_benchmark(mode="VIEW", materialize=True, only_pandas=False,
                             title="HealthcarePurePipeComparisonFullVIEWMAT")
 
     # pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,

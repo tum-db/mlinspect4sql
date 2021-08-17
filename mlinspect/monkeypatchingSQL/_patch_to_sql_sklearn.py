@@ -207,7 +207,8 @@ class SklearnComposePatching:
                                                                  cte_name=last_sql_name,
                                                                  no_wrap=True)
 
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
+        # Materialize the source of desired:
+        materialize_query_with_name(name, ti.non_tracking_cols)
 
         fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
@@ -363,7 +364,7 @@ class SklearnSimpleImputerPatching:
 
                     # Access fitted data if possible:
                     if not fit_data.fully_set:
-                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_count(name, col)
+                        fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_max_count(name, col)
                         fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
                         singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                         if singleton.sql_obj.mode == SQLObjRep.VIEW:
@@ -371,10 +372,7 @@ class SklearnSimpleImputerPatching:
                     else:
                         fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
 
-                    select_block.append(f"\tCOALESCE({col}, "
-                                        f"(SELECT {col} "
-                                        f"FROM {fit_lookup_table} "
-                                        f"WHERE count = (SELECT MAX(count) FROM {fit_lookup_table}) LIMIT 1)) AS {col}")
+                    select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
                     selection_map[col] = select_block[-1]
                 else:
                     select_block.append(f"\t{col}")
@@ -1539,7 +1537,8 @@ def add_to_col_trans(selection_map, code_ref, sql_source, from_block=[], where_b
         # ct_level.tracking_cols += [tc for tc in tracking_cols if tc not in ct_level.tracking_cols]
 
 
-def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_type=None, comment=""):
+def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_type=None, comment="",
+                                            not_materialize=True):
     name, ti = singleton.mapping.get_name_and_ti(train_obj)
 
     cols = ti.non_tracking_cols
@@ -1563,8 +1562,6 @@ def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_t
     else:
         train_data = singleton.dbms_connector.run(sql_code)[0]
 
-    singleton.pipeline_container.update_pipe_head(sql_code, comment=comment)
-
     train_data = mimic_implicit_dim_count_mlinspect(ti, train_data)
     if not backend_result:
         return train_data
@@ -1574,7 +1571,7 @@ def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_t
                                                                        curr_sql_expr_columns=ti.non_tracking_cols,
                                                                        operation_type=op_type,
                                                                        previous_res_node=name,
-                                                                       not_materialize=True)
+                                                                       not_materialize=not_materialize)
 
 
 def mimic_implicit_dim_count_mlinspect(ti, output):

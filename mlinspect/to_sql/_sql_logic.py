@@ -315,11 +315,17 @@ class SQLLogic:
 
     # ################################################ SKLEARN #########################################################
 
-    def column_count(self, table, column_name):
-        table_name = f"block_impute_fit_{self.get_unique_id()}_count"
-        sql_code = f"SELECT {column_name}, COUNT(*) AS count\n" \
-                   f"FROM {table} \n" \
-                   f"GROUP BY {column_name}"
+    def column_max_count(self, table, column_name):
+        table_name = f"block_impute_fit_{self.get_unique_id()}_most_frequent"
+        sql_code = f"WITH counts_help AS (\n" \
+                   f"\tSELECT {column_name}, COUNT(*) AS count\n" \
+                   f"\tFROM {table} \n" \
+                   f"\tGROUP BY {column_name}\n" \
+                   f")\n" \
+                   f"SELECT {column_name} AS most_frequent \n" \
+                   f"FROM counts_help\n" \
+                   f"WHERE counts_help.count = (SELECT MAX(count) FROM counts_help)\n" \
+                   f"LIMIT 1"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return self.materialize_if_possible(block_name, sql_code)
 
@@ -337,7 +343,7 @@ class SQLLogic:
                    f"(\"rank\")]) AS {col[:-1]}_one_hot\" \n" \
                    f"\tFROM (\n" \
                    f"\tSELECT {col}, CAST(ROW_NUMBER() OVER() AS int) AS \"rank\" \n" \
-                   f"\tFROM (SELECT distinct({col}) FROM {table}) oh" \
+                   f"\tFROM (SELECT distinct({col}) FROM {table}) oh\n" \
                    f") one_hot_help"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
         return self.materialize_if_possible(block_name, sql_code)

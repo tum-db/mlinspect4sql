@@ -7,7 +7,7 @@ from mlinspect.utils import get_project_root
 
 # Some parameters you might want check:
 DO_CLEANUP = True
-SIZES = [(10 ** i) for i in range(2, 4, 1)]
+SIZES = [(10 ** i) for i in range(2, 8, 1)]
 BENCH_REP = 3
 MLINSPECT_ROOT_DIR = get_project_root()
 

@@ -40,9 +40,8 @@ class SQLQueryContainer:
         # Uncomment last pipeline head:
         if not comment == "":
             with self.file_path_pipe.open(mode="r") as f:
-                content = f.read()
                 head = f"\n/*ATTENTION: {comment}\n" \
-                       f"SELECT" + content.split("SELECT")[-1] + "\n*/\n\n" + head
+                       f"{head};\n*/\n\n" + head
 
         SQLQueryContainer.__del_select_line(self.file_path_pipe, False)
 

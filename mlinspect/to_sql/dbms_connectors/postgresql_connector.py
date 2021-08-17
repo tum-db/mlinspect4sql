@@ -54,15 +54,22 @@ class PostgresqlConnector(Connector):
 
         sql_queries = super()._prepare_query(sql_query)
         assert len(sql_queries) != 0
+
+        time_for_materialization = 0
         if len(sql_queries) > 1:
             for q in sql_queries[:-1]:
-                self.cur.execute(q)
+                if "MATERIALIZED" in q:
+                    self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + q[:-1] + ";")
+                    result = self.cur.fetchall()
+                    time_for_materialization += result[0][0][0]['Execution Time']
+                else:
+                    self.cur.execute(q)
             sql_query = sql_queries[-1]
 
         for _ in range(repetitions):
             self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")
             result = self.cur.fetchall()
-            exe_times.append(result[0][0][0]['Execution Time'])
+            exe_times.append(result[0][0][0]['Execution Time'] + time_for_materialization)
         time = sum(exe_times) / repetitions
         print(f"Done in {time}!") if verbose else 0
         return time
