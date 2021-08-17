@@ -126,7 +126,7 @@ class SklearnComposePatching:
 
         name, ti = singleton.mapping.get_name_and_ti(args[0])
 
-        # Materialize the source of desired:
+        # Materialize the source if desired: -> better performance f.e. for Postgres
         materialize_query_with_name(name, ti.non_tracking_cols)
 
         cr_to_col_map = {}  # code_reference to column mapping
@@ -189,26 +189,31 @@ class SklearnComposePatching:
             if where_block_s != "":
                 sql_code += "\nWHERE\n" + where_block_s
 
-            sql_name, sql_code = singleton.sql_logic.wrap_in_sql_obj(sql_code, op_id,
-                                                                     f"block_col_transf_lvl{i}_mlinid{op_id}")
+            if i < len(query_levels) - 1:
+                sql_name, sql_code = singleton.sql_logic.wrap_in_sql_obj(sql_code, op_id,
+                                                                         f"lvl{i}_column_transformer",
+                                                                         force_cte=True)
+            else:
+                # Last level reached:
+                final_sql_code = final_sql_code[:-2] + "\n"
+                sql_name = f"block_column_transformer_lvl{i}"
 
             # substitute old data sources with new ones:
             for old_s in level.sql_source:
                 sql_code = sql_code.replace(old_s, last_sql_name)
-            final_sql_code += sql_code
-            final_sql_code += (",\n" if singleton.sql_obj.mode == SQLObjRep.CTE and i < len(query_levels) - 1 else "\n")
+            final_sql_code += sql_code + ",\n"
 
             last_sql_name = sql_name
+
+        final_sql_code = "WITH " + final_sql_code[:-2]
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(final_sql_code, op_id, result,
                                                                  tracking_cols=ti.tracking_cols,
                                                                  non_tracking_cols=cols_to_keep,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=last_sql_name,
-                                                                 no_wrap=True)
+                                                                 cte_name=last_sql_name)
 
-        # Materialize the source of desired:
-        materialize_query_with_name(name, ti.non_tracking_cols)
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
 
         fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################

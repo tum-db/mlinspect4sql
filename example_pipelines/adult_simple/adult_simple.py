@@ -21,11 +21,11 @@ feature_transformation = compose.ColumnTransformer(transformers=[
 ])
 feature_transformation.fit_transform(data, labels)
 
-# income_pipeline = pipeline.Pipeline([
-#     ('features', feature_transformation),
-#     ('classifier', tree.DecisionTreeClassifier())])
-#
-# income_pipeline.fit(data, labels)
-#
-#
-# print('pipeline finished')
+income_pipeline = pipeline.Pipeline([
+    ('features', feature_transformation),
+    ('classifier', tree.DecisionTreeClassifier())])
+
+income_pipeline.fit(data, labels)
+
+
+print('pipeline finished')
