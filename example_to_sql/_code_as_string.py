@@ -176,8 +176,8 @@ def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_panda
             ('numeric', StandardScaler(), ['num_children', 'income']),
         ], remainder='drop')
         """) + "\n" + training_part
-    if not include_training:
-        test_code = test_code.replace(training_part, "result = featurisation.fit_transform(data)")
+        if not include_training:
+            test_code = test_code.replace(training_part, "result = featurisation.fit_transform(data)")
 
     return setup_code + "\n", test_code
 

@@ -52,10 +52,12 @@ class PostgresqlConnector(Connector):
         exe_times = []
         print("Executing Query in Postgres...") if verbose else 0
 
-        sql_query = super()._prepare_query(sql_query)
-        if len(sql_query) != 1:
-            raise ValueError("Can only benchmark ONE query!")
-        sql_query = sql_query[0]
+        sql_queries = super()._prepare_query(sql_query)
+        assert len(sql_queries) != 0
+        if len(sql_queries) > 1:
+            for q in sql_queries[:-1]:
+                self.cur.execute(q)
+            sql_query = sql_queries[-1]
 
         for _ in range(repetitions):
             self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")

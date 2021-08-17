@@ -35,7 +35,8 @@ class SQLHistogramForColumns:
                                   curr_sql_expr_columns=None,
                                   keep_previous_res=False,
                                   previous_res_node=None,
-                                  operation_type=None):
+                                  operation_type=None,
+                                  not_materialize=False):
         """
         Iterate all columns of the pandas object, and for each of them add the n newest/new values.
         Args:
@@ -87,7 +88,8 @@ class SQLHistogramForColumns:
                 new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
                                                                           curr_sql_expr_name=curr_sql_expr_name,
                                                                           curr_sql_expr_columns=curr_sql_expr_columns,
-                                                                          init=is_input_data_source)
+                                                                          init=is_input_data_source,
+                                                                          not_materialize=not_materialize)
                 continue
             elif is_input_data_source:
                 # Here no tracked cols are affected:
@@ -111,7 +113,8 @@ class SQLHistogramForColumns:
             new_dict[sc], curr_sql_expr_name = self.__get_ratio_count(query=query,
                                                                       curr_sql_expr_name=curr_sql_expr_name,
                                                                       curr_sql_expr_columns=curr_sql_expr_columns,
-                                                                      init=is_input_data_source)
+                                                                      init=is_input_data_source,
+                                                                      not_materialize=not_materialize)
 
         # Update the annotation:
         old_dag_node_annotations[annotation] = new_dict
@@ -120,7 +123,7 @@ class SQLHistogramForColumns:
         self.__set_optional_attribute(result, backend_result)
         return backend_result
 
-    def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False):
+    def __get_ratio_count(self, query, curr_sql_expr_name, curr_sql_expr_columns, init=False, not_materialize=False):
         """
         Note:
             the reason that this function returns a tuple, is that if the view is materialized, it is saved under a
@@ -132,7 +135,7 @@ class SQLHistogramForColumns:
             sc_hist_result = self.dbms_connector.run(query)[0]
         else:
 
-            if self.sql_obj.materialize and not init:
+            if self.sql_obj.materialize and not init and not not_materialize:
                 query_update = self.pipeline_container.get_last_query_materialize(curr_sql_expr_name,
                                                                                   curr_sql_expr_columns)
 

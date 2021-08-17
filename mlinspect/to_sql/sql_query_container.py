@@ -80,8 +80,9 @@ class SQLQueryContainer:
         and changing the name in the mapping to the new one.
         """
         assert (self.sql_obj.mode == SQLObjRep.VIEW and self.sql_obj.materialize)  # only then this op makes sense
+
         for i, query in enumerate(reversed(self.pipeline_query[:-1])):
-            if sql_obj_to_materialize in query:  # This is the statements, that created the view.
+            if sql_obj_to_materialize in query.split("AS")[0]:  # This is the statements, that created the view.
                 if "MATERIALIZED" in query:
                     return None
                 new_name = sql_obj_to_materialize + "_materialized"

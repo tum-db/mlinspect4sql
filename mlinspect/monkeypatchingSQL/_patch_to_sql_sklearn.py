@@ -126,6 +126,9 @@ class SklearnComposePatching:
 
         name, ti = singleton.mapping.get_name_and_ti(args[0])
 
+        # Materialize the source of desired:
+        materialize_query_with_name(name, ti.non_tracking_cols)
+
         cr_to_col_map = {}  # code_reference to column mapping
         cr_to_level_map = {}  # code_reference to level mapping
         cols_to_keep = []
@@ -419,7 +422,8 @@ class SklearnSimpleImputerPatching:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=all_cols,
-                                                                             keep_previous_res=False)
+                                                                             keep_previous_res=False,
+                                                                             not_materialize=True)
 
             fit_data.fully_set = True
             # TO_SQL DONE! ##########################################################################################
@@ -562,7 +566,8 @@ class SklearnOneHotEncoderPatching:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=all_cols,
-                                                                             keep_previous_res=True)
+                                                                             keep_previous_res=True,
+                                                                             not_materialize=True)
 
             fit_data.fully_set = True
             # TO_SQL DONE! ##########################################################################################
@@ -712,7 +717,8 @@ class SklearnStandardScalerPatching:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=all_cols,
-                                                                             keep_previous_res=True)
+                                                                             keep_previous_res=True,
+                                                                             not_materialize=True)
             add_dag_node(dag_node, [input_info.dag_node], backend_result)
             return new_return_value
         return result
@@ -861,7 +867,8 @@ class SklearnKBinsDiscretizerPatching:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                              curr_sql_expr_name=cte_name,
                                                                              curr_sql_expr_columns=all_cols,
-                                                                             keep_previous_res=True)
+                                                                             keep_previous_res=True,
+                                                                             not_materialize=True)
 
             fit_data.fully_set = True
             # TO_SQL DONE! ##########################################################################################
@@ -1151,8 +1158,8 @@ class SklearnKerasClassifierPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA,
-                                                                          "MODEL FIT: TRAIN LABELS")
+                                                                              OperatorType.TRAIN_DATA,
+                                                                              "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_data_dag_node, [input_info_train_data.dag_node], data_backend_result)
@@ -1177,8 +1184,8 @@ class SklearnKerasClassifierPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS,
-                                                                           "MODEL FIT: TEST LABELS")
+                                                                               OperatorType.TRAIN_LABELS,
+                                                                               "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         add_dag_node(train_labels_dag_node, [input_info_train_labels.dag_node], label_backend_result)
@@ -1288,8 +1295,8 @@ class SklearnDecisionTreePatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA,
-                                                                          "MODEL FIT: TRAIN LABELS")
+                                                                              OperatorType.TRAIN_DATA,
+                                                                              "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         # Train labels
@@ -1313,8 +1320,8 @@ class SklearnDecisionTreePatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS,
-                                                                           "MODEL FIT: TEST LABELS")
+                                                                               OperatorType.TRAIN_LABELS,
+                                                                               "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         # Estimator
@@ -1419,8 +1426,8 @@ class SklearnLogisticRegressionPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_0, data_backend_result = retrieve_data_from_dbms_get_opt_backend(args[0], data_backend_result,
-                                                                          OperatorType.TRAIN_DATA,
-                                                                          "MODEL FIT: TRAIN LABELS")
+                                                                              OperatorType.TRAIN_DATA,
+                                                                              "MODEL FIT: TRAIN LABELS")
         # TO_SQL: ###############################################################################################
 
         # Train labels
@@ -1444,8 +1451,8 @@ class SklearnLogisticRegressionPatching:
 
         # TO_SQL DONE! ##########################################################################################
         args_1, label_backend_result = retrieve_data_from_dbms_get_opt_backend(args[1], label_backend_result,
-                                                                           OperatorType.TRAIN_LABELS,
-                                                                           "MODEL FIT: TEST LABELS")
+                                                                               OperatorType.TRAIN_LABELS,
+                                                                               "MODEL FIT: TEST LABELS")
         # TO_SQL: ###############################################################################################
 
         # Estimator
@@ -1566,7 +1573,8 @@ def retrieve_data_from_dbms_get_opt_backend(train_obj, backend_result=None, op_t
                                                                        curr_sql_expr_name=name,
                                                                        curr_sql_expr_columns=ti.non_tracking_cols,
                                                                        operation_type=op_type,
-                                                                       previous_res_node=name)
+                                                                       previous_res_node=name,
+                                                                       not_materialize=True)
 
 
 def mimic_implicit_dim_count_mlinspect(ti, output):
@@ -1611,3 +1619,12 @@ def transform_logic(original, self, *args, **kwargs):
         return self.fit_transform(*args, **kwargs)
     # only in the first fit_transform call:
     return original(self, *args, **kwargs)
+
+
+def materialize_query_with_name(name, cols_to_keep):
+    if singleton.sql_obj.materialize:
+        query_update = singleton.pipeline_container.get_last_query_materialize(name, cols_to_keep)
+        if query_update:  # assert not null => materialized query was not added yet!
+            new_view_query, new_name = query_update
+            singleton.mapping.update_name(name, new_name)
+            singleton.dbms_connector.run(new_view_query)

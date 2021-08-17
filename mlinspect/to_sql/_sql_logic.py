@@ -234,11 +234,11 @@ class SQLLogic:
                          f"\tFROM {new_ratio} n " \
                          f"RIGHT JOIN {origin_ratio} o " \
                          f"ON o.{ctid} = n.{ctid}\n),\n"
-                         # f"OR " \
-                         # f"(o.{ctid} IS NULL AND n.{ctid} IS NULL)\n),\n"
+        # f"OR " \
+        # f"(o.{ctid} IS NULL AND n.{ctid} IS NULL)\n),\n"
 
     @staticmethod
-    def ratio_track_original_ref(origin_table: str, column:str, ctid: str):
+    def ratio_track_original_ref(origin_table: str, column: str, ctid: str):
         """
         Creates the query for the original table.
 
@@ -252,7 +252,7 @@ class SQLLogic:
         return SQLLogic.__column_ratio(origin_table, column, ctid=ctid, prefix="original")
 
     @staticmethod
-    def ratio_track_curr(origin_sql_obj: str, current_table: str, column:str, ctid: str, threshold: float,
+    def ratio_track_curr(origin_sql_obj: str, current_table: str, column: str, ctid: str, threshold: float,
                          origin_ratio_table: str, join_ctid: str = None):
         """
         Creates the full query for the overview of the change in ratio of a certain attribute.
@@ -321,13 +321,13 @@ class SQLLogic:
                    f"FROM {table} \n" \
                    f"GROUP BY {column_name}"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
-        return block_name, sql_code
+        return self.materialize_if_possible(block_name, sql_code)
 
     def column_mean(self, table, column_name):
         table_name = f"block_impute_fit_{self.get_unique_id()}_mean"
         sql_code = f"SELECT (SELECT AVG({column_name}) FROM {table}) AS {column_name}"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
-        return block_name, sql_code
+        return self.materialize_if_possible(block_name, sql_code)
 
     def column_one_hot_encoding(self, table, col):
         table_name = f"block_one_hot_fit_{self.get_unique_id()}"
@@ -340,7 +340,7 @@ class SQLLogic:
                    f"\tFROM (SELECT distinct({col}) FROM {table}) oh" \
                    f") one_hot_help"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
-        return block_name, sql_code
+        return self.materialize_if_possible(block_name, sql_code)
 
     def step_size_kbin(self, table, column_name, n_bins):
         """
@@ -351,8 +351,7 @@ class SQLLogic:
                    f"(SELECT MAX({column_name}) FROM {table}) - (SELECT MIN({column_name}) FROM {table})) / {n_bins} " \
                    f"AS step"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
-        return block_name, sql_code
-
+        return self.materialize_if_possible(block_name, sql_code)
 
     def std_scalar_values(self, table, column_name):
         """
@@ -363,4 +362,11 @@ class SQLLogic:
                    f"(SELECT AVG({column_name}) FROM {table}) AS avg_col_std_scal," \
                    f"(SELECT STDDEV_POP({column_name}) FROM {table}) AS std_dev_col_std_scal"
         block_name, sql_code = self.wrap_in_sql_obj(sql_code, block_name=table_name)
+        return self.materialize_if_possible(block_name, sql_code)
+
+    def materialize_if_possible(self, block_name, sql_code):
+        if self.sql_obj.materialize:
+            new_block_name = block_name + "_materialized"
+            return new_block_name, sql_code.replace(f"CREATE VIEW {block_name}",
+                                                    f"CREATE MATERIALIZED VIEW {new_block_name}")
         return block_name, sql_code

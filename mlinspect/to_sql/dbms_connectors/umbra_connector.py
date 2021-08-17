@@ -76,19 +76,20 @@ class UmbraConnector(Connector):
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         print("Executing Query in Umbra...") if verbose else 0
-        sql_query = super()._prepare_query(sql_query)
-        if len(sql_query) != 1:
-            raise ValueError("Can only benchmark ONE query!")
-        sql_query = sql_query[0]
+        sql_queries = super()._prepare_query(sql_query)
+        assert len(sql_queries) != 0
+        if len(sql_queries) > 1:
+            for q in sql_queries[:-1]:
+                self.cur.execute(q)
+            sql_query = sql_queries[-1]
 
         new_output = []
-
         # Get old output out of the way:
         for _ in iter(lambda: self.server.stdout.readline(), b''):
             continue
 
         for _ in range(repetitions):  # Execute the Query multiple times:
-            print(sql_query)
+            # print(sql_query)
             self.cur.execute(sql_query)
             new_output.append(self.server.stdout.readline().decode("utf-8"))
 
