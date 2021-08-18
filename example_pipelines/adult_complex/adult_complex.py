@@ -31,7 +31,8 @@ nested_feature_transformation = ColumnTransformer(transformers=[
         ('categorical', nested_categorical_feature_transformation, ['education', 'workclass']),
         ('numeric', StandardScaler(), ['age', 'hours-per-week'])
     ])
-nested_feature_transformation.fit_transform(train_data, train_labels)
+nested_feature_transformation.fit_transform(train_data, train_labels)  # Attention here!
+
 nested_income_pipeline = Pipeline([
     ('features', nested_feature_transformation),
     ('classifier', DecisionTreeClassifier())])

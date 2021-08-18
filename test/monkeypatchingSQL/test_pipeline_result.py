@@ -9,7 +9,7 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 import pathlib
 from inspect import cleandoc
 import numpy as np
-from example_to_sql._code_as_string import get_healthcare_pipe_code, get_sql_query
+from example_to_sql._code_as_string import get_healthcare_pipe_code, get_sql_query_for_pipeline
 
 
 # !/usr/bin/env python -W ignore::DeprecationWarning
@@ -39,7 +39,7 @@ class TestPipelineOutput(unittest.TestCase):
         if not self.real_res:
             self.real_res = self.real_result()
 
-        setup_code, test_code = get_sql_query(pipeline_code, mode, materialized)
+        setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode, materialized)
         pipeline_code_sql = setup_code + "\n" + test_code
         sql_result_p = TestPipelineOutput.dbms_connector_p.run(pipeline_code_sql)[0].astype(float)
         if not materialized:

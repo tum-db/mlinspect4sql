@@ -7,7 +7,7 @@ from mlinspect.utils import get_project_root
 
 # Some parameters you might want check:
 DO_CLEANUP = True
-SIZES = [(10 ** i) for i in range(2, 8, 1)]
+SIZES = [(10 ** i) for i in range(2, 5, 1)]
 BENCH_REP = 3
 MLINSPECT_ROOT_DIR = get_project_root()
 
@@ -107,6 +107,27 @@ def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset siz
     return plt
 
 
-def write_to_log(pipeline_name, size, mode, materialize, csv_file_paths, engine, time):
+def write_to_log(pipeline_name, only_pandas, inspection, size, mode, materialize, engine, time, csv_file_paths):
+    if only_pandas:
+        only_pandas = "ONLY_PANDAS"
+    else:
+        only_pandas = "FULL"
+
+    if inspection:
+        inspection = "INSPECTION"
+    else:
+        inspection = "PURE_RUN"
+
+    if materialize:
+        materialize = "MATERIALIZED"
+    else:
+        materialize = "NON-MATERIALIZED"
+
     with LOG.open("a") as file:
-        file.write(f"{pipeline_name}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',',';')}\n")
+        file.write(
+            f"{pipeline_name}, {only_pandas},{inspection}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',', ';')}\n")
+
+
+def write_brake_to_log():
+    with LOG.open("a") as file:
+        file.write("\n###############################\n")

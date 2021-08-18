@@ -63,6 +63,7 @@ class FitDataCollection:
 call_info_singleton = SklearnCallInfo()
 column_transformer_share = None
 just_transform_run = {}  # whether we are fitting or transforming. | Adapt behaviour!
+last_name_for_concat_fit = None
 
 
 @gorilla.patches(compose.ColumnTransformer)
@@ -361,6 +362,7 @@ class SklearnSimpleImputerPatching:
         # TO_SQL: ###############################################################################################
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
+        backup = copy.deepcopy(args[0])
         tracking_cols = ti.tracking_cols
         all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
@@ -421,10 +423,12 @@ class SklearnSimpleImputerPatching:
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_impute_mlinid{op_id}",
-                                                                 update_name_in_map=False)
+                                                                 cte_name=f"block_impute_mlinid{op_id}")
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        global last_name_for_concat_fit
+        last_name_for_concat_fit = cte_name
 
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
@@ -452,13 +456,12 @@ class SklearnSimpleImputerPatching:
         original = gorilla.get_original_attribute(impute.SimpleImputer, 'transform')
         return transform_logic(original, self, *args, **kwargs)
 
-
-# @gorilla.name('fit')
-# @gorilla.settings(allow_hit=True)
-# def patched_fit(self, *args, **kwargs):
-#     # pylint: disable=no-method-argument
-#     original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
-#     return original(self, *args, **kwargs)
+    # @gorilla.name('fit')
+    # @gorilla.settings(allow_hit=True)
+    # def patched_fit(self, *args, **kwargs):
+    #     # pylint: disable=no-method-argument
+    #     original = gorilla.get_original_attribute(impute.SimpleImputer, 'fit')
+    #     return original(self, *args, **kwargs)
 
 
 @gorilla.patches(preprocessing.OneHotEncoder)
@@ -567,9 +570,12 @@ class SklearnOneHotEncoderPatching:
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_onehot_mlinid{op_id}",
-                                                                 update_name_in_map=False)
+                                                                 cte_name=f"block_onehot_mlinid{op_id}")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        global last_name_for_concat_fit
+        last_name_for_concat_fit = cte_name
+
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
                                                                              curr_sql_expr_name=cte_name,
@@ -708,9 +714,11 @@ class SklearnStandardScalerPatching:
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_stdscaler_mlinid{op_id}",
-                                                                 update_name_in_map=False)
+                                                                 cte_name=f"block_stdscaler_mlinid{op_id}")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        global last_name_for_concat_fit
+        last_name_for_concat_fit = cte_name
 
         if not just_transform:
             fit_data.fully_set = True
@@ -867,9 +875,11 @@ class SklearnKBinsDiscretizerPatching:
                                                                  tracking_cols=tracking_cols,
                                                                  non_tracking_cols=all_cols,
                                                                  operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_kbin_mlinid{op_id}",
-                                                                 update_name_in_map=False)
+                                                                 cte_name=f"block_kbin_mlinid{op_id}")
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+
+        global last_name_for_concat_fit
+        last_name_for_concat_fit = cte_name
 
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
@@ -1529,6 +1539,9 @@ def find_target(code_ref, arg, target_obj):
         name, ti = singleton.mapping.get_name_and_ti(target_obj)
         target_cols = column_transformer_share.cr_to_col_map[code_ref]
         cols_to_drop = column_transformer_share.cols_to_drop
+
+        global last_name_for_concat_fit
+        name = last_name_for_concat_fit if last_name_for_concat_fit is not None else name
     else:
         name, ti = singleton.mapping.get_name_and_ti(arg)
         target_cols = ti.non_tracking_cols

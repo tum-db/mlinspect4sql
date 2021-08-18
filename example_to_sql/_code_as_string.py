@@ -253,71 +253,115 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
     return setup_code + "\n", test_code
 
 
-def get_adult_simple_pipe_code(compas_train=None, compas_test=None, only_pandas=False, include_training=True):
-    if compas_train is None or compas_test is None:
-        compas_train = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_train.csv")'
-        compas_test = 'os.path.join( str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests", "compas", "compas_test.csv")'
+def get_adult_simple_pipe_code(train=None, only_pandas=False, include_training=True):
+    if train is None:
+        train = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                             "adult_complex", "adult_train.csv")
 
     setup_code = cleandoc("""
         import os
         import pandas as pd
-        from mlinspect.utils import get_project_root
+        from sklearn import preprocessing
         """)
 
     test_code = cleandoc(f"""
-        train_data = pd.read_csv({compas_train}, na_values='', index_col=0)
-        test_data = pd.read_csv({compas_test}, na_values='', index_col=0)
-        train_data = train_data[
-            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
-             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
-        test_data = test_data[
-            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
-             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
-
-        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
-        train_data = train_data[train_data['is_recid'] != -1]
-        train_data = train_data[train_data['c_charge_degree'] != "O"]
-        train_data = train_data[train_data['score_text'] != 'N/A']
-
-        train_data = train_data.replace('Medium', "Low")
-        test_data = test_data.replace('Medium', "Low")
-
-        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        train_file = r\"{train}\"
+        raw_data = pd.read_csv(train_file, na_values='', index_col=0)
+        data = raw_data.dropna()
+        labels = preprocessing.label_binarize(data['income-per-year'], classes=['>50K', '<=50K'])
         """)
 
     if not only_pandas:
-        setup_code += "\n" + cleandoc("""
-        from sklearn.compose import ColumnTransformer
-        from sklearn.impute import SimpleImputer
-        from sklearn.linear_model import LogisticRegression
-        from sklearn.pipeline import Pipeline
-        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
+        setup_code += "\n" + cleandoc(""" 
+        from sklearn import compose, tree, pipeline
         """)
 
         training_part = cleandoc("""
-        pipeline = Pipeline([
-            ('features', featurizer),
-            ('classifier', LogisticRegression())
+        income_pipeline = pipeline.Pipeline([
+            ('features', feature_transformation),
+            ('classifier', tree.DecisionTreeClassifier())
         ])
-        pipeline.fit(train_data, train_labels.ravel())
-        print(pipeline.score(test_data, test_labels.ravel()))
+        income_pipeline.fit(data, labels)
         """)
 
         test_code += "\n" + cleandoc("""
-        featurizer = ColumnTransformer(transformers=[
-            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
-            ('impute2_and_bin', impute2_and_bin, ['age'])
+        feature_transformation = compose.ColumnTransformer(transformers=[
+            ('categorical', preprocessing.OneHotEncoder(handle_unknown='ignore'), ['education', 'workclass']),
+            ('numeric', preprocessing.StandardScaler(), ['age', 'hours-per-week'])
         ])
-        """) + training_part
+        """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part, "result = featurisation.fit_transform(test_labels)")
+            test_code = test_code.replace(training_part, "result = feature_transformation.fit_transform(train_data)") \
+                .replace("#", "")
 
     return setup_code + "\n", test_code
 
 
-def get_healthcare_sql_str(pipeline_code, mode, materialize):
+def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, include_training=True):
+    if train is None or test is None:
+        train = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                             "adult_complex", "adult_train.csv")
+        test = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                            "adult_complex", "adult_test.csv")
+
+    setup_code = cleandoc("""
+        import os
+        import pandas as pd
+        """)
+
+    test_code = cleandoc(f"""
+        train_file =  r\"{train}\"
+        train_data = pd.read_csv(train_file, na_values='', index_col=0)
+        test_file =  r\"{test}\"
+        test_data = pd.read_csv(test_file, na_values='', index_col=0)
+        
+        train_labels = preprocessing.label_binarize(train_data['income-per-year'], classes=['>50K', '<=50K'])
+        test_labels = preprocessing.label_binarize(test_data['income-per-year'], classes=['>50K', '<=50K'])
+        """)
+
+    if not only_pandas:
+        setup_code += "\n" + cleandoc(""" 
+        import numpy as np
+        from sklearn import preprocessing
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, StandardScaler
+        from sklearn.tree import DecisionTreeClassifier
+        from mlinspect.utils import get_project_root
+        """)
+
+        training_part = cleandoc("""
+        nested_income_pipeline = Pipeline([
+            ('features', nested_feature_transformation),
+            ('classifier', DecisionTreeClassifier())])
+        
+        nested_income_pipeline.fit(train_data, train_labels)
+        
+        print(nested_income_pipeline.score(test_data, test_labels))
+        """)
+
+        test_code += "\n" + cleandoc("""
+        nested_categorical_feature_transformation = Pipeline([
+            ('impute', SimpleImputer(missing_values=np.nan, strategy='most_frequent')),
+            ('encode', OneHotEncoder(handle_unknown='ignore'))
+        ])
+        nested_feature_transformation = ColumnTransformer(transformers=[
+            ('categorical', nested_categorical_feature_transformation, ['education', 'workclass']),
+            ('numeric', StandardScaler(), ['age', 'hours-per-week'])
+        ])
+        """) + "\n" + training_part
+
+        if not include_training:
+            test_code = test_code.replace(training_part,
+                                          "result = nested_feature_transformation.fit_transform(train_data)") \
+                .replace("#", "")
+
+    return setup_code + "\n", test_code
+
+
+def get_sql_query_for_pipeline(pipeline_code, mode, materialize):
     PipelineInspector \
         .on_pipeline_from_string(pipeline_code) \
         .execute_in_sql(dbms_connector=None, mode=mode, materialize=materialize)
@@ -343,22 +387,3 @@ def print_generated_code():
     for file in generated_files:
         with file.open() as f:
             print(f.read())
-
-
-def get_sql_query(pipeline_code, mode, materialize):
-    PipelineInspector \
-        .on_pipeline_from_string(pipeline_code) \
-        .execute_in_sql(dbms_connector=None, mode=mode, materialize=materialize)
-
-    setup_file = \
-        pathlib.Path(get_project_root() / r"mlinspect/to_sql/generated_code/create_table.sql")
-    test_file = \
-        pathlib.Path(get_project_root() / r"mlinspect/to_sql/generated_code/pipeline.sql")
-
-    with setup_file.open("r") as file:
-        setup_code = file.read()
-
-    with test_file.open("r") as file:
-        test_code = file.read()
-
-    return setup_code, test_code

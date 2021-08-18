@@ -9,6 +9,7 @@ import os
 import pandas
 import tempfile
 import csv
+import re
 
 
 class UmbraConnector(Connector):
@@ -64,6 +65,7 @@ class UmbraConnector(Connector):
         results = []
         for q in super()._prepare_query(sql_query):
             # print(q)  # Very helpful for debugging
+            q = self.fix_avg_overflow(q)
             self.cur.execute(q)
             try:
                 query_output = self.cur.fetchall()
@@ -80,6 +82,7 @@ class UmbraConnector(Connector):
         assert len(sql_queries) != 0
         if len(sql_queries) > 1:
             for q in sql_queries[:-1]:
+                q = self.fix_avg_overflow(q)
                 self.cur.execute(q)
             sql_query = sql_queries[-1]
 
@@ -89,7 +92,8 @@ class UmbraConnector(Connector):
             continue
 
         for _ in range(repetitions):  # Execute the Query multiple times:
-            print(sql_query)
+            # print(sql_query)
+            sql_query = self.fix_avg_overflow(sql_query)
             self.cur.execute(sql_query)
             new_output.append(self.server.stdout.readline().decode("utf-8"))
 
@@ -149,3 +153,14 @@ class UmbraConnector(Connector):
 
         self.run(sql_code)
         return col_names, sql_code
+
+    @staticmethod
+    def fix_avg_overflow(string):
+        """
+        Improvised fix for overflows in AVG in Umbra.
+        """
+        p = re.compile("AVG\(((\S)+)\)")
+        for m in p.findall(string):
+            m = m[0]
+            string = string.replace(f"AVG({m}) ", f"(SUM(0.00001 * {m}) / COUNT(*)) * 100000")
+        return string

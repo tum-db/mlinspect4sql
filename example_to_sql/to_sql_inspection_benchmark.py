@@ -15,12 +15,18 @@ if module_path not in sys.path:
 import timeit
 from inspect import cleandoc
 from mlinspect.utils import get_project_root
-from _code_as_string import get_healthcare_pipe_code, get_compas_pipe_code, print_generated_code
-from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, DO_CLEANUP, SIZES, BENCH_REP, \
+from _code_as_string import get_healthcare_pipe_code, get_compas_pipe_code, get_adult_simple_pipe_code, \
+    get_adult_complex_pipe_code, get_sql_query_for_pipeline
+from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, write_brake_to_log, DO_CLEANUP, SIZES, BENCH_REP, \
     MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from data_generation.compas_data_generation import generate_compas_dataset
 from data_generation.healthcare_data_generation import generate_healthcare_dataset
+from data_generation.adult_data_generation import generate_adult_dataset
+
+from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConnector
+from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
+from pandas_connector import PandasConnector
 
 # Data GenerationCTE
 # To be able to benchmark and compare the different approaches, some datasets
@@ -28,15 +34,17 @@ from data_generation.healthcare_data_generation import generate_healthcare_datas
 # original ones.
 # We only generate the files, that are not already existing:
 
-COMPAS_DATA_PATHS = generate_compas_dataset(SIZES)
-HEALTHCARE_DATA_PATHS = generate_healthcare_dataset(SIZES)
+COMPAS_DATA_PATHS = "c", generate_compas_dataset(SIZES)
+HEALTHCARE_DATA_PATHS = "h", generate_healthcare_dataset(SIZES)
+ADULT_SIMPLE_DATA_PATHS = "as", generate_adult_dataset(SIZES)
+ADULT_COMPLEX_DATA_PATHS = "ac", generate_adult_dataset(SIZES)
+
+POSTGRES_CONNECTOR = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password", port=5432,
+                                         host="localhost")
+PANDAS_CONNECTOR = PandasConnector()
 
 
-# Benchmark setup:
-
-
-def get_inspection_code(pipeline_code, to_sql, dbms_connector, no_bias, mode, materialize=False,
-                        one_run=False):
+def get_inspection_code(pipeline_code, to_sql, dbms_connector, no_bias_list, mode, materialize=False):
     setup_code = cleandoc(f"""
 from inspect import cleandoc
 from mlinspect.utils import get_project_root
@@ -59,7 +67,7 @@ pipeline_code = cleandoc(f\"\"\"{pipeline_code}\"\"\")
 
 pipeline_inspector = PipelineInspector.on_pipeline_from_string(pipeline_code) \\
     .add_custom_monkey_patching_module(custom_monkeypatching) \\
-    .add_check(NoBiasIntroducedFor({no_bias})) \\
+    .add_check(NoBiasIntroducedFor({no_bias_list})) \\
     .add_check(NoIllegalFeatures()) \\
     .add_check(NoMissingEmbeddings()) \\
     .add_required_inspection(RowLineage(5)) \\
@@ -72,13 +80,29 @@ pipeline_inspector = PipelineInspector.on_pipeline_from_string(pipeline_code) \\
     return setup_code, f"pipeline_inspector.execute()"
 
 
-def run(pipeline_code, to_sql=False, dbms_connector=None, no_bias=None, mode=None, materialize=False, one_run=False):
+def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, mode=None, materialize=False,
+        inspection=True):
+    pipeline_code = setup_code + test_code
+    if not inspection:
+        if not to_sql:
+            return PANDAS_CONNECTOR.benchmark_run(pandas_code=test_code, setup_code=setup_code, repetitions=BENCH_REP)
+        elif dbms_connector == 'dbms_connector_p':
+            dbms_connector_engine = POSTGRES_CONNECTOR
+        elif dbms_connector == 'dbms_connector_u':
+            dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+                                                   umbra_dir=UMBRA_DIR)
+        else:
+            raise NotImplementedError
+        setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode=mode, materialize=materialize)
+        dbms_connector_engine.run(setup_code)
+        return dbms_connector_engine.benchmark_run(test_code, repetitions=BENCH_REP)
+
     setup_code, test_code = get_inspection_code(pipeline_code, to_sql, dbms_connector, no_bias,
-                                                mode, materialize, one_run)
+                                                mode, materialize)
     if to_sql:
         result = []
         for i in range(BENCH_REP):
-            # print(f"run {i} of {BENCH_REP} ...")
+            print(f"run {i} of {BENCH_REP} ...")
             # This special case is necessary to deduct the time for dropping the existing tables and views!
             result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in s
         return sum(result) / BENCH_REP
@@ -86,70 +110,124 @@ def run(pipeline_code, to_sql=False, dbms_connector=None, no_bias=None, mode=Non
     return (timeit.timeit(test_code, setup=setup_code, number=BENCH_REP) / BENCH_REP) * 1000  # in s
 
 
-def pipeline_inspection_benchmark(data_paths, no_bias, mode, title, materialize=False):
+def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_training=False, inspection=True):
     pandas_times = []
     postgres_times = []
     umbra_times = []
+
+    target, data_paths = data_paths
+
+    write_brake_to_log()
+
     for i, (path_to_csv_1, path_to_csv_2) in enumerate(data_paths):
         if i >= len(SIZES):
             continue
 
-        if "compas" in str(path_to_csv_1):
-            setup_code, test_code = get_compas_pipe_code(path_to_csv_1, path_to_csv_2, include_training=False)
+        if "c" == target:
+            setup_code, test_code = get_compas_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
+                                                         include_training=with_training)
             pipeline_name = "COMPAS"
-        elif "healthcare" in str(path_to_csv_1):
-            setup_code, test_code = get_healthcare_pipe_code(path_to_csv_1, path_to_csv_2, include_training=False)
+        elif "h" == target:
+            setup_code, test_code = get_healthcare_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
+                                                             include_training=with_training)
             pipeline_name = "HEALTHCARE"
+        elif "as" == target:
+            setup_code, test_code = get_adult_simple_pipe_code(path_to_csv_1, only_pandas=only_pandas,
+                                                               include_training=with_training)
+            pipeline_name = "ADULT_SIMPLE"
+        elif "ac" == target:
+            setup_code, test_code = get_adult_complex_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
+                                                                include_training=with_training)
+            pipeline_name = "ADULT_COMPLEX"
         else:
             assert False
-        pipe_code = setup_code + test_code
 
-        # print(f"Running pandas...  -- size {SIZES[i]}")
-        # pandas_times.append(run(pipe_code, to_sql=False, dbms_connector=None, no_bias=no_bias))
-        # write_to_log(pipeline_name, SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-        #              engine="Pandas",
-        #              time=pandas_times[-1])
-        #
-        # print(f"Running postgres...  -- size {SIZES[i]}")
-        # postgres_times.append(run(pipe_code, True, "dbms_connector_p", no_bias, mode=mode, materialize=materialize))
-        # write_to_log(pipeline_name, SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-        #              engine="PostgreSQL",
-        #              time=postgres_times[-1])
+        print(f"##### Running ...  -- size {SIZES[i]} ######")
+        ################################################################################################################
+        # time Pandas:
 
-        if not materialize:
-            print(f"Running umbra... -- size {SIZES[i]}")
-            umbra_times.append(run(pipe_code, True, "dbms_connector_u", no_bias, mode=mode, materialize=materialize))
-            write_to_log(pipeline_name, SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-                         engine="Umbra", time=umbra_times[-1])
+        pandas_times.append(run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=no_bias,
+                                inspection=inspection))
+        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                     materialize=False, engine="Pandas", time=pandas_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
 
-    names = ["Pandas", "Postgresql", "Umbra"]
-    table = [pandas_times, postgres_times, umbra_times]
-    if not materialize:  # remove non-existing umbra values
-        names = names[:-1]
-        table = table[:-1]
-    plot_compare(title, SIZES, all_y=table, all_y_names=names, save=True)
+        ################################################################################################################
+        # time Postgres:
+        postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+                                  no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
+        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                     materialize=False, engine="PostgreSQL", time=postgres_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
+
+        if mode == "VIEW":
+            # time Postgres materialized:
+            postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+                                      no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
+            write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                         materialize=True, engine="PostgreSQL", time=postgres_times[-1],
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
+
+        ################################################################################################################
+        # time Umbra:
+        umbra_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_u", no_bias=no_bias,
+                               mode=mode, materialize=False, inspection=inspection))
+        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                     materialize=False, engine="Umbra", time=umbra_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        ################################################################################################################
+
+    # names = ["Pandas", f"Postgresql", f"Umbra - Not Materialized"]
+    # table = [pandas_times, postgres_times, umbra_times]
+    # if not materialize:  # remove non-existing umbra values
+    #     names = names[:-1]
+    #     table = table[:-1]
+    # plot_compare(title, SIZES, all_y=table, all_y_names=names, save=True)
 
 
 if __name__ == "__main__":
     healthcare_no_bias = "[\'age_group\', \'race\']"
     compas_no_bias = "[\'sex\', \'race\']"
 
-    # pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="CTE",
+    # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    ####################################################################################################################
+
+    # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
+    # pipeline_benchmark(mode="CTE", only_pandas=False, inspection=False,
+    #                         title="HealthcarePurePipeComparisonFullCTE")
+    #
+    # pipeline_benchmark(mode="VIEW", only_pandas=False, inspection=False,
+    #                         title="HealthcarePurePipeComparisonFullVIEW")
+    ####################################################################################################################
+
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="CTE",
     #                               title="HealthcareInspectionComparisonCTE")
 
     # print("Next benchmark starting!")
-    # pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW",
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW",
     #                               title="HealthcareInspectionComparisonVIEW")
 
     # print("Next benchmark starting!")
     # backup = SIZES
     # SIZES = [(10 ** i) for i in range(2, 6, 1)]
-    # pipeline_inspection_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="CTE",
+    # pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="CTE",
     #                               title="CompasInspectionComparisonCTE")
 
     print("Next benchmark starting!")
-    pipeline_inspection_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW",
-                                  title="CompasInspectionComparisonVIEW")
+    pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW",
+                       title="CompasInspectionComparisonVIEW")
     # SIZES = backup
 
     # # Benchmark of default inspection using MATERIALIZED VIEWs:
@@ -159,20 +237,20 @@ if __name__ == "__main__":
     # In our case only postgres supports this option.
 
     # print("Next benchmark starting!")
-    # pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
     #                               exclude_umbra=True, title="HealthcareInspectionComparisonVIEWMAT")
     #
     # print("Next benchmark starting!")
-    # pipeline_inspection_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
+    # pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
     #                               exclude_umbra=True, title="CompasInspectionComparisonVIEWMAT")
 
     print("Next benchmark starting!")
-    pipeline_inspection_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
-                                  exclude_umbra=True, title="HealthcareInspectionComparisonVIEWMAT")
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
+                       title="HealthcareInspectionComparisonVIEWMAT")
 
     print("Next benchmark starting!")
-    pipeline_inspection_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
-                                  exclude_umbra=True, title="CompasInspectionComparisonVIEWMAT")
+    pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
+                       title="CompasInspectionComparisonVIEWMAT")
 
     # # Main memory usage consideration:
     # Despite the improved runtime, also the main memory usage can profit from relying

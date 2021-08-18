@@ -2,17 +2,17 @@ import pandas
 from example_to_sql._benchmark_utility import ROOT_DIR
 
 
-def generate_compas_dataset(sizes):
+def generate_adult_dataset(sizes):
     """
-    As the compas pipeline does not use any joins, the data will just be augmented, by replicating the existing one.
+    As the adult pipelines dont not use any joins, the data will just be augmented, by replicating the existing one.
     """
-    train_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_train.csv", index_col=0)
-    test_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/compas_test.csv", index_col=0)
+    train_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/adult_train.csv", index_col=0)
+    test_src = pandas.read_csv(ROOT_DIR / r"data_generation/original_csv/adult_test.csv", index_col=0)
 
     paths = []
     for i in sizes:
-        target_paths = (ROOT_DIR / r"data_generation" / f"generated_csv/compas_train_generated_{i}.csv",
-                        ROOT_DIR / r"data_generation" / f"generated_csv/compas_test_generated_{i}.csv")
+        target_paths = (ROOT_DIR / r"data_generation" / f"generated_csv/adult_train_generated_{i}.csv",
+                        ROOT_DIR / r"data_generation" / f"generated_csv/adult_test_generated_{i}.csv")
 
         if not target_paths[0].exists():
             new_train = pandas.concat([train_src] * ((i // len(train_src)) + 1), ignore_index=True)[:i]
@@ -29,4 +29,4 @@ def generate_compas_dataset(sizes):
 
 
 if __name__ == "__main__":
-    generate_compas_dataset([100])
+    generate_adult_dataset([100])

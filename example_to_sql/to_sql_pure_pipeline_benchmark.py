@@ -12,7 +12,7 @@ from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConn
 from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 from mlinspect import PipelineInspector
 from mlinspect.utils import get_project_root
-from _code_as_string import get_healthcare_pipe_code, get_healthcare_sql_str
+from _code_as_string import get_healthcare_pipe_code, get_sql_query_for_pipeline
 from pandas_connector import PandasConnector
 from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, DO_CLEANUP, SIZES, BENCH_REP, \
     MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
@@ -20,6 +20,7 @@ from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, DO_CLEANUP,
 from data_generation.compas_data_generation import generate_compas_dataset
 from data_generation.healthcare_data_generation import generate_healthcare_dataset
 from time import time
+
 # Data Generation:
 # To be able to benchmark and compare the different approaches, some datasets
 # will need to be generated before. The datasets are just and expansion of the
@@ -45,34 +46,37 @@ def pure_pipeline_benchmark(mode, materialize, only_pandas=False, title="Healthc
         setup_code_orig, test_code_orig = get_healthcare_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas,
                                                                    include_training=False)
 
-        setup_code, test_code = get_healthcare_sql_str(setup_code_orig + "\n" + test_code_orig, mode=mode,
-                                                       materialize=materialize)
+        setup_code, test_code = get_sql_query_for_pipeline(setup_code_orig + "\n" + test_code_orig, mode=mode,
+                                                           materialize=materialize)
 
         ################################################################################################################
         # time Umbra:
         if not materialize:
-            umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/", umbra_dir=UMBRA_DIR)
+            umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
+                                   umbra_dir=UMBRA_DIR)
             umbra.run(setup_code)
             umbra_times.append(umbra.benchmark_run(test_code, repetitions=BENCH_REP))
-            write_to_log("HEALTHCARE", SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-                         engine="Umbra", time=umbra_times[-1])
+            write_to_log("HEALTHCARE", only_pandas=only_pandas, inspection=False, size=SIZES[i], mode=mode,
+                         materialize=materialize, engine="Umbra", time=umbra_times[-1],
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
 
         ################################################################################################################
         # time Pandas:
-        t0 =time()
-        pandas_times.append(pandas.benchmark_run(pandas_code=test_code_orig, setup_code=setup_code_orig,
-                                                 repetitions=BENCH_REP))
-        write_to_log("HEALTHCARE", SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-                     engine="Pandas", time=pandas_times[-1])
+        t0 = time()
+        pandas_times.append(pandas.benchmark_run(pandas_code=test_code_orig, setup_code=setup_code_orig, repetitions=BENCH_REP))
+        write_to_log("HEALTHCARE", only_pandas=only_pandas, inspection=False, size=SIZES[i], mode=mode,
+                     materialize=materialize, engine="Pandas", time=pandas_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
         t1 = time()
-        print("runtime: " + str(t1-t0))
+        print("runtime: " + str(t1 - t0))
         ################################################################################################################
         # time Postgres:
-        t0 =time()
+        t0 = time()
         postgres.run(setup_code)
         postgres_times.append(postgres.benchmark_run(test_code, repetitions=BENCH_REP))
-        write_to_log("HEALTHCARE", SIZES[i], mode, materialize, csv_file_paths=[path_to_csv_1, path_to_csv_2],
-                     engine="Postgresql", time=postgres_times[-1])
+        write_to_log("HEALTHCARE", only_pandas=only_pandas, inspection=False, size=SIZES[i], mode=mode,
+                     materialize=materialize, engine="Postgres", time=postgres_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
         t1 = time()
         print("runtime: " + str(t1 - t0))
         ################################################################################################################
@@ -101,12 +105,11 @@ if __name__ == "__main__":
     # pure_pipeline_benchmark(mode="VIEW", materialize=True, only_pandas=False,
     #                         title="HealthcarePurePipeComparisonFullVIEWMAT")
 
-    pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
-                            title="HealthcarePurePipeComparisonFullCTE")
+    # pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
+    #                         title="HealthcarePurePipeComparisonFullCTE")
 
-    # pure_pipeline_benchmark(mode="VIEW", materialize=False, only_pandas=False,
-    #                         title="HealthcarePurePipeComparisonFullVIEW")
-
+    pure_pipeline_benchmark(mode="VIEW", materialize=False, only_pandas=False,
+                            title="HealthcarePurePipeComparisonFullVIEW")
 
     # With OneHotEncoding and SimpleImputer:
     # pure_pipeline_benchmark(add_impute_and_onehot=True, title="HealthcarePurePipeComparisonSimpImpOneHot")

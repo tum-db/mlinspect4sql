@@ -108,7 +108,7 @@ class PipelineExecutor:
             self.dbms_connector = dbms_connector
             if not self.dbms_connector:  # is None
                 print("\nJust translation to SQL is performed! "
-                      "\n-> SQL-Code placed at: mlinspect/to_sql/generated_code\n")
+                      "\n-> SQL-Code placed at: mlinspect/to_sql/generated_code.sql\n")
                 self.dbms_connector = PostgresqlConnector(just_code=True, add_mlinspect_serial=row_wise)
                 checks = None
                 inspections = []
