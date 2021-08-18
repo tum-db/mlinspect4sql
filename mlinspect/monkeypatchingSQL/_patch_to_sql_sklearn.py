@@ -6,7 +6,7 @@ import os
 import pathlib
 
 import sklearn.pipeline
-
+from mlinspect.to_sql.py_to_sql_mapping import TableInfo, OpTree, sql_obj_prefix
 from mlinspect.to_sql.py_to_sql_mapping import OpTree, ColumnTransformerInfo, ColumnTransformerLevel
 from mlinspect.backends._pandas_backend import PandasBackend
 from mlinspect.monkeypatching._monkey_patching_utils import get_dag_node_for_id
@@ -221,6 +221,8 @@ class SklearnComposePatching:
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
 
+        global last_name_for_concat_fit
+        last_name_for_concat_fit = None
         fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
         if not just_transform:
@@ -362,7 +364,6 @@ class SklearnSimpleImputerPatching:
         # TO_SQL: ###############################################################################################
         code_ref = self.mlinspect_optional_code_reference
         name, ti, target_cols, res_for_map, cols_to_drop = find_target(code_ref, args[0], result)
-        backup = copy.deepcopy(args[0])
         tracking_cols = ti.tracking_cols
         all_cols = [x for x in ti.non_tracking_cols if not x in set(cols_to_drop)]
 
@@ -419,16 +420,16 @@ class SklearnSimpleImputerPatching:
 
         add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
-                                                                 tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_cols,
-                                                                 operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_impute_mlinid{op_id}")
+        # cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+        #                                                          tracking_cols=tracking_cols,
+        #                                                          non_tracking_cols=all_cols,
+        #                                                          operation_type=OperatorType.TRANSFORMER,
+        #                                                          cte_name=f"block_impute_mlinid{op_id}")
+
+        cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_impute_mlinid{op_id}", result,
+                                                      tracking_cols, all_cols)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
-
-        global last_name_for_concat_fit
-        last_name_for_concat_fit = cte_name
 
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
@@ -566,15 +567,16 @@ class SklearnOneHotEncoderPatching:
         add_to_col_trans(selection_map=selection_map, from_block=from_block,
                          where_block=where_block, code_ref=code_ref, sql_source=name)
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
-                                                                 tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_cols,
-                                                                 operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_onehot_mlinid{op_id}")
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+        # cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+        #                                                          tracking_cols=tracking_cols,
+        #                                                          non_tracking_cols=all_cols,
+        #                                                          operation_type=OperatorType.TRANSFORMER,
+        #                                                          cte_name=f"block_onehot_mlinid{op_id}")
 
-        global last_name_for_concat_fit
-        last_name_for_concat_fit = cte_name
+        cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_onehot_mlinid{op_id}", result,
+                                                      tracking_cols, all_cols)
+
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
@@ -710,15 +712,16 @@ class SklearnStandardScalerPatching:
 
         add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
-                                                                 tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_cols,
-                                                                 operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_stdscaler_mlinid{op_id}")
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+        # cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+        #                                                          tracking_cols=tracking_cols,
+        #                                                          non_tracking_cols=all_cols,
+        #                                                          operation_type=OperatorType.TRANSFORMER,
+        #                                                          cte_name=f"block_stdscaler_mlinid{op_id}")
 
-        global last_name_for_concat_fit
-        last_name_for_concat_fit = cte_name
+        cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_stdscaler_mlinid{op_id}", result,
+                                                      tracking_cols, all_cols)
+
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         if not just_transform:
             fit_data.fully_set = True
@@ -871,15 +874,16 @@ class SklearnKBinsDiscretizerPatching:
 
         add_to_col_trans(selection_map=selection_map, code_ref=code_ref, sql_source=name)
 
-        cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
-                                                                 tracking_cols=tracking_cols,
-                                                                 non_tracking_cols=all_cols,
-                                                                 operation_type=OperatorType.TRANSFORMER,
-                                                                 cte_name=f"block_kbin_mlinid{op_id}")
-        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
+        # cte_name, sql_code = singleton.sql_logic.finish_sql_call(sql_code, op_id, res_for_map,
+        #                                                          tracking_cols=tracking_cols,
+        #                                                          non_tracking_cols=all_cols,
+        #                                                          operation_type=OperatorType.TRANSFORMER,
+        #                                                          cte_name=f"block_kbin_mlinid{op_id}")
 
-        global last_name_for_concat_fit
-        last_name_for_concat_fit = cte_name
+        cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_kbin_mlinid{op_id}", result,
+                                                      tracking_cols, all_cols)
+
+        singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
         if not just_transform:
             backend_result = singleton.update_hist.sql_update_backend_result(res_for_map, backend_result,
@@ -1648,3 +1652,18 @@ def materialize_query_with_name(name, cols_to_keep):
             new_view_query, new_name = query_update
             singleton.mapping.update_name(name, new_name)
             singleton.dbms_connector.run(new_view_query)
+
+
+def store_current_sklearn_op(sql_code, op_id, cte_name, result, tracking_cols, non_tracking_cols):
+    cte_name, sql_code = singleton.sql_logic.wrap_in_sql_obj(sql_code, op_id, cte_name)
+    new_ti_result = TableInfo(data_object=result,
+                              tracking_cols=tracking_cols,
+                              non_tracking_cols=non_tracking_cols,
+                              operation_type=OperatorType.TRANSFORMER,
+                              origin_context=None)
+    singleton.mapping.add(cte_name, new_ti_result)
+    if singleton.sql_obj.mode == SQLObjRep.VIEW:
+        singleton.dbms_connector.run(sql_code)  # Create the view.
+    global last_name_for_concat_fit
+    last_name_for_concat_fit = cte_name
+    return cte_name, sql_code
