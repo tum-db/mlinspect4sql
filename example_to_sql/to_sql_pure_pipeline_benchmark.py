@@ -98,12 +98,12 @@ if __name__ == "__main__":
     #                         title="HealthcarePurePipeComparisonOnlyPandasVIEWMAT")
 
     # Attention: materialize without inspection makes no sense -> only one execution anyway!
-    pure_pipeline_benchmark(mode="VIEW", materialize=True, only_pandas=False,
-                            title="HealthcarePurePipeComparisonFullVIEWMAT")
+    # pure_pipeline_benchmark(mode="VIEW", materialize=True, only_pandas=False,
+    #                         title="HealthcarePurePipeComparisonFullVIEWMAT")
 
-    # pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
-    #                         title="HealthcarePurePipeComparisonFullCTE")
-    #
+    pure_pipeline_benchmark(mode="CTE", materialize=False, only_pandas=False,
+                            title="HealthcarePurePipeComparisonFullCTE")
+
     # pure_pipeline_benchmark(mode="VIEW", materialize=False, only_pandas=False,
     #                         title="HealthcarePurePipeComparisonFullVIEW")
 

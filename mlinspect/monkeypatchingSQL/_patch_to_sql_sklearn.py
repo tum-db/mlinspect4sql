@@ -164,7 +164,10 @@ class SklearnComposePatching:
                                                          cr_to_col_map=cr_to_col_map,
                                                          target_obj=args[0], cols_to_drop=cols_to_drop)
 
-        result = original(self, *args, **kwargs)
+        if len(args) == 2 and len(kwargs) == 0:
+            result = original(self, args[0], **kwargs)
+        else:
+            result = original(self, *args, **kwargs)
 
         query_levels = column_transformer_share.levels
         # Query optimization for further executions:
@@ -205,7 +208,9 @@ class SklearnComposePatching:
 
             last_sql_name = sql_name
 
-        final_sql_code = "WITH " + final_sql_code[:-2]
+        if len(query_levels) > 1:
+            final_sql_code = "WITH " + final_sql_code
+        final_sql_code = final_sql_code[:-2]
 
         cte_name, sql_code = singleton.sql_logic.finish_sql_call(final_sql_code, op_id, result,
                                                                  tracking_cols=ti.tracking_cols,

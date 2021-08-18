@@ -89,7 +89,7 @@ class UmbraConnector(Connector):
             continue
 
         for _ in range(repetitions):  # Execute the Query multiple times:
-            # print(sql_query)
+            print(sql_query)
             self.cur.execute(sql_query)
             new_output.append(self.server.stdout.readline().decode("utf-8"))
 
