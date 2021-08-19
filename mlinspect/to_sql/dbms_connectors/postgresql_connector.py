@@ -52,6 +52,13 @@ class PostgresqlConnector(Connector):
         exe_times = []
         print("Executing Query in Postgres...") if verbose else 0
 
+        if "MATERIALIZED" in "".join(sql_query):
+            print("MATERIALIZED")
+        if "VIEW" in "".join(sql_query):
+            print("VIEW")
+        else:
+            print("CTE")
+
         sql_queries = super()._prepare_query(sql_query)
         assert len(sql_queries) != 0
 
@@ -71,7 +78,7 @@ class PostgresqlConnector(Connector):
             result = self.cur.fetchall()
             exe_times.append(result[0][0][0]['Execution Time'] + time_for_materialization)
         time = sum(exe_times) / repetitions
-        print(f"Done in {time}!") if verbose else 0
+        print(f"Done in {time}ms!") if verbose else 0
         return time
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,

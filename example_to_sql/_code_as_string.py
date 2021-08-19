@@ -193,18 +193,17 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         import os
         import pandas as pd
         from mlinspect.utils import get_project_root
-        from sklearn.preprocessing import label_binarize
         """)
 
     test_code = cleandoc(f"""
         train_data = pd.read_csv(r\"{compas_train}\", na_values='', index_col=0)
-        test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
+        #test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
         train_data = train_data[
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
-        test_data = test_data[
-            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
-             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        #test_data = test_data[
+        #    ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+        #     'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
         
         train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
         train_data = train_data[train_data['is_recid'] != -1]
@@ -212,10 +211,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
-        test_data = test_data.replace('Medium', "Low")
-        
-        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        #test_data = test_data.replace('Medium', "Low")
         """)
 
     if not only_pandas:
@@ -224,7 +220,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import Pipeline
-        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer
+        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
         """)
 
         training_part = cleandoc("""
@@ -237,6 +233,10 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         """)
 
         test_code += "\n" + cleandoc("""
+        
+        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        
         impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])                       
         impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
@@ -262,19 +262,19 @@ def get_adult_simple_pipe_code(train=None, only_pandas=False, include_training=T
     setup_code = cleandoc("""
         import os
         import pandas as pd
-        from sklearn import preprocessing
         """)
 
     test_code = cleandoc(f"""
         train_file = r\"{train}\"
         raw_data = pd.read_csv(train_file, na_values='', index_col=0)
         data = raw_data.dropna()
-        labels = preprocessing.label_binarize(data['income-per-year'], classes=['>50K', '<=50K'])
+
         """)
 
     if not only_pandas:
         setup_code += "\n" + cleandoc(""" 
         from sklearn import compose, tree, pipeline
+        from sklearn import preprocessing
         """)
 
         training_part = cleandoc("""
@@ -286,6 +286,8 @@ def get_adult_simple_pipe_code(train=None, only_pandas=False, include_training=T
         """)
 
         test_code += "\n" + cleandoc("""
+        labels = preprocessing.label_binarize(data['income-per-year'], classes=['>50K', '<=50K'])
+                
         feature_transformation = compose.ColumnTransformer(transformers=[
             ('categorical', preprocessing.OneHotEncoder(handle_unknown='ignore'), ['education', 'workclass']),
             ('numeric', preprocessing.StandardScaler(), ['age', 'hours-per-week'])

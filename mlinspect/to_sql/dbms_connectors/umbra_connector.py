@@ -77,6 +77,9 @@ class UmbraConnector(Connector):
         return results_to_np_array(results)
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
+        """
+        Returns time in ms.
+        """
         print("Executing Query in Umbra...") if verbose else 0
         sql_queries = super()._prepare_query(sql_query)
         assert len(sql_queries) != 0
@@ -105,8 +108,8 @@ class UmbraConnector(Connector):
             except ValueError:
                 continue  # No execution time found here..
         bench_time = result_exec_times_sum / repetitions
-        print(f"Done in {bench_time}!") if verbose else 0
-        return bench_time
+        print(f"Done in {bench_time * 1000}ms!") if verbose else 0
+        return bench_time * 1000
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):

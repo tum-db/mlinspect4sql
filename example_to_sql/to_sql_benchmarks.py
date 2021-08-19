@@ -104,10 +104,10 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
         for i in range(BENCH_REP):
             print(f"run {i + 1} of {BENCH_REP} ...")
             # This special case is necessary to deduct the time for dropping the existing tables and views!
-            result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in s
+            result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in ms
         return sum(result) / BENCH_REP
 
-    return (timeit.timeit(test_code, setup=setup_code, number=BENCH_REP) / BENCH_REP) * 1000  # in s
+    return (timeit.timeit(test_code, setup=setup_code, number=BENCH_REP) / BENCH_REP) * 1000  # in ms
 
 
 def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_train=False, inspection=True):
@@ -145,28 +145,28 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
         print(f"##### Running ...  -- size {SIZES[i]} ######")
         ################################################################################################################
         # time Pandas:
-
-        pandas_times.append(run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=no_bias,
-                                inspection=inspection))
-        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-                     materialize=False, engine="Pandas", time=pandas_times[-1],
-                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
-
-        ################################################################################################################
-        # time Postgres:
-        postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
-                                  no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
-        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-                     materialize=False, engine="PostgreSQL", time=postgres_times[-1],
-                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
-
-        if mode == "VIEW":
-            # time Postgres materialized:
-            postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
-                                      no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
-            write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-                         materialize=True, engine="PostgreSQL", time=postgres_times[-1],
-                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        #
+        # pandas_times.append(run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=no_bias,
+        #                         inspection=inspection))
+        # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+        #              materialize=False, engine="Pandas", time=pandas_times[-1],
+        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        #
+        # ################################################################################################################
+        # # time Postgres:
+        # postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+        #                           no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
+        # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+        #              materialize=False, engine="PostgreSQL", time=postgres_times[-1],
+        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        #
+        # if mode == "VIEW" and inspection:
+        #     # time Postgres materialized:
+        #     postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+        #                               no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
+        #     write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+        #                  materialize=True, engine="PostgreSQL", time=postgres_times[-1],
+        #                  csv_file_paths=[path_to_csv_1, path_to_csv_2])
 
         ################################################################################################################
         # time Umbra:
@@ -197,16 +197,18 @@ if __name__ == "__main__":
     # In our case only postgres supports this option.
 
     # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
     pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
-    # TODO: only selected parts:
+    # Only selected parts: -> manually changed in the code providing function: "get_compas_pipe_code" what was changed
+    # is described in the paper.
     # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
     # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
-    # TODO: only selected parts:
+    # No relevant pandas share: -> so not covered. Still is available and functioning, if of interest.
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 

@@ -75,7 +75,7 @@ def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset siz
     # plot function: https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.plot.html#matplotlib.axes.Axes.plot
     # first arguments set y_value range , x is set to 0..N-1 for now
 
-    plt.legend(loc="upper left")
+    plt.legend(loc="upper left", prop={'size': 8})
     axis.set_xticks(range(0, len(x)))
     axis.set_xticklabels(x)
     axis.set_axisbelow(True)
@@ -125,7 +125,7 @@ def write_to_log(pipeline_name, only_pandas, inspection, size, mode, materialize
 
     with LOG.open("a") as file:
         file.write(
-            f"{pipeline_name}, {only_pandas},{inspection}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',', ';')}\n")
+            f"{pipeline_name}, {only_pandas}, {inspection}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',', ';')}\n")
 
 
 def write_brake_to_log():
