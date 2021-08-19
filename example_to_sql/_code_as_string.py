@@ -193,6 +193,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         import os
         import pandas as pd
         from mlinspect.utils import get_project_root
+        from sklearn.preprocessing import label_binarize
         """)
 
     test_code = cleandoc(f"""
@@ -211,10 +212,10 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
-        #test_data = test_data.replace('Medium', "Low")
+        test_data = test_data.replace('Medium', "Low")
         
-        #train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        #test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
         """)
 
     if not only_pandas:
@@ -223,7 +224,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import Pipeline
-        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
+        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer
         """)
 
         training_part = cleandoc("""
@@ -292,7 +293,7 @@ def get_adult_simple_pipe_code(train=None, only_pandas=False, include_training=T
         """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part, "result = feature_transformation.fit_transform(train_data)") \
+            test_code = test_code.replace(training_part, "result = feature_transformation.fit_transform(data)") \
                 .replace("#", "")
 
     return setup_code + "\n", test_code
@@ -308,6 +309,7 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
     setup_code = cleandoc("""
         import os
         import pandas as pd
+        from sklearn import preprocessing
         """)
 
     test_code = cleandoc(f"""
@@ -323,7 +325,6 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
     if not only_pandas:
         setup_code += "\n" + cleandoc(""" 
         import numpy as np
-        from sklearn import preprocessing
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
         from sklearn.pipeline import Pipeline
@@ -351,11 +352,11 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
             ('categorical', nested_categorical_feature_transformation, ['education', 'workclass']),
             ('numeric', StandardScaler(), ['age', 'hours-per-week'])
         ])
+        result = nested_feature_transformation.fit_transform(train_data, train_labels)
         """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part,
-                                          "result = nested_feature_transformation.fit_transform(train_data)") \
+            test_code = test_code.replace(training_part, "") \
                 .replace("#", "")
 
     return setup_code + "\n", test_code

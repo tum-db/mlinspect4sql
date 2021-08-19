@@ -102,7 +102,7 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
     if to_sql:
         result = []
         for i in range(BENCH_REP):
-            print(f"run {i} of {BENCH_REP} ...")
+            print(f"run {i + 1} of {BENCH_REP} ...")
             # This special case is necessary to deduct the time for dropping the existing tables and views!
             result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in s
         return sum(result) / BENCH_REP
@@ -110,7 +110,7 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
     return (timeit.timeit(test_code, setup=setup_code, number=BENCH_REP) / BENCH_REP) * 1000  # in s
 
 
-def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_training=False, inspection=True):
+def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_train=False, inspection=True):
     pandas_times = []
     postgres_times = []
     umbra_times = []
@@ -125,19 +125,19 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
 
         if "c" == target:
             setup_code, test_code = get_compas_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
-                                                         include_training=with_training)
+                                                         include_training=with_train)
             pipeline_name = "COMPAS"
         elif "h" == target:
             setup_code, test_code = get_healthcare_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
-                                                             include_training=with_training)
+                                                             include_training=with_train)
             pipeline_name = "HEALTHCARE"
         elif "as" == target:
             setup_code, test_code = get_adult_simple_pipe_code(path_to_csv_1, only_pandas=only_pandas,
-                                                               include_training=with_training)
+                                                               include_training=with_train)
             pipeline_name = "ADULT_SIMPLE"
         elif "ac" == target:
             setup_code, test_code = get_adult_complex_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
-                                                                include_training=with_training)
+                                                                include_training=with_train)
             pipeline_name = "ADULT_COMPLEX"
         else:
             assert False
@@ -188,47 +188,7 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
 if __name__ == "__main__":
     healthcare_no_bias = "[\'age_group\', \'race\']"
     compas_no_bias = "[\'sex\', \'race\']"
-
-    # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
-
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
-
-    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
-
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
-
-    ####################################################################################################################
-
-    # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
-    # pipeline_benchmark(mode="CTE", only_pandas=False, inspection=False,
-    #                         title="HealthcarePurePipeComparisonFullCTE")
-    #
-    # pipeline_benchmark(mode="VIEW", only_pandas=False, inspection=False,
-    #                         title="HealthcarePurePipeComparisonFullVIEW")
-    ####################################################################################################################
-
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="CTE",
-    #                               title="HealthcareInspectionComparisonCTE")
-
-    # print("Next benchmark starting!")
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW",
-    #                               title="HealthcareInspectionComparisonVIEW")
-
-    # print("Next benchmark starting!")
-    # backup = SIZES
-    # SIZES = [(10 ** i) for i in range(2, 6, 1)]
-    # pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="CTE",
-    #                               title="CompasInspectionComparisonCTE")
-
-    print("Next benchmark starting!")
-    pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW",
-                       title="CompasInspectionComparisonVIEW")
-    # SIZES = backup
+    adult_no_bias = "[\'race\']"
 
     # # Benchmark of default inspection using MATERIALIZED VIEWs:
     # While doing the default inspection, parts of the generated code get executed multiple times. This is the reason
@@ -236,21 +196,67 @@ if __name__ == "__main__":
     # more that ONCE.
     # In our case only postgres supports this option.
 
-    # print("Next benchmark starting!")
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
-    #                               exclude_umbra=True, title="HealthcareInspectionComparisonVIEWMAT")
+    # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    # TODO: only selected parts:
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    # TODO: only selected parts:
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+
+    ####################################################################################################################
+
+    # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
     #
-    # print("Next benchmark starting!")
-    # pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
-    #                               exclude_umbra=True, title="CompasInspectionComparisonVIEWMAT")
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    #
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    #
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    ####################################################################################################################
 
-    print("Next benchmark starting!")
-    pipeline_benchmark(HEALTHCARE_DATA_PATHS, healthcare_no_bias, mode="VIEW", materialize=True,
-                       title="HealthcareInspectionComparisonVIEWMAT")
+    # INSPECTION OF THE PURE PIPELINE: - FULL: #########################################################################
 
-    print("Next benchmark starting!")
-    pipeline_benchmark(COMPAS_DATA_PATHS, compas_no_bias, mode="VIEW", materialize=True,
-                       title="CompasInspectionComparisonVIEWMAT")
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True)
+    #
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
+    #
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
+    #
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
+
+    ####################################################################################################################
+
+    # END-TO-END incl. TRAINING OF THE PURE PIPELINE: - FULL: ##########################################################
+
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+
+    ####################################################################################################################
 
     # # Main memory usage consideration:
     # Despite the improved runtime, also the main memory usage can profit from relying
@@ -277,6 +283,6 @@ if __name__ == "__main__":
     # print("pandas_times: " + str(run(pipe_code, to_sql=False, dbms_connector=None, no_bias=healthcare_no_bias)))
     # print("Pandas run done!")
 
-    # Clean_up:
-    if DO_CLEANUP:
-        [f.unlink() for f in PLOT_DIR.glob("*_.png") if f.is_file()]
+    # # Clean_up:
+    # if DO_CLEANUP:
+    #     [f.unlink() for f in PLOT_DIR.glob("*_.png") if f.is_file()]

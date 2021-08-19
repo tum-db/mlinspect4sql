@@ -23,7 +23,7 @@ def generate_adult_dataset(sizes):
             new_train.to_csv(target_paths[1], index=True, index_label="")
 
         paths.append(target_paths)
-        print(f"Data generated or found for: size = {i} -- compas")
+        print(f"Data generated or found for: size = {i} -- adult")
 
     return paths
 

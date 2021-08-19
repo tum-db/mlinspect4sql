@@ -125,7 +125,7 @@ class TestInspectionOutput(unittest.TestCase):
     #     Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY -> for non_random part!
     #     """
     #     assert self.full_equality(self.ADULT_SIMPLE_FILE_PY, bias=self.ADULT_SIMPLE_BIAS)
-    #
+
     # def test_CTE_inspection_output_equality_adult_complex(self):
     #     """
     #     Tests that all inspection results are equal for ADULT_COMPLEX_FILE_PY -> for non_random part!
