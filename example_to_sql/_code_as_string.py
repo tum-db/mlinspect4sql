@@ -197,11 +197,11 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
 
     test_code = cleandoc(f"""
         train_data = pd.read_csv(r\"{compas_train}\", na_values='', index_col=0)
-        #test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
+        # test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
         train_data = train_data[
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
-        #test_data = test_data[
+        # test_data = test_data[
         #    ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
         #     'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
         
@@ -211,7 +211,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
-        #test_data = test_data.replace('Medium', "Low")
+        # test_data = test_data.replace('Medium', "Low")
         """)
 
     if not only_pandas:
@@ -235,7 +235,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         test_code += "\n" + cleandoc("""
         
         train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        #test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
         
         impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])                       
@@ -248,8 +248,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part, "result = featurizer.fit_transform(train_data)") \
-                .replace("#", "")
+            test_code = test_code.replace(training_part, "result = featurizer.fit_transform(train_data)")
 
     return setup_code + "\n", test_code
 
@@ -295,8 +294,7 @@ def get_adult_simple_pipe_code(train=None, only_pandas=False, include_training=T
         """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part, "result = feature_transformation.fit_transform(data)") \
-                .replace("#", "")
+            test_code = test_code.replace(training_part, "result = feature_transformation.fit_transform(data)")
 
     return setup_code + "\n", test_code
 
@@ -317,11 +315,10 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
     test_code = cleandoc(f"""
         train_file =  r\"{train}\"
         train_data = pd.read_csv(train_file, na_values='', index_col=0)
-        test_file =  r\"{test}\"
-        test_data = pd.read_csv(test_file, na_values='', index_col=0)
-        
+        # test_file =  r\"{test}\"
+        # test_data = pd.read_csv(test_file, na_values='', index_col=0)
         train_labels = preprocessing.label_binarize(train_data['income-per-year'], classes=['>50K', '<=50K'])
-        test_labels = preprocessing.label_binarize(test_data['income-per-year'], classes=['>50K', '<=50K'])
+        # test_labels = preprocessing.label_binarize(test_data['income-per-year'], classes=['>50K', '<=50K'])
         """)
 
     if not only_pandas:
@@ -358,8 +355,7 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
         """) + "\n" + training_part
 
         if not include_training:
-            test_code = test_code.replace(training_part, "") \
-                .replace("#", "")
+            test_code = test_code.replace(training_part, "")
 
     return setup_code + "\n", test_code
 

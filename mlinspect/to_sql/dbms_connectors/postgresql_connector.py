@@ -71,8 +71,7 @@ class PostgresqlConnector(Connector):
                     time_for_materialization += result[0][0][0]['Execution Time']
                 else:
                     self.cur.execute(q)
-            sql_query = sql_queries[-1]
-
+        sql_query = sql_queries[-1]
         for _ in range(repetitions):
             self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")
             result = self.cur.fetchall()
@@ -84,6 +83,7 @@ class PostgresqlConnector(Connector):
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
         """ See parent. """
+        index_col = -1
         if "index_col" in kwargs:
             index_col = kwargs["index_col"]  # This will be used as serial
 

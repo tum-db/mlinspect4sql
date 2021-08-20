@@ -83,6 +83,9 @@ pipeline_inspector = PipelineInspector.on_pipeline_from_string(pipeline_code) \\
 def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, mode=None, materialize=False,
         inspection=True):
     pipeline_code = setup_code + test_code
+
+    # print(pipeline_code)
+
     if not inspection:
         if not to_sql:
             return PANDAS_CONNECTOR.benchmark_run(pandas_code=test_code, setup_code=setup_code, repetitions=BENCH_REP)
@@ -127,14 +130,17 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
             setup_code, test_code = get_compas_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
                                                          include_training=with_train)
             pipeline_name = "COMPAS"
+
         elif "h" == target:
             setup_code, test_code = get_healthcare_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
                                                              include_training=with_train)
             pipeline_name = "HEALTHCARE"
+
         elif "as" == target:
             setup_code, test_code = get_adult_simple_pipe_code(path_to_csv_1, only_pandas=only_pandas,
                                                                include_training=with_train)
             pipeline_name = "ADULT_SIMPLE"
+
         elif "ac" == target:
             setup_code, test_code = get_adult_complex_pipe_code(path_to_csv_1, path_to_csv_2, only_pandas=only_pandas,
                                                                 include_training=with_train)
@@ -145,22 +151,23 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
         print(f"##### Running ...  -- size {SIZES[i]} ######")
         ################################################################################################################
         # time Pandas:
-        #
-        # pandas_times.append(run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=no_bias,
-        #                         inspection=inspection))
-        # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-        #              materialize=False, engine="Pandas", time=pandas_times[-1],
-        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
-        #
-        # ################################################################################################################
-        # # time Postgres:
-        # postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
-        #                           no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
-        # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-        #              materialize=False, engine="PostgreSQL", time=postgres_times[-1],
-        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
-        #
-        # if mode == "VIEW" and inspection:
+
+        pandas_times.append(run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=no_bias,
+                                inspection=inspection))
+        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                     materialize=False, engine="Pandas", time=pandas_times[-1],
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
+
+        ################################################################################################################
+        # time Postgres:
+        if mode == "CTE":
+            postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+                                      no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
+            write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                         materialize=False, engine="PostgreSQL", time=postgres_times[-1],
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
+
+        # if mode == "VIEW" and not only_pandas:
         #     # time Postgres materialized:
         #     postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
         #                               no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
@@ -170,11 +177,11 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
 
         ################################################################################################################
         # time Umbra:
-        umbra_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_u", no_bias=no_bias,
-                               mode=mode, materialize=False, inspection=inspection))
-        write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-                     materialize=False, engine="Umbra", time=umbra_times[-1],
-                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        # umbra_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_u", no_bias=no_bias,
+        #                        mode=mode, materialize=False, inspection=inspection))
+        # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+        #              materialize=False, engine="Umbra", time=umbra_times[-1],
+        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
         ################################################################################################################
 
     # names = ["Pandas", f"Postgresql", f"Umbra - Not Materialized"]
@@ -197,8 +204,8 @@ if __name__ == "__main__":
     # In our case only postgres supports this option.
 
     # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
-    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
     # Only selected parts: -> manually changed in the code providing function: "get_compas_pipe_code" what was changed
     # is described in the paper.
@@ -215,16 +222,16 @@ if __name__ == "__main__":
     ####################################################################################################################
 
     # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
     # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
     ####################################################################################################################
 
