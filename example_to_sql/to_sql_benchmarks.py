@@ -105,7 +105,7 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
     if to_sql:
         result = []
         for i in range(BENCH_REP):
-            print(f"run {i + 1} of {BENCH_REP} ...")
+            print(f"SQL run {i + 1} of {BENCH_REP} ...")
             # This special case is necessary to deduct the time for dropping the existing tables and views!
             result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in ms
         return sum(result) / BENCH_REP
@@ -167,13 +167,13 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
                          materialize=False, engine="PostgreSQL", time=postgres_times[-1],
                          csv_file_paths=[path_to_csv_1, path_to_csv_2])
 
-        # if mode == "VIEW" and not only_pandas:
-        #     # time Postgres materialized:
-        #     postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
-        #                               no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
-        #     write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
-        #                  materialize=True, engine="PostgreSQL", time=postgres_times[-1],
-        #                  csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        if mode == "VIEW" and not only_pandas:
+            # time Postgres materialized:
+            postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
+                                      no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
+            write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
+                         materialize=True, engine="PostgreSQL", time=postgres_times[-1],
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
 
         ################################################################################################################
         # time Umbra:
@@ -222,17 +222,17 @@ if __name__ == "__main__":
     ####################################################################################################################
 
     # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
-    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
 
     pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
 
     pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
 
     pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
     ####################################################################################################################
 
     # INSPECTION OF THE PURE PIPELINE: - FULL: #########################################################################
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True)
     #
     # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
+    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
     #
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)

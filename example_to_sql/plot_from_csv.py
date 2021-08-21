@@ -74,16 +74,16 @@ def plot_bench_file(path):
 if __name__ == "__main__":
     # PLOT FOR ONLY PANDAS RUN:
     # plot_bench_file(
-    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/compas_simple_only_pandas_pure_pipe.csv")
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/only_pandas/compas_simple_only_pandas_pure_pipe.csv")
     # plot_bench_file(
-    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/healthcare_only_pandas_pure_pipe.csv")
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/only_pandas/healthcare_only_pandas_pure_pipe.csv")
 
     # PLOT FOR FULL RUN:
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/a_healthcare_full_pure_pipe.csv")
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/b_compas_full_pure_pipe.csv")
     plot_bench_file(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/a_healthcare_full_pure_pipe.csv")
+        r"/example_to_sql/plots/full/c_adult_simple_full_pure_pipe.csv")
     plot_bench_file(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/b_compas_full_pure_pipe.csv")
-    plot_bench_file(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/c_adult_simple_full_pure_pipe.csv")
-    plot_bench_file(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/d_adult_complex_full_pure_pipe.csv")
+        r"/example_to_sql/plots/full/d_adult_complex_full_pure_pipe.csv")

@@ -63,7 +63,7 @@ class FitDataCollection:
 call_info_singleton = SklearnCallInfo()
 column_transformer_share = None
 just_transform_run = {}  # whether we are fitting or transforming. | Adapt behaviour!
-last_name_for_concat_fit = None
+last_name_for_concat_fit = {}
 
 
 @gorilla.patches(compose.ColumnTransformer)
@@ -222,7 +222,7 @@ class SklearnComposePatching:
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code, cols_to_keep=cols_to_keep)
 
         global last_name_for_concat_fit
-        last_name_for_concat_fit = None
+        last_name_for_concat_fit = {}
         fit_data.fully_set = True
         # TO_SQL DONE! ##########################################################################################
         if not just_transform:
@@ -427,7 +427,7 @@ class SklearnSimpleImputerPatching:
         #                                                          cte_name=f"block_impute_mlinid{op_id}")
 
         cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_impute_mlinid{op_id}", result,
-                                                      tracking_cols, all_cols)
+                                                      tracking_cols, all_cols, target_cols)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -574,7 +574,7 @@ class SklearnOneHotEncoderPatching:
         #                                                          cte_name=f"block_onehot_mlinid{op_id}")
 
         cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_onehot_mlinid{op_id}", result,
-                                                      tracking_cols, all_cols)
+                                                      tracking_cols, all_cols, target_cols)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -719,7 +719,7 @@ class SklearnStandardScalerPatching:
         #                                                          cte_name=f"block_stdscaler_mlinid{op_id}")
 
         cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_stdscaler_mlinid{op_id}", result,
-                                                      tracking_cols, all_cols)
+                                                      tracking_cols, all_cols, target_cols)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -881,7 +881,7 @@ class SklearnKBinsDiscretizerPatching:
         #                                                          cte_name=f"block_kbin_mlinid{op_id}")
 
         cte_name, sql_code = store_current_sklearn_op(sql_code, op_id, f"block_kbin_mlinid{op_id}", result,
-                                                      tracking_cols, all_cols)
+                                                      tracking_cols, all_cols, target_cols)
 
         singleton.pipeline_container.add_statement_to_pipe(cte_name, sql_code)
 
@@ -1544,8 +1544,11 @@ def find_target(code_ref, arg, target_obj):
         target_cols = column_transformer_share.cr_to_col_map[code_ref]
         cols_to_drop = column_transformer_share.cols_to_drop
 
+        # Here we need to take the original object or the one we want to build upon:
         global last_name_for_concat_fit
-        name = last_name_for_concat_fit if last_name_for_concat_fit is not None else name
+        intersection_cols = [col for col in target_cols if col in last_name_for_concat_fit.keys()]
+        if intersection_cols:
+            name = last_name_for_concat_fit[intersection_cols[0]] if last_name_for_concat_fit is not None else name
     else:
         name, ti = singleton.mapping.get_name_and_ti(arg)
         target_cols = ti.non_tracking_cols
@@ -1654,7 +1657,7 @@ def materialize_query_with_name(name, cols_to_keep):
             singleton.dbms_connector.run(new_view_query)
 
 
-def store_current_sklearn_op(sql_code, op_id, cte_name, result, tracking_cols, non_tracking_cols):
+def store_current_sklearn_op(sql_code, op_id, cte_name, result, tracking_cols, non_tracking_cols, target_cols):
     cte_name, sql_code = singleton.sql_logic.wrap_in_sql_obj(sql_code, op_id, cte_name)
     new_ti_result = TableInfo(data_object=result,
                               tracking_cols=tracking_cols,
@@ -1664,6 +1667,10 @@ def store_current_sklearn_op(sql_code, op_id, cte_name, result, tracking_cols, n
     singleton.mapping.add(cte_name, new_ti_result)
     if singleton.sql_obj.mode == SQLObjRep.VIEW:
         singleton.dbms_connector.run(sql_code)  # Create the view.
+
+    # Store info of where the newest column should be taken from:
     global last_name_for_concat_fit
-    last_name_for_concat_fit = cte_name
+    for col in target_cols:
+        last_name_for_concat_fit[col] = cte_name
+
     return cte_name, sql_code

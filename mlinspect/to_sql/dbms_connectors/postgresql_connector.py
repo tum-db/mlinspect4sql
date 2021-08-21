@@ -3,6 +3,7 @@ from mlinspect.to_sql.dbms_connectors.dbms_connector import Connector
 from .connector_utility import results_to_np_array
 import psycopg2
 import pandas
+import time
 
 
 class PostgresqlConnector(Connector):
@@ -21,7 +22,8 @@ class PostgresqlConnector(Connector):
         if just_code:
             return
         super().__init__(dbname, user, password, port, host)
-        self.connection = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
+        self.db_settings = {"dbname": dbname, "user": user, "password": password, "port": port, "host": host}
+        self.connection = psycopg2.connect(**self.db_settings)
         self.cur = self.connection.cursor()
 
     def __del__(self):
@@ -66,19 +68,27 @@ class PostgresqlConnector(Connector):
         if len(sql_queries) > 1:
             for q in sql_queries[:-1]:
                 if "MATERIALIZED" in q:
-                    self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + q[:-1] + ";")
-                    result = self.cur.fetchall()
-                    time_for_materialization += result[0][0][0]['Execution Time']
+                    t0 = time.time()
+                    self.cur.execute(q[:-1])
+                    t1 = time.time()
+                    time_for_materialization += t1-t0
                 else:
                     self.cur.execute(q)
         sql_query = sql_queries[-1]
         for _ in range(repetitions):
-            self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")
-            result = self.cur.fetchall()
-            exe_times.append(result[0][0][0]['Execution Time'] + time_for_materialization)
-        time = sum(exe_times) / repetitions
-        print(f"Done in {time}ms!") if verbose else 0
-        return time
+            # self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")
+            # result = self.cur.fetchall()
+            # exe_times.append(result[0][0][0]['Execution Time'] + time_for_materialization)
+
+            # This seems more reliable: (but includes time for server to return output)
+            t0 = time.time()
+            self.cur.execute(sql_query)
+            t1 = time.time()
+            exe_times.append((t1-t0) * 1000) # for ms
+
+        t = sum(exe_times) / repetitions
+        print(f"Done in {t}ms!") if verbose else 0
+        return t
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
