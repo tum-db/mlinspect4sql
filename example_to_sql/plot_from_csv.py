@@ -28,7 +28,7 @@ def plot_bench_file(path):
 
             materialized = line_parts[5]
             time = float(line_parts[7])
-            if line_parts[6] == "Pandas" and mode == "CTE":
+            if line_parts[6] == "Pandas":
                 pandas.append(time)
 
             elif line_parts[6] == "PostgreSQL":
@@ -79,11 +79,21 @@ if __name__ == "__main__":
     #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/only_pandas/healthcare_only_pandas_pure_pipe.csv")
 
     # PLOT FOR FULL RUN:
-    # plot_bench_file(
-    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/a_healthcare_full_pure_pipe.csv")
-    # plot_bench_file(
-    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/b_compas_full_pure_pipe.csv")
     plot_bench_file(
-        r"/example_to_sql/plots/full/c_adult_simple_full_pure_pipe.csv")
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/a_healthcare_full_pure_pipe.csv")
+    plot_bench_file(
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/b_compas_full_pure_pipe.csv")
+    plot_bench_file(
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/full/c_adult_simple_full_inspection.csv")
     plot_bench_file(
         r"/example_to_sql/plots/full/d_adult_complex_full_pure_pipe.csv")
+
+    # PLOT FOR FULL INSPECTION:
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/a_healthcare_full_inspection.csv")
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/b_compas_full_inspection.csv")
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/c_adult_simple_full_inspection.csv")
+    # plot_bench_file(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/final_plots/d_adult_complex_full_inspection.csv")

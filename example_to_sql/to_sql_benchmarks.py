@@ -156,16 +156,16 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
                                 inspection=inspection))
         write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
                      materialize=False, engine="Pandas", time=pandas_times[-1],
-                     csv_file_paths=[path_to_csv_1, path_to_csv_2])
+                     csv_file_paths=[path_to_csv_1, path_to_csv_2], with_train=with_train)
 
         ################################################################################################################
         # time Postgres:
-        if mode == "CTE":
+        if mode == "CTE" or only_pandas:
             postgres_times.append(run(setup_code, test_code, to_sql=True, dbms_connector="dbms_connector_p",
                                       no_bias=no_bias, mode=mode, materialize=False, inspection=inspection))
             write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
                          materialize=False, engine="PostgreSQL", time=postgres_times[-1],
-                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2], with_train=with_train)
 
         if mode == "VIEW" and not only_pandas:
             # time Postgres materialized:
@@ -173,7 +173,7 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
                                       no_bias=no_bias, mode=mode, materialize=True, inspection=inspection))
             write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
                          materialize=True, engine="PostgreSQL", time=postgres_times[-1],
-                         csv_file_paths=[path_to_csv_1, path_to_csv_2])
+                         csv_file_paths=[path_to_csv_1, path_to_csv_2], with_train=with_train)
 
         ################################################################################################################
         # time Umbra:
@@ -181,7 +181,7 @@ def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_t
         #                        mode=mode, materialize=False, inspection=inspection))
         # write_to_log(pipeline_name, only_pandas=only_pandas, inspection=inspection, size=SIZES[i], mode=mode,
         #              materialize=False, engine="Umbra", time=umbra_times[-1],
-        #              csv_file_paths=[path_to_csv_1, path_to_csv_2])
+        #              csv_file_paths=[path_to_csv_1, path_to_csv_2], with_train=with_train)
         ################################################################################################################
 
     # names = ["Pandas", f"Postgresql", f"Umbra - Not Materialized"]
@@ -222,17 +222,18 @@ if __name__ == "__main__":
     ####################################################################################################################
 
     # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
+
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    #
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    #
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-
-    pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-
-    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-
-    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    #
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
     ####################################################################################################################
 
     # INSPECTION OF THE PURE PIPELINE: - FULL: #########################################################################
@@ -240,11 +241,11 @@ if __name__ == "__main__":
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True)
     #
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
-    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
-    #
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
+    #
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
     #
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
@@ -253,17 +254,39 @@ if __name__ == "__main__":
 
     # END-TO-END incl. TRAINING OF THE PURE PIPELINE: - FULL: ##########################################################
 
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
+    orig_health = "h", [
+        (
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv",
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv"
+        )
+    ]
+
+    orig_compas = "c", [
+        (
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv",
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv"
+        )
+    ]
+
+    orig_adult_paths = [
+        (
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv",
+        r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv"
+        )
+    ]
+
+    # pipeline_benchmark(original_health, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
+    pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
     # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
     #
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
+    # pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
     #
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    # pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
     #
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    # pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    # pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
 
     ####################################################################################################################
 

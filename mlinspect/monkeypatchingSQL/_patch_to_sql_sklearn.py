@@ -1031,7 +1031,19 @@ class SklearnModelSelectionPatching:
 
             operator_context = OperatorContext(OperatorType.TRAIN_TEST_SPLIT, function_info)
             input_infos = SklearnBackend.before_call(operator_context, [input_info.annotated_dfobject])
-            result = original(input_infos[0].result_data, *args[1:], **kwargs)
+
+            # try with dummy objects, if not possible mimic split:
+            try:
+                # print(input_infos[0].result_data)
+                result = original(input_infos[0].result_data, *args[1:], **kwargs)
+                # print("after:")
+                # print(result)
+            except ValueError:
+                result = [input_infos[0].result_data,
+                          copy.deepcopy(input_infos[0].result_data)]  # is a list of two objects.
+                # print(f"exeption: {result[0].columns} {result[1].columns}")
+                # print(result)
+
             backend_result = SklearnBackend.after_call(operator_context,
                                                        input_infos,
                                                        result)  # We ignore the test set for now

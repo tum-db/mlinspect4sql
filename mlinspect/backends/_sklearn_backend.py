@@ -45,8 +45,11 @@ class SklearnBackend(Backend):
                                                                          test_data,
                                                                          True)
             input_infos[0].result_data.drop("mlinspect_index", axis=1, inplace=True)
-            train_data.drop("mlinspect_index", axis=1, inplace=True)
-            test_data.drop("mlinspect_index", axis=1, inplace=True)
+            try:
+                train_data.drop("mlinspect_index", axis=1, inplace=True)
+                test_data.drop("mlinspect_index", axis=1, inplace=True)
+            except KeyError:
+                pass
             return_value = BackendResult(train_return_value.annotated_dfobject,
                                          train_return_value.dag_node_annotation,
                                          test_return_value.annotated_dfobject,

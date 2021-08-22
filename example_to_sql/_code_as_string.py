@@ -162,7 +162,7 @@ def get_healthcare_pipe_code(path_patients=None, path_histories=None, only_panda
                     ])
                     train_data, test_data = train_test_split(data)
                     model = pipeline.fit(train_data, train_data['label'])
-                    print("Mean accuracy: {}".format(model.score(test_data, test_data['label'])))
+                    print("Mean accuracy: " + str(model.score(test_data, test_data['label'])) )
                     """)
 
         test_code += "\n" + cleandoc("""
