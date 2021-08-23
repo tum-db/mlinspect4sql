@@ -4,10 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 from mlinspect.utils import get_project_root
+from mlinspect.utils import store_timestamp
+import time
 
 # Some parameters you might want check:
 DO_CLEANUP = True
-SIZES = [(10 ** i) for i in range(2, 6, 1)]
+SIZES = [(10 ** i) for i in range(6, 7, 1)]
 BENCH_REP = 1
 MLINSPECT_ROOT_DIR = get_project_root()
 
@@ -47,6 +49,7 @@ rc = {
 
 seaborn.set_theme(context="paper", font='Franklin Gothic Book', font_scale=1.2, style="whitegrid", palette=COLOR_SET,
                   rc=rc)
+plt.legend(loc="upper left", prop={'size': 10}, title=None)
 
 
 def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset size (rows)", y_label="runtime (ms)",
@@ -75,7 +78,6 @@ def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset siz
     # plot function: https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.plot.html#matplotlib.axes.Axes.plot
     # first arguments set y_value range , x is set to 0..N-1 for now
 
-    plt.legend(loc="upper left", prop={'size': 8})
     axis.set_xticks(range(0, len(x)))
     axis.set_xticklabels(x)
     axis.set_axisbelow(True)
@@ -96,6 +98,52 @@ def plot_compare(title, x, all_y, all_y_names, colors=None, x_label="dataset siz
     axis.set_facecolor('white')
     axis.axis('equal')
     axis.set(xlabel=x_label, ylabel=y_label)
+    axis.grid(True, color='lightgrey')
+
+    if save:
+        save_path = ROOT_DIR / f"plots/{title}.png"
+        if save_path.exists():
+            save_path = ROOT_DIR / f"plots/{title}_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S_')}.png"
+        figure.savefig(save_path, bbox_inches='tight', dpi=800)
+
+    return plt
+
+
+def bar_plot_compare(title, data, colors=None, save=True, shape=(4., 4.), y_axis_ticks=None):
+    """
+    Based on: mlinspect/experiments/performance/performance_benchmarks.ipynb
+    Args:
+        title (str): Title of the plot
+        x (list): List of values for the x-axis
+        all_y (list): List of lists containing the values for the y-axis
+        all_y_names (list): List of strings for the names of the plots - same order as the list all_y
+        colors (list or None): optional colors for the graphs passed in all_y
+        x_label (str)
+        y_label (str):
+    """
+
+    plt.rcParams["figure.figsize"] = shape
+
+    if colors is None:
+        colors = COLOR_SET
+
+    figure, axis = plt.subplots()
+    axis = seaborn.barplot(x="operation", y="runtime (ms)", hue="engine", data=data, linewidth=0)
+    axis.set_axisbelow(True)
+
+    if y_axis_ticks is not None:
+        axis.set_yticks(y_axis_ticks)
+
+    axis.set(xlabel=None)
+    plt.legend(title=None)
+
+
+    # axis.set_yscale('log')  # sets the scale to be logarithmic with powers of 10
+    plt.xticks(rotation=30)
+
+    axis.set_facecolor('white')
+    # axis.axis('equal')
+    # axis.set(xlabel=x_label, ylabel=y_label)
     axis.grid(True, color='lightgrey')
 
     if save:

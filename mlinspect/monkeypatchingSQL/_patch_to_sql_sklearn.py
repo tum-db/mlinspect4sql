@@ -33,6 +33,9 @@ from mlinspect.monkeypatching._patch_numpy import MlinspectNdarray
 
 from dataclasses import dataclass
 from typing import Dict
+from mlinspect.utils import store_timestamp
+import time
+
 
 pandas.options.mode.chained_assignment = None  # default='warn'
 
@@ -1034,15 +1037,10 @@ class SklearnModelSelectionPatching:
 
             # try with dummy objects, if not possible mimic split:
             try:
-                # print(input_infos[0].result_data)
                 result = original(input_infos[0].result_data, *args[1:], **kwargs)
-                # print("after:")
-                # print(result)
             except ValueError:
                 result = [input_infos[0].result_data,
                           copy.deepcopy(input_infos[0].result_data)]  # is a list of two objects.
-                # print(f"exeption: {result[0].columns} {result[1].columns}")
-                # print(result)
 
             backend_result = SklearnBackend.after_call(operator_context,
                                                        input_infos,
@@ -1067,6 +1065,7 @@ class SklearnModelSelectionPatching:
 
             name, ti = singleton.mapping.get_name_and_ti(target_obj)
 
+            # Random reordering for split:
             row_num_addition = f"WITH row_num_mlinspect_split AS(\n" \
                                f"\tSELECT *, (ROW_NUMBER() OVER({index_mlinspect})) AS row_number_mlinspect\n" \
                                f"\tFROM (SELECT * FROM {name} ORDER BY RANDOM()) {name}\n" \
@@ -1245,6 +1244,7 @@ class SklearnKerasClassifierPatching:
         global just_the_model
         if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
             return just_the_model
+
         original(just_the_model, args_0, args_1)
 
         return just_the_model
@@ -1509,8 +1509,9 @@ class SklearnLogisticRegressionPatching:
         global just_the_model
         if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
             return just_the_model
+        # t0 = time.time()
         original(just_the_model, args_0, args_1)
-
+        # store_timestamp(f"TRAINING MODEL", time.time() - t0, "SQL")
         return just_the_model
 
 
@@ -1525,11 +1526,17 @@ class SklearnPipeline:
                                                          comment="MODEL SCORE: INPUT DATA")
         args_1 = retrieve_data_from_dbms_get_opt_backend(args[1],
                                                          comment="MODEL SCORE: EXPECTED OUTPUT DATA")
-
         if hasattr(singleton.dbms_connector, "just_code") and singleton.dbms_connector.just_code:
             return ""
         # Here we fake using the python pipeline, and return the result obtained by working with the SQL output!
-        return just_the_model.score(args_0, args_1)
+        if len(args_0) != len(args_1):
+            min_len = min(len(args_0), len(args_1))
+            args_0 = args_0[:min_len]
+            args_1 = args_1[:min_len]
+        # t0 = time.time()
+        score = just_the_model.score(args_0, args_1)
+        # store_timestamp(f"SCORE MODEL", time.time() - t0, "SQL")
+        return score
 
     @gorilla.name('predict')
     @gorilla.settings(allow_hit=True)

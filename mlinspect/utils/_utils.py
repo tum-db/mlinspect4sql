@@ -11,6 +11,19 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent.parent
 
 
+time_so_far = 0
+
+
+def store_timestamp(last_op, t, engine_name="UNKNOWN") -> None:
+    t = t * 1000  # in ms
+    mlin_root = get_project_root()
+    target = mlin_root / r"example_to_sql/plots/aRunLog.csv"
+    global time_so_far
+    time_so_far += t
+    with target.open("a") as f:
+        f.write(f"{last_op}, {t}, {time_so_far}, {engine_name}\n")
+
+
 def get_sorted_node_parents(graph, node_with_parents):
     """
     Get the parent nodes of a WIR node sorted by argument index.

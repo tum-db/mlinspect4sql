@@ -3,7 +3,8 @@ import pathlib
 from mlinspect import PipelineInspector
 from mlinspect.utils import get_project_root
 import os
-
+from mlinspect.utils import store_timestamp
+import time
 
 # ########################################### FOR THE SIMPLE OP BENCHMARK ##############################################
 class Join:
@@ -197,13 +198,13 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
 
     test_code = cleandoc(f"""
         train_data = pd.read_csv(r\"{compas_train}\", na_values='', index_col=0)
-        # test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
+        test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
         train_data = train_data[
             ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
              'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
-        # test_data = test_data[
-        #    ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
-        #     'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        test_data = test_data[
+           ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+            'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
         
         train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
         train_data = train_data[train_data['is_recid'] != -1]
@@ -211,7 +212,7 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         train_data = train_data[train_data['score_text'] != 'N/A']
         
         train_data = train_data.replace('Medium', "Low")
-        # test_data = test_data.replace('Medium', "Low")
+        test_data = test_data.replace('Medium', "Low")
         """)
 
     if not only_pandas:
@@ -235,8 +236,121 @@ def get_compas_pipe_code(compas_train=None, compas_test=None, only_pandas=False,
         test_code += "\n" + cleandoc("""
         
         train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
-        #test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
         
+        impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
+                               ('onehot', OneHotEncoder(handle_unknown='ignore'))])                       
+        impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
+                            ('discretizer', KBinsDiscretizer(n_bins=4, encode='ordinal', strategy='uniform'))])             
+        featurizer = ColumnTransformer(transformers=[
+            ('impute1_and_onehot', impute1_and_onehot, ['is_recid']),
+            ('impute2_and_bin', impute2_and_bin, ['age'])
+        ])
+        """) + "\n" + training_part
+
+        if not include_training:
+            test_code = test_code.replace(training_part, "result = featurizer.fit_transform(train_data)")
+
+    return setup_code + "\n", test_code
+
+
+def get_compas_pipe_code_with_timestamps(compas_train=None, compas_test=None, only_pandas=False, include_training=True,
+                                         engine_name=""):
+    engine_name = f"\"{engine_name}\""
+
+    if compas_train is None or compas_test is None:
+        compas_train = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                                    "compas", "compas_train.csv")
+        compas_test = os.path.join(str(get_project_root()), "test", "monkeypatchingSQL", "pipelines_for_tests",
+                                   "compas", "compas_test.csv")
+
+    setup_code = cleandoc("""
+        import os
+        import pandas as pd
+        from mlinspect.utils import get_project_root, store_timestamp
+        import time
+        """)
+
+    test_code = cleandoc(f"""
+        t0 = time.time()
+        train_data = pd.read_csv(r\"{compas_train}\", na_values='', index_col=0)
+        store_timestamp("LOAD CSV 1", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        test_data = pd.read_csv(r\"{compas_test}\", na_values='', index_col=0)
+        store_timestamp("LOAD CSV 2", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        train_data = train_data[
+            ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+             'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        store_timestamp("PROJECT TRAIN", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        test_data = test_data[
+           ['sex', 'dob', 'age', 'c_charge_degree', 'race', 'score_text', 'priors_count', 'days_b_screening_arrest',
+            'decile_score', 'is_recid', 'two_year_recid', 'c_jail_in', 'c_jail_out']]
+        store_timestamp("PROJECT TEST", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        train_data = train_data[(train_data['days_b_screening_arrest'] <= 30) & (train_data['days_b_screening_arrest'] >= -30)]
+        store_timestamp("SELECT TRAIN 1", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        train_data = train_data[train_data['is_recid'] != -1]
+        store_timestamp("SELECT TRAIN 2", time.time() - t0, {engine_name})
+                
+        t0 = time.time()
+        train_data = train_data[train_data['c_charge_degree'] != "O"]
+        store_timestamp("SELECT TRAIN 3", time.time() - t0, {engine_name})
+                
+        t0 = time.time()
+        train_data = train_data[train_data['score_text'] != 'N/A']
+        store_timestamp("SELECT TRAIN 4", time.time() - t0, {engine_name})
+                
+        t0 = time.time()
+
+        train_data = train_data.replace('Medium', "Low")
+        store_timestamp("REPLACE TRAIN", time.time() - t0, {engine_name})
+                
+        t0 = time.time()
+        test_data = test_data.replace('Medium', "Low")
+        store_timestamp("REPLACE TEST", time.time() - t0, {engine_name})
+                
+        """)
+
+    if not only_pandas:
+        setup_code += "\n" + cleandoc("""
+        from sklearn.compose import ColumnTransformer
+        from sklearn.impute import SimpleImputer
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import OneHotEncoder, KBinsDiscretizer, label_binarize
+        """)
+
+        training_part = cleandoc(f"""
+        t0 = time.time()
+        pipeline = Pipeline([
+            ('features', featurizer),
+            ('classifier', LogisticRegression())
+        ])
+        pipeline.fit(train_data, train_labels.ravel())
+        store_timestamp("PIPELINE+MODEL FIT", time.time() - t0, {engine_name})
+        t0 = time.time()
+        print(pipeline.score(test_data, test_labels.ravel()))
+        store_timestamp("PIPELINE+MODEL SCORE", time.time() - t0, {engine_name})
+        """)
+
+        test_code += "\n" + cleandoc(f"""
+        
+        t0 = time.time()
+        train_labels = label_binarize(train_data['score_text'], classes=['High', 'Low'])
+        store_timestamp("BINARIZE TRAIN", time.time() - t0, {engine_name})
+        
+        t0 = time.time()
+        test_labels = label_binarize(test_data['score_text'], classes=['High', 'Low'])
+        store_timestamp("BINARIZE TEST", time.time() - t0, {engine_name})
+
         impute1_and_onehot = Pipeline([('imputer1', SimpleImputer(strategy='most_frequent')),
                                ('onehot', OneHotEncoder(handle_unknown='ignore'))])                       
         impute2_and_bin = Pipeline([('imputer2', SimpleImputer(strategy='mean')),
@@ -315,10 +429,10 @@ def get_adult_complex_pipe_code(train=None, test=None, only_pandas=False, includ
     test_code = cleandoc(f"""
         train_file =  r\"{train}\"
         train_data = pd.read_csv(train_file, na_values='', index_col=0)
-        # test_file =  r\"{test}\"
-        # test_data = pd.read_csv(test_file, na_values='', index_col=0)
+        test_file =  r\"{test}\"
+        test_data = pd.read_csv(test_file, na_values='', index_col=0)
         train_labels = preprocessing.label_binarize(train_data['income-per-year'], classes=['>50K', '<=50K'])
-        # test_labels = preprocessing.label_binarize(test_data['income-per-year'], classes=['>50K', '<=50K'])
+        test_labels = preprocessing.label_binarize(test_data['income-per-year'], classes=['>50K', '<=50K'])
         """)
 
     if not only_pandas:

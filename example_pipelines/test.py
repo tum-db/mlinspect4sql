@@ -75,22 +75,22 @@ def run_inspection(file_location, bias, to_sql, dbms_connector=None, mode=None, 
 
 
 def run_for_all(file_location, bias, mode="", materialize=None):
-    t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=False)
-    t1 = time.time()
-    print("\nTime spend with original: " + str(t1 - t0))
-
-    t0 = time.time()
-    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
-                   materialize=materialize)
-    t1 = time.time()
-    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    # t0 = time.time()
+    # run_inspection(file_location=file_location, bias=bias, to_sql=False)
+    # t1 = time.time()
+    # print("\nTime spend with original: " + str(t1 - t0))
 
     # t0 = time.time()
-    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
-    #                materialize=False)
+    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
+    #                materialize=materialize)
     # t1 = time.time()
     # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+
+    t0 = time.time()
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
+                   materialize=False)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 
 umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
