@@ -108,18 +108,18 @@ class TestInspectionOutput(unittest.TestCase):
     # ATTENTION: Only use one test at a time: executing multiple will trigger a bug in gorillas, and some functions
     # won't be caught correctly any more.
 
-    def test_CTE_inspection_output_equality_healthcare(self):
-        """
-        Tests that all inspection results are equal for HEALTHCARE_FILE_PY -> for non_random part!
-        """
-        assert self.full_equality(self.HEALTHCARE_FILE_PY_R, bias=self.HEALTHCARE_BIAS)
+    # def test_CTE_inspection_output_equality_healthcare(self):
+    #     """
+    #     Tests that all inspection results are equal for HEALTHCARE_FILE_PY -> for non_random part!
+    #     """
+    #     assert self.full_equality(self.HEALTHCARE_FILE_PY_R, bias=self.HEALTHCARE_BIAS)
 
-    # def test_CTE_inspection_output_equality_compas(self):
-    #     """
-    #     Tests that all inspection results are equal for COMPAS_FILE_PY -> for non_random part!
-    #     """
-    #     assert self.full_equality(self.COMPAS_FILE_PY, bias=self.COMPAS_BIAS)
-    #
+    def test_CTE_inspection_output_equality_compas(self):
+        """
+        Tests that all inspection results are equal for COMPAS_FILE_PY -> for non_random part!
+        """
+        assert self.full_equality(self.COMPAS_FILE_PY, bias=self.COMPAS_BIAS)
+
     # def test_CTE_inspection_output_equality_adult_simple(self):
     #     """
     #     Tests that all inspection results are equal for ADULT_SIMPLE_FILE_PY -> for non_random part!
@@ -133,5 +133,5 @@ class TestInspectionOutput(unittest.TestCase):
     #     assert self.full_equality(self.ADULT_COMPLEX_FILE_PY, bias=self.ADULT_COMPLEX_BIAS)
 
 
-if __name__ == '__main__':
-    unittest.main()
+# if __name__ == '__main__':
+#     unittest.main()

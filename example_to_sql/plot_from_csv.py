@@ -150,6 +150,7 @@ def plot_bench_file_precise(path, title):
         ignore_index=True)
 
     print("db_overhead_cost_sum: " + str(db_overhead_cost_sum))
+    # print(data.to_markdown())
     bar_plot_compare(title, data=data, save=True, shape=(12., 4.))
 
     return data_2
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     data_info_2 = plot_bench_file_precise(
         r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/precise/compas_end_to_end_precise_1000000.csv",
         "PRECISE_COMPARE_COMPAS_1000000")
-    data_info_2.columns = ["engine", "operation", "runtime (ms)"]
-
-    bar_plot_compare("PRECISE_COMPARE_COMPAS_1000000_INFO", data=data_info_1.append(data_info_2), save=True,
-                     shape=(4., 4.), y_axis_ticks=range(0, 2000, 200))
+    # data_info_2.columns = ["engine", "operation", "runtime (ms)"]
+    #
+    # bar_plot_compare("PRECISE_COMPARE_COMPAS_1000000_INFO", data=data_info_1.append(data_info_2), save=True,
+    #                  shape=(4., 4.), y_axis_ticks=range(0, 2000, 200))

@@ -252,7 +252,7 @@ if __name__ == "__main__":
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
 
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
+    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
     # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
     #
     # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
@@ -262,26 +262,26 @@ if __name__ == "__main__":
 
     # END-TO-END incl. TRAINING OF THE PURE PIPELINE: - FULL: ##########################################################
 
-    orig_health = "h", [
-        (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv"
-        )
-    ]
-
-    orig_compas = "c", [
-        (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv"
-        )
-    ]
-
-    orig_adult_paths = [
-        (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv"
-        )
-    ]
+    # orig_health = "h", [
+    #     (
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv",
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv"
+    #     )
+    # ]
+    #
+    # orig_compas = "c", [
+    #     (
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv",
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv"
+    #     )
+    # ]
+    #
+    # orig_adult_paths = [
+    #     (
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv",
+    #         r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv"
+    #     )
+    # ]
 
     # pipeline_benchmark(original_health, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
     # pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
@@ -302,8 +302,8 @@ if __name__ == "__main__":
     ####################################################################################################################
 
     # END-TO-END incl. TIMING OF TRAINING OF THE PURE PIPELINE: - FULL: ################################################
-    COMPAS_DATA_PATHS = "c_t", COMPAS_DATA_PATHS[1]
-    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
+    # COMPAS_DATA_PATHS = "c_t", COMPAS_DATA_PATHS[1]
+    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
     ####################################################################################################################
 
     # # Main memory usage consideration:

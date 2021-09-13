@@ -75,16 +75,16 @@ def run_inspection(file_location, bias, to_sql, dbms_connector=None, mode=None, 
 
 
 def run_for_all(file_location, bias, mode="", materialize=None):
-    # t0 = time.time()
-    # run_inspection(file_location=file_location, bias=bias, to_sql=False)
-    # t1 = time.time()
-    # print("\nTime spend with original: " + str(t1 - t0))
+    t0 = time.time()
+    run_inspection(file_location=file_location, bias=bias, to_sql=False)
+    t1 = time.time()
+    print("\nTime spend with original: " + str(t1 - t0))
 
-    # t0 = time.time()
-    # run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
-    #                materialize=materialize)
-    # t1 = time.time()
-    # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
+    t0 = time.time()
+    run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_p, mode=mode,
+                   materialize=materialize)
+    t1 = time.time()
+    print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
     t0 = time.time()
     run_inspection(file_location=file_location, bias=bias, to_sql=True, dbms_connector=dbms_connector_u, mode=mode,
@@ -201,9 +201,9 @@ if __name__ == "__main__":
     #
     # run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="VIEW", materialize=False)
     # run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="VIEW", materialize=True)
-    run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="CTE", materialize=False)
+    # run_for_all(file_location=HEALTHCARE_FILE_PY,       bias=HEALTHCARE_BIAS,       mode="VIEW", materialize=True)
 
-    # run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=False)
+    run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=False)
     # run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="VIEW", materialize=True)
     # run_for_all(file_location=COMPAS_FILE_PY,           bias=COMPAS_BIAS,           mode="CTE", materialize=False)
 

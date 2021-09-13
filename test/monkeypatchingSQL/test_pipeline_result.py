@@ -9,12 +9,11 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 import pathlib
 from inspect import cleandoc
 import numpy as np
-from example_to_sql._code_as_string import get_healthcare_pipe_code, get_sql_query_for_pipeline
+from example_to_sql._code_as_string import get_healthcare_pipe_code, get_sql_query_for_pipeline, get_compas_pipe_code, get_adult_simple_pipe_code, get_adult_complex_pipe_code
 
 
 # !/usr/bin/env python -W ignore::DeprecationWarning
 class TestPipelineOutput(unittest.TestCase):
-    real_res = None
 
     dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
                                            port=5432,
@@ -25,19 +24,22 @@ class TestPipelineOutput(unittest.TestCase):
                                       umbra_dir=umbra_path)
 
     @staticmethod
-    def real_result():
-        setup_code, test_code = get_healthcare_pipe_code(only_pandas=False, include_training=False)
-        pipeline_code = setup_code + "\n" + test_code
+    def real_result(pipeline_code):
         script_scope = {}
         exec(compile(pipeline_code, filename="xxx", mode="exec"), script_scope)
         return script_scope["result"]
 
-    def full_equality(self, mode, materialized):
-        setup_code, test_code = get_healthcare_pipe_code(only_pandas=False, include_training=False)
+    def full_equality(self, mode, materialized, target="h"):
+        if "h" == target:
+            setup_code, test_code = get_healthcare_pipe_code(only_pandas=False, include_training=False)
+            # pipeline_name = "HEALTHCARE"
+        elif "c" == target:
+            setup_code, test_code = get_compas_pipe_code(only_pandas=False, include_training=False)
+            # pipeline_name = "COMPAS"
+
         pipeline_code = setup_code + "\n" + test_code
 
-        if not self.real_res:
-            self.real_res = self.real_result()
+        real_res = self.real_result(pipeline_code)
 
         setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode, materialized)
         pipeline_code_sql = setup_code + "\n" + test_code
@@ -49,23 +51,26 @@ class TestPipelineOutput(unittest.TestCase):
         # sql_result[sql_result == ""] = "nan"
 
         # Row-Order is irrelevant!
-        return np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(self.real_res.flat, axis=0)) and \
-               np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(self.real_res.flat, axis=0))
+        return np.allclose(np.sort(sql_result_p.flat, axis=0), np.sort(real_res.flat, axis=0)) and \
+               np.allclose(np.sort(sql_result_u.flat, axis=0), np.sort(real_res.flat, axis=0))
 
     def test_pipeline_result_for_equality(self):
         """
         Tests that all inspection results are equal for HEALTHCARE_FILE_PY!
         """
-        assert self.full_equality(mode="VIEW", materialized=False)
+        assert self.full_equality(mode="VIEW", materialized=False, target="h")
+        assert self.full_equality(mode="VIEW", materialized=False, target="c")
 
     def test_pipeline_result_for_equality_cte(self):
         """
         Tests that all inspection results are equal for HEALTHCARE_FILE_PY!
         """
-        assert self.full_equality(mode="CTE", materialized=False)
+        assert self.full_equality(mode="CTE", materialized=False, target="h")
+        assert self.full_equality(mode="CTE", materialized=False, target="c")
 
     def test_pipeline_result_for_equality_view_mat(self):
         """
         Tests that all inspection results are equal for HEALTHCARE_FILE_PY!
         """
-        assert self.full_equality(mode="VIEW", materialized=True)
+        assert self.full_equality(mode="VIEW", materialized=True, target="h")
+        assert self.full_equality(mode="VIEW", materialized=True, target="c")

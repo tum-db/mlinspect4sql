@@ -36,7 +36,6 @@ from typing import Dict
 from mlinspect.utils import store_timestamp
 import time
 
-
 pandas.options.mode.chained_assignment = None  # default='warn'
 
 
@@ -58,7 +57,7 @@ class FitDataCollection:
     """
     Data Container for the fitted variables of SimpleImpute.
     """
-    impute_col_to_fit_block_name: Dict[str, str]
+    col_to_fit_block_name: Dict[str, str]
     fully_set: bool
     extra_info = {}  # For the KBin
 
@@ -381,12 +380,12 @@ class SklearnSimpleImputerPatching:
                     # Access fitted data if possible:
                     if not fit_data.fully_set:
                         fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_max_count(name, col)
-                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        fit_data.col_to_fit_block_name[col] = fit_lookup_table
                         singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                         if singleton.sql_obj.mode == SQLObjRep.VIEW:
                             singleton.dbms_connector.run(fit_lookup_code)
                     else:
-                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                        fit_lookup_table = fit_data.col_to_fit_block_name[col]
 
                     select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
                     selection_map[col] = select_block[-1]
@@ -401,12 +400,12 @@ class SklearnSimpleImputerPatching:
                     # Access fitted data if possible:
                     if not fit_data.fully_set:
                         fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_mean(name, col)
-                        fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                        fit_data.col_to_fit_block_name[col] = fit_lookup_table
                         singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                         if singleton.sql_obj.mode == SQLObjRep.VIEW:
                             singleton.dbms_connector.run(fit_lookup_code)
                     else:
-                        fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                        fit_lookup_table = fit_data.col_to_fit_block_name[col]
 
                     select_block.append(f"\tCOALESCE({col}, (SELECT * FROM {fit_lookup_table})) AS {col}")
                     selection_map[col] = select_block[-1]
@@ -544,12 +543,12 @@ class SklearnOneHotEncoderPatching:
                 # Access fitted data if possible:
                 if not fit_data.fully_set:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.column_one_hot_encoding(name, col)
-                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    fit_data.col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                     if singleton.sql_obj.mode == SQLObjRep.VIEW:
                         singleton.dbms_connector.run(fit_lookup_code)
                 else:
-                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                    fit_lookup_table = fit_data.col_to_fit_block_name[col]
 
                 select_block.append(f"\t{col[:-1]}_one_hot\" AS {col}")
                 from_block.append(f"{fit_lookup_table}")
@@ -693,12 +692,12 @@ class SklearnStandardScalerPatching:
                 # Access fitted data if possible:
                 if not fit_data.fully_set:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.std_scalar_values(name, col)
-                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    fit_data.col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                     if singleton.sql_obj.mode == SQLObjRep.VIEW:
                         singleton.dbms_connector.run(fit_lookup_code)
                 else:
-                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                    fit_lookup_table = fit_data.col_to_fit_block_name[col]
 
                 select_block.append(
                     f"\t(({col} - (SELECT avg_col_std_scal FROM {fit_lookup_table})) / "
@@ -844,6 +843,8 @@ class SklearnKBinsDiscretizerPatching:
                     min_lookup_code = f"SELECT MIN({col}) AS min_val from {name} "
                     min_lookup_table, min_lookup_code = singleton.sql_logic.wrap_in_sql_obj(min_lookup_code,
                                                                                             block_name=min_lookup_table)
+                    min_lookup_table, min_lookup_code = singleton.sql_logic.materialize_if_possible(min_lookup_table,
+                                                                                                    min_lookup_code)
                     singleton.pipeline_container.add_statement_to_pipe(min_lookup_table, min_lookup_code)
                     if singleton.sql_obj.mode == SQLObjRep.VIEW:
                         singleton.dbms_connector.run(min_lookup_code)
@@ -851,19 +852,21 @@ class SklearnKBinsDiscretizerPatching:
 
                     # create table for step_sizes:
                     fit_lookup_table, fit_lookup_code = singleton.sql_logic.step_size_kbin(name, col, num_bins)
-                    fit_data.impute_col_to_fit_block_name[col] = fit_lookup_table
+                    fit_data.col_to_fit_block_name[col] = fit_lookup_table
                     singleton.pipeline_container.add_statement_to_pipe(fit_lookup_table, fit_lookup_code)
                     if singleton.sql_obj.mode == SQLObjRep.VIEW:
                         singleton.dbms_connector.run(fit_lookup_code)
                 else:
-                    fit_lookup_table = fit_data.impute_col_to_fit_block_name[col]
+                    fit_lookup_table = fit_data.col_to_fit_block_name[col]
                     min_lookup_table = fit_data.extra_info[col]
 
-                select_block_sub = "\t(CASE\n"
-                for i in range(num_bins - 1):
-                    select_block_sub += f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) + " \
-                                        f"{i + 1} * (SELECT step FROM {fit_lookup_table}) THEN {i}\n"
-                select_block_sub += f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
+                select_block_sub = "\t(CASE\n" \
+                                   f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
+                                   f" (SELECT step FROM {fit_lookup_table}) THEN 0\n" \
+                                   f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
+                                   f" {num_bins - 1} * (SELECT step FROM {fit_lookup_table}) " \
+                                   f"THEN FLOOR(({col} - (SELECT min_val FROM {min_lookup_table}))/(SELECT step FROM {fit_lookup_table}))\n" \
+                    f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
 
                 select_block.append(select_block_sub)
                 selection_map[col] = select_block[-1]

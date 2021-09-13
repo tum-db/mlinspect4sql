@@ -18,19 +18,19 @@ import time
 warnings.filterwarnings('ignore')
 
 COUNTIES_OF_INTEREST = ['county2', 'county3']
-# t0 = time.time()
-# patients = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
-#                                     "patients.csv"), na_values='')
-# histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
-#                                      "histories.csv"), na_values='')
-# store_timestamp("patients = pd.read_csv .. & histories = pd.read_csv ..", time.time()-t0)
-
 t0 = time.time()
-patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_100000.csv",
-    na_values='?')
-histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_100000.csv",
-    na_values='?')
+patients = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
+                                    "patients.csv"), na_values='')
+histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines", "healthcare",
+                                     "histories.csv"), na_values='')
 store_timestamp("patients = pd.read_csv .. & histories = pd.read_csv ..", time.time()-t0)
+
+# t0 = time.time()
+# patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_100000.csv",
+#     na_values='?')
+# histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_100000.csv",
+#     na_values='?')
+# store_timestamp("patients = pd.read_csv .. & histories = pd.read_csv ..", time.time()-t0)
 
 
 t0 = time.time()

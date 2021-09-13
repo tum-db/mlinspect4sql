@@ -4,29 +4,30 @@ import pandas
 
 class Connector(abc.ABC):
     """
-    This Class represents an interface to the user to provide a DBMS.
+    This Class represents an interface for the user to add new DBMS for internal computations.
     """
 
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
-        """startup"""
+        """Startup."""
         self.index_col_name = "index_mlinspect"
         pass
 
     @abc.abstractmethod
     def __del__(self):
-        """cleanup"""
+        """Optional cleanup."""
         pass
 
     @abc.abstractmethod
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs) -> (list, str):
-        """ Has to correctly add the passed csv to the DBMS under the given name. Implements DROP of old if necessary.
+        """ Has to correctly add the passed csv to the DBMS under the given name. Implements DROP of old table if
+            necessary.
         Args:
             path_to_csv(str): path to the csv.
             table_name(str): the name under which the table will be accessed.
             null_symbols(list): list of symbols representing [null] in the DBMS.
-            delimiter(str): the separator char for the csv.
+            delimiter(str): the separating char for the csv.
             header(bool): states if the header can be taken from the csv or names need to be generated.
         Returns:
             Tuple(column_names, sql_code)
@@ -38,7 +39,8 @@ class Connector(abc.ABC):
         raise NotImplementedError()
 
     def add_dataframe(self, data_frame: pandas.DataFrame, table_name: str, *args, **kwargs) -> (list, str):
-        """ Has to correctly add the passed csv to the DBMS under the given name. Implements DROP of old if necessary.
+        """ Has to correctly add the passed pandas.DataFrame to the DBMS under the given name. Implements DROP of old
+            table if necessary.
         Args:
             data_frame(pandas.DataFrame): the pandas.DataFrame object.
             table_name(str): the name under which the table will be accessed.
@@ -69,7 +71,7 @@ class Connector(abc.ABC):
         Returns:
             Time im ms.
         Note:
-            Not abstract, it is optional.
+            As not abstract, it is optional.
         """
         raise NotImplementedError()
 

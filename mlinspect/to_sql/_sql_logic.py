@@ -363,7 +363,7 @@ class SQLLogic:
         """
         Helper for transpiling the KBinsDiscretizer.
         """
-        table_name = f"block_std_scalar_fit_{self.get_unique_id()}_step_size"
+        table_name = f"block_std_scalar_fit_{self.get_unique_id()}_std_avg"
         sql_code = f"SELECT " \
                    f"(SELECT AVG({column_name}) FROM {table}) AS avg_col_std_scal," \
                    f"(SELECT STDDEV_POP({column_name}) FROM {table}) AS std_dev_col_std_scal"
