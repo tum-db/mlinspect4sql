@@ -36,6 +36,8 @@ class TestPipelineOutput(unittest.TestCase):
         elif "c" == target:
             setup_code, test_code = get_compas_pipe_code(only_pandas=False, include_training=False)
             # pipeline_name = "COMPAS"
+        else:
+            raise ValueError
 
         pipeline_code = setup_code + "\n" + test_code
 

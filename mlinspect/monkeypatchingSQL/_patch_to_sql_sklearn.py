@@ -860,13 +860,17 @@ class SklearnKBinsDiscretizerPatching:
                     fit_lookup_table = fit_data.col_to_fit_block_name[col]
                     min_lookup_table = fit_data.extra_info[col]
 
-                select_block_sub = "\t(CASE\n" \
-                                   f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
-                                   f" (SELECT step FROM {fit_lookup_table}) THEN 0\n" \
-                                   f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
-                                   f" {num_bins - 1} * (SELECT step FROM {fit_lookup_table}) " \
-                                   f"THEN FLOOR(({col} - (SELECT min_val FROM {min_lookup_table}))/(SELECT step FROM {fit_lookup_table}))\n" \
-                    f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
+                # select_block_sub = "\t(CASE\n" \
+                #                    f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
+                #                    f" (SELECT step FROM {fit_lookup_table}) THEN 0\n" \
+                #                    f"\t\tWHEN {col} < (SELECT min_val FROM {min_lookup_table}) +" \
+                #                    f" {num_bins - 1} * (SELECT step FROM {fit_lookup_table}) " \
+                #                    f"THEN FLOOR(({col} - (SELECT min_val FROM {min_lookup_table}))/(SELECT step FROM {fit_lookup_table}))\n" \
+                #                    f"\t\tELSE {num_bins - 1}\n\tEND) AS {col}"
+
+                select_block_sub = f"(\n" \
+                                   f"\tLEAST({num_bins - 1}, GREATEST(0, FLOOR(({col} - (SELECT min_val FROM {min_lookup_table}))/(SELECT step FROM {fit_lookup_table}))))\n" \
+                                   f") AS {col}"
 
                 select_block.append(select_block_sub)
                 selection_map[col] = select_block[-1]

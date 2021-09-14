@@ -64,7 +64,7 @@ class UmbraConnector(Connector):
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            print(q)  # Very helpful for debugging
+            # print(q)  # Very helpful for debugging
             q = self.fix_avg_overflow(q)
             self.cur.execute(q)
             try:

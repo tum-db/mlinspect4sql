@@ -39,7 +39,7 @@ class PostgresqlConnector(Connector):
             return []
 
         for q in super()._prepare_query(sql_query):
-            # print(q)  # Very helpful for debugging
+            print(q)  # Very helpful for debugging
             self.cur.execute(q)
             # print("DONE")
             try:
