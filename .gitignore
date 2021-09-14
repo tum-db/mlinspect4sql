@@ -140,3 +140,5 @@ dmypy.json
 # Generated Files:
 example_to_sql/data_generation/generated_csv/
 
+example_pipelines/test_p.py
+

@@ -1,16 +1,9 @@
-mlinspect
+mlinspect-SQL
 ================================
-
-[![mlinspect](https://img.shields.io/badge/🔎-mlinspect-green)](https://github.com/stefan-grafberger/mlinspect)
-[![GitHub license](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg)](https://github.com/stefan-grafberger/mlinspect/blob/master/LICENSE)
-[![Build Status](https://github.com/stefan-grafberger/mlinspect/actions/workflows/build.yml/badge.svg)](https://github.com/stefan-grafberger/mlinspect/actions/workflows/build.yml)
-[![codecov](https://codecov.io/gh/stefan-grafberger/mlinspect/branch/master/graph/badge.svg?token=KTMNPBV1ZZ)](https://codecov.io/gh/stefan-grafberger/mlinspect)
-
-Inspect ML Pipelines in Python in the form of a DAG
 
 ## Run mlinspect locally
 
-Prerequisite: Python 3.9
+Prerequisite: Python 3.8
 
 1. Clone this repository
 2. Set up the environment
@@ -34,6 +27,26 @@ Prerequisite: Python 3.9
     
 ## How to use mlinspect
 mlinspect makes it easy to analyze your pipeline and automatically check for common issues.
+```python
+from mlinspect import PipelineInspector
+from mlinspect.inspections import MaterializeFirstOutputRows
+from mlinspect.checks import NoBiasIntroducedFor
+
+IPYNB_PATH = ...
+
+inspector_result = PipelineInspector\
+        .on_pipeline_from_ipynb_file(IPYNB_PATH)\
+        .add_required_inspection(MaterializeFirstOutputRows(5))\
+        .add_check(NoBiasIntroducedFor(['race']))\
+        .execute()
+
+extracted_dag = inspector_result.dag
+dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
+check_to_check_results = inspector_result.check_to_check_results
+```
+
+Whith execution outsourced to a Database Management System (DBMS):
+
 ```python
 from mlinspect import PipelineInspector
 from mlinspect.inspections import MaterializeFirstOutputRows
