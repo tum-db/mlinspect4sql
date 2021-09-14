@@ -152,9 +152,6 @@ def full_equality(pipeline_location, mode, materialized):
 
 
 if __name__ == "__main__":
-    # h = r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_1000.csv"
-    # p = r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_1000.csv"
-    # h = r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv"
     # p = os.path.join(str(get_project_root()), "example_pipelines", "healthcare", "patients.csv")
     # setup_code, test_code = get_healthcare_pipe_code(path_patients=p, path_histories=h, only_pandas=False,
     #                                                  include_training=False)
