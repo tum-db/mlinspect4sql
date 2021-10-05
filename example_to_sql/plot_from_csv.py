@@ -3,7 +3,7 @@ import pandas
 from _benchmark_utility import plot_compare, bar_plot_compare
 import csv
 import pathlib
-import pandas
+import pandas as pd
 
 
 def plot_bench_file(path):
@@ -151,10 +151,77 @@ def plot_bench_file_precise(path, title):
 
     print("db_overhead_cost_sum: " + str(db_overhead_cost_sum))
     # print(data.to_markdown())
+
     bar_plot_compare(title, data=data, save=True, shape=(12., 4.))
 
     return data_2
 
+
+def plot_simple_bar(path, title):
+
+    pandas = []
+    umbra_view = []
+    postgres_view = []
+    postgres_view_mat = []
+    postgres_cte = []
+
+    with pathlib.Path(path).open("r") as f:
+
+        for i, line in enumerate(f.readlines()):
+            line_parts = line.split(", ")
+
+            # print(line_parts[-1])
+            if len(line_parts) <= 1 or line_parts[-1] == "#\n":
+                continue
+
+            pipeline_name = line_parts[0]
+            pipeline_part = line_parts[1]
+            exec_detail = line_parts[2]
+
+            mode = line_parts[4]
+
+            materialized = line_parts[5]
+            time = float(line_parts[7])
+            if line_parts[6] == "Pandas/Original":
+                pandas.append(time)
+
+            elif line_parts[6] == "PostgreSQL":
+                if mode == "CTE":
+                    postgres_cte.append(time)
+                elif mode == "VIEW":
+                    if materialized == "MATERIALIZED":
+                        postgres_view_mat.append(time)
+                    elif materialized == "NON-MATERIALIZED":
+                        postgres_view.append(time)
+                    else:
+                        assert False
+                else:
+                    assert False
+
+            elif line_parts[6] == "Umbra":
+                if mode == "VIEW":
+                    umbra_view.append(time)
+                else:
+                    assert False
+            else:
+                assert line_parts[6] == "Pandas"
+
+    # PLOT:
+    names = ["Original", f"PostgreSQL - VIEW", f"PostgreSQL - VIEW MAT.", f"Umbra - VIEW"]
+    table = [pandas, postgres_view, postgres_view_mat, umbra_view]
+    i = 0
+    for x in table:
+        if not x:
+            names = names[:i] + names[i + 1:]
+            i -= 1
+        i += 1
+
+    table = [t[0] for t in table if t != []]
+    title = f"{pipeline_name}_{pipeline_part}_{exec_detail}"
+
+    data = pd.DataFrame({"operation": ["cost" for t in table], "runtime (ms)": table, "engine": names})
+
+    bar_plot_compare(title, data=data, save=True, shape=(8., 8.))
 
 if __name__ == "__main__":
     # PLOT FOR ONLY PANDAS RUN:
@@ -194,13 +261,20 @@ if __name__ == "__main__":
     #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/d_adult_complex_end_to_end.csv")
 
     # PLOT PRECISE END-TO-END:
-    data_info_1 = plot_bench_file_precise(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/precise/compas_end_to_end_precise.csv",
-        "PRECISE_COMPARE_COMPAS_10000")
-    data_info_2 = plot_bench_file_precise(
-        r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/precise/compas_end_to_end_precise_1000000.csv",
-        "PRECISE_COMPARE_COMPAS_1000000")
+    # data_info_1 = plot_bench_file_precise(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/precise/compas_end_to_end_precise.csv",
+    #     "PRECISE_COMPARE_COMPAS_10000")
+    # data_info_2 = plot_bench_file_precise(
+    #     r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/precise/compas_end_to_end_precise_1000000.csv",
+    #     "PRECISE_COMPARE_COMPAS_1000000")
     # data_info_2.columns = ["engine", "operation", "runtime (ms)"]
     #
     # bar_plot_compare("PRECISE_COMPARE_COMPAS_1000000_INFO", data=data_info_1.append(data_info_2), save=True,
     #                  shape=(4., 4.), y_axis_ticks=range(0, 2000, 200))
+
+    plot_simple_bar(r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/presi_endtoend_h.csv",
+                    "end-to-end_h")
+    plot_simple_bar(r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/presi_endtoend_c.csv",
+                    "end-to-end_c")
+
+

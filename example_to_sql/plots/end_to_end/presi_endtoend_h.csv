@@ -1,0 +1,12 @@
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Pandas/Original, 2684.624253990478, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, VIEW, MATERIALIZED, PostgreSQL, 1868.46549299662, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, PostgreSQL, 2377.696843002923, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Umbra, 1927.4452959944028, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+

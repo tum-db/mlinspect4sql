@@ -1,6 +1,7 @@
 from mlinspect.to_sql.data_source_sql_handling import CreateTablesFromDataSource
 from .dbms_connector import Connector
 from .connector_utility import results_to_np_array
+from mlinspect.utils import store_timestamp
 import psycopg2
 import subprocess
 import time
@@ -68,13 +69,19 @@ class UmbraConnector(Connector):
             q = self.fix_avg_overflow(q)
             self.cur.execute(q)
             try:
+                # t0 = time.time()
                 query_output = self.cur.fetchall()
                 column_names = [c.name for c in self.cur.description]
                 results.append((column_names, query_output))
+                # if ('ORDER BY index_mlinspect' in q):
+                #     store_timestamp(f"(DATA MOVE/TANSFORMATION COST) LOAD RESULT TRAIN/TEST", time.time() - t0, "Umbra")
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
-
-        return results_to_np_array(results)
+        # t0 = time.time()
+        results = results_to_np_array(results)
+        # if ('ORDER BY index_mlinspect' in q):
+        #     store_timestamp(f"(DATA MOVE/TANSFORMATION COST) TRANSFORM RESULT TRAIN/TEST", time.time() - t0, "Umbra")
+        return results
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):
         """

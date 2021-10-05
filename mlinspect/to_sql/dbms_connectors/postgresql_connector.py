@@ -34,27 +34,25 @@ class PostgresqlConnector(Connector):
 
     def run(self, sql_query):
         results = []
-
         if self.just_code:
             return []
-
         for q in super()._prepare_query(sql_query):
             # print(q)  # Very helpful for debugging
             self.cur.execute(q)
             # print("DONE")
             try:
-                t0 = time.time()
+                # t0 = time.time()
                 query_output = self.cur.fetchall()
                 column_names = [c.name for c in self.cur.description]
                 results.append((column_names, query_output))
-                if ('ORDER BY index_mlinspect' in q):
-                    store_timestamp(f"(DATA MOVE/TANSFORMATION COST) LOAD RESULT TRAIN/TEST", time.time() - t0, "PostgreSQL")
+                # if ('ORDER BY index_mlinspect' in q):
+                #     store_timestamp(f"(DATA MOVE/TANSFORMATION COST) LOAD RESULT TRAIN/TEST", time.time() - t0, "PostgreSQL")
             except psycopg2.ProgrammingError:  # Catch the case no result is available (f.e. create Table)
                 continue
-        t0 = time.time()
+        # t0 = time.time()
         results = results_to_np_array(results)
-        if ('ORDER BY index_mlinspect' in q):
-            store_timestamp(f"(DATA MOVE/TANSFORMATION COST) TRANSFORM RESULT TRAIN/TEST", time.time() - t0, "PostgreSQL")
+        # if ('ORDER BY index_mlinspect' in q):
+        #     store_timestamp(f"(DATA MOVE/TANSFORMATION COST) TRANSFORM RESULT TRAIN/TEST", time.time() - t0, "PostgreSQL")
         return results
 
     def benchmark_run(self, sql_query, repetitions=1, verbose=True):

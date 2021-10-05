@@ -27,7 +27,11 @@ class CreateTablesFromDataSource:
     def _get_schema_from_data_frame(data_frame):
         """Infers schema from CSV."""
         # Also the column names need to be quoted to avoid getting a keywortd as "end"
-        col_names = [f"\"{x}\"" for x in data_frame.columns.values]
+        col_names = [f"\"{x}\"" for x in data_frame.columns.values if x != "index_mlinspect"]
+
+        if "index_mlinspect" in data_frame.columns.values:
+            col_names.append("index_mlinspect")
+
         types = list(data_frame.dtypes)
         # return types as str -> except 'string' is replaced by varchar(100) to comply with umbra
         for i, value in enumerate(types):
@@ -49,7 +53,7 @@ class CreateTablesFromDataSource:
         drop_old_table = f"DROP TABLE IF EXISTS {table_name};"
         if add_mlinspect_serial:
             if index_col != -1:
-                names[index_col] = "\"index_mlinspect\""
+                names[index_col] = "index_mlinspect"
 
         create_table = f"CREATE TABLE {table_name} (\n\t" + ",\n\t".join(
             [i + " " + j for i, j in zip(names, data_types)])

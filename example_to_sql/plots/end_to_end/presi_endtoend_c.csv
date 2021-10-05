@@ -1,0 +1,11 @@
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Pandas/Original, 1681.2166510062525, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, MATERIALIZED, PostgreSQL, 537.8358399902936, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, PostgreSQL, 2592.380032001529, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Umbra, 562.7315259916941, ['/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
