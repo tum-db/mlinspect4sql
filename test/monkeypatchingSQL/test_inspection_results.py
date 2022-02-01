@@ -39,7 +39,7 @@ class TestInspectionOutput(unittest.TestCase):
     ADULT_COMPLEX_BIAS = ["race"]
     ADULT_SIMPLE_BIAS = ["race"]
 
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+    umbra_path = r"/home/maximilian/TUM/umbra"
     dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                       umbra_dir=umbra_path)
 

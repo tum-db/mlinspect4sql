@@ -93,7 +93,7 @@ def run_for_all(file_location, bias, mode="", materialize=None):
     # print("\nTime spend with modified SQL inspections: " + str(t1 - t0))
 
 
-umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+umbra_path = r"/home/maximilian/TUM/umbra"
 dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                   umbra_dir=umbra_path)
 

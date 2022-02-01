@@ -19,7 +19,7 @@ class TestPipelineOutput(unittest.TestCase):
                                            port=5432,
                                            host="localhost")
 
-    umbra_path = r"/home/luca/Documents/Bachelorarbeit/umbra-students"
+    umbra_path = r"/home/maximilian/TUM/umbra"
     dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
                                       umbra_dir=umbra_path)
 
