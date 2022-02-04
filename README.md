@@ -1,5 +1,6 @@
 mlinspect-SQL
 ================================
+This is an SQL extension to the [mlinspect framework] (https://github.com/stefan-grafberger/mlinspect) to transpile Python library functions to SQL for execution within a database system.
 
 ## Run mlinspect locally
 
@@ -25,6 +26,15 @@ Prerequisite: Python 3.8
 
     `python setup.py test` <br>
     
+
+## How to use the SQL backend
+We prepared two examples, the [first] (notebooks/example_to_sql/to_sql_demo_pure_pipeline.ipynb) is to demonstrate execution of machine learning pipelines only, the [second] (example_to_sql/to_sql_demo_inspection.ipynb) demonstrate a full end-to-end machine learning pipeline that compares the performance of different backends.
+
+In order to run the latter one, you need a PostgreSQL database system running in the background with an user `luca` with password `password`that is allowed to copy from CSV files.
+	`` <br>
+
+For more information on the functions supported w.r.t execution outsourced to DBMS, please see [here](mlinspect/monkeypatchingSQL/README.md).
+
 ## How to use mlinspect
 mlinspect makes it easy to analyze your pipeline and automatically check for common issues.
 ```python
@@ -67,25 +77,3 @@ extracted_dag = inspector_result.dag
 dag_node_to_inspection_results = inspector_result.dag_node_to_inspection_results
 check_to_check_results = inspector_result.check_to_check_results
 ```
-
-## Detailed Example
-We prepared a [demo notebook](demo/feature_overview/feature_overview.ipynb) to showcase mlinspect and its features.
-
-## Supported libraries and API functions
-mlinspect already supports a selection of API functions from `pandas` and `scikit-learn`. 
-Extending mlinspect to support more and more API functions and libraries will be an ongoing effort.
-However, mlinspect won't just crash when it encounters functions it doesn't recognize yet. 
-For more information, please see [here](mlinspect/monkeypatching/README.md).
-
-For more information on the functions supported w.r.t execution outsourced to
-DBMS, please see [here](mlinspect/monkeypatchingSQL/README.md).
-
-## Notes
-* For debugging in PyCharm, set the pytest flag `--no-cov` ([Link](https://stackoverflow.com/questions/34870962/how-to-debug-py-test-in-pycharm-when-coverage-is-enabled))
-
-## Original Publications
-* [Stefan Grafberger, Shubha Guha, Julia Stoyanovich, Sebastian Schelter (2021). mlinspect: a Data Distribution Debugger for Machine Learning Pipelines. ACM SIGMOD (demo).](https://stefan-grafberger.com/publications/mlinspect-a-data-distribution-debugger-for-machine-learning-pipelines/mlinspect-demo.pdf)
-* [Stefan Grafberger, Julia Stoyanovich, Sebastian Schelter (2020). Lightweight Inspection of Data Preprocessing in Native Machine Learning Pipelines. Conference on Innovative Data Systems Research (CIDR).](https://stefan-grafberger.com/publications/lightweight-inspection-of-data-preprocessing-in-native-machine-learning-pipelines/mlinspect-cidr.pdf)
-
-## BA Thesis:#
-* [Thesis](example_to_sql/main.pdf)
