@@ -269,22 +269,22 @@ if __name__ == "__main__":
 
     orig_health = "h", [
         (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv"
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv"),
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv")
         )
     ]
 
     orig_compas = "c", [
         (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv"
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv"),
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv")
         )
     ]
 
     orig_adult_paths = [
         (
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv",
-            r"/home/luca/Documents/Bachelorarbeit/mlinspect/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv"
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv"),
+            os.path.join(str(get_project_root()), r"test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv")
         )
     ]
 
