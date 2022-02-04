@@ -14,7 +14,6 @@ BENCH_REP = 1
 MLINSPECT_ROOT_DIR = get_project_root()
 
 # DBMS related:
-UMBRA_DIR = r"/home/maximilian/TUM/umbra"
 UMBRA_USER = "postgres"
 UMBRA_PW = " "
 UMBRA_DB = ""

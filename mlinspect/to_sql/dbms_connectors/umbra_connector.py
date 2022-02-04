@@ -16,8 +16,6 @@ import re
 class UmbraConnector(Connector):
     def __init__(self, dbname, user, password, port, host, umbra_dir=None, add_mlinspect_serial=True):
         """
-        Starts a new empty Umbra server is 'DROP' is not implemented yet.
-
         Note: For Umbra:
             1) clone the Umbra repo.
             2) build everything: "mkdir build && cd build && cmake .. && make"
@@ -39,33 +37,21 @@ class UmbraConnector(Connector):
             create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
             this can be done trough setting add_mlinspect_serial to True! -> Allows row-wise ops
         """
-        super().__init__(dbname, user, password, port, host)
-        self.umbra_dir = umbra_dir
         self.add_mlinspect_serial = add_mlinspect_serial
-
-        # check if already running:
-        result = subprocess.run("pgrep serve", stdout=subprocess.PIPE, shell=True)
-        if result.returncode == 0:  # here we check if the process is already running
-            subprocess.run(f"kill -9 {result.stdout.decode('utf-8').strip()}", stdout=subprocess.DEVNULL, shell=True)
-        command = f"./build/server \"\" -port=5433 -address=localhost"
-        self.server = subprocess.Popen(command, cwd=self.umbra_dir, shell=True, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
-
-        # Set output handle to non-blocking (essential to read all that is available and not wait for process term.):
-        fcntl.fcntl(self.server.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
-
-        time.sleep(0.1)  # wait for the server to start
-        self.connection = psycopg2.connect(dbname=dbname, user=user, password=password, port=port, host=host)
+        super().__init__(dbname, user, password, port, host)
+        self.db_settings = {"dbname": dbname, "user": user, "password": password, "port": port, "host": host}
+        self.connection = psycopg2.connect(**self.db_settings)
         self.cur = self.connection.cursor()
 
-    # Destructor:
     def __del__(self):
-        self.server.kill()
+        if not self.just_code:
+            # print(self.connection)
+            self.connection.close()
 
     def run(self, sql_query):
         results = []
         for q in super()._prepare_query(sql_query):
-            # print(q)  # Very helpful for debugging
+            #print(q)  # Very helpful for debugging
             q = self.fix_avg_overflow(q)
             self.cur.execute(q)
             try:
@@ -145,6 +131,7 @@ class UmbraConnector(Connector):
                                                                               header=header,
                                                                               add_mlinspect_serial=index_col != -1,
                                                                               index_col=index_col)
+            self.run(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
             self.run(sql_code)
 
             if self.add_mlinspect_serial:

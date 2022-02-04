@@ -10,7 +10,7 @@ from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConn
 from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 from pandas_connector import PandasConnector
 from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, SIZES, DO_CLEANUP, SIZES, BENCH_REP, \
-    MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
+    MLINSPECT_ROOT_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from _code_as_string import Join, GroupBy, Selection, Projection
 
@@ -40,8 +40,7 @@ def simple_op_benchmark():
     pandas = PandasConnector()
     repetitions = 10
     for i, (table1, table2) in enumerate(HEALTHCARE_DATA_PATHS):
-        umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                               umbra_dir=UMBRA_DIR)
+        umbra = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/")
 
         umbra.add_csv(table_name=t2_name, path_to_csv=table2, null_symbols=["?"], delimiter=",", header=True)
         umbra.add_csv(table_name=t1_name, path_to_csv=table1, null_symbols=["?"], delimiter=",", header=True)

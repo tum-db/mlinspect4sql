@@ -18,7 +18,7 @@ from mlinspect.utils import get_project_root
 from _code_as_string import get_healthcare_pipe_code, get_compas_pipe_code, get_adult_simple_pipe_code, \
     get_adult_complex_pipe_code, get_sql_query_for_pipeline, get_compas_pipe_code_with_timestamps
 from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, write_brake_to_log, DO_CLEANUP, SIZES, BENCH_REP, \
-    MLINSPECT_ROOT_DIR, UMBRA_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
+    MLINSPECT_ROOT_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from data_generation.compas_data_generation import generate_compas_dataset
 from data_generation.healthcare_data_generation import generate_healthcare_dataset
@@ -59,7 +59,7 @@ from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 from mlinspect import PipelineInspector
 
 dbms_connector_u = UmbraConnector(dbname=\'{UMBRA_DB}\', user=\'{UMBRA_USER}\', password=\'{UMBRA_PW}\',
-    port={UMBRA_PORT}, host=\'{UMBRA_HOST}\', umbra_dir= r\'{UMBRA_DIR}\')
+    port={UMBRA_PORT}, host=\'{UMBRA_HOST}\')
 dbms_connector_p = PostgresqlConnector(dbname=\'{POSTGRES_DB}\', user=\'{POSTGRES_USER}\',
     password=\'{POSTGRES_PW}\', port={POSTGRES_PORT}, host=\'{POSTGRES_HOST}\')
 
@@ -92,8 +92,7 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
         elif dbms_connector == 'dbms_connector_p':
             dbms_connector_engine = POSTGRES_CONNECTOR
         elif dbms_connector == 'dbms_connector_u':
-            dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                                   umbra_dir=UMBRA_DIR)
+            dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/")
         else:
             raise NotImplementedError
         setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode=mode, materialize=materialize)
