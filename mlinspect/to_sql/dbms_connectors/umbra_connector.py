@@ -14,7 +14,7 @@ import re
 
 
 class UmbraConnector(Connector):
-    def __init__(self, dbname, user, password, port, host, umbra_dir=None, add_mlinspect_serial=True):
+    def __init__(self, dbname, user, password, port, host, just_code=False, add_mlinspect_serial=True):
         """
         Note: For Umbra:
             1) clone the Umbra repo.
@@ -38,6 +38,9 @@ class UmbraConnector(Connector):
             this can be done trough setting add_mlinspect_serial to True! -> Allows row-wise ops
         """
         self.add_mlinspect_serial = add_mlinspect_serial
+        self.just_code = just_code
+        if just_code:
+            return
         super().__init__(dbname, user, password, port, host)
         self.db_settings = {"dbname": dbname, "user": user, "password": password, "port": port, "host": host}
         self.connection = psycopg2.connect(**self.db_settings)
@@ -50,6 +53,8 @@ class UmbraConnector(Connector):
 
     def run(self, sql_query):
         results = []
+        if self.just_code:
+            return []
         for q in super()._prepare_query(sql_query):
             #print(q)  # Very helpful for debugging
             q = self.fix_avg_overflow(q)
