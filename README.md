@@ -1,6 +1,6 @@
 mlinspect-SQL
 ================================
-This is an SQL extension to the [mlinspect framework] (https://github.com/stefan-grafberger/mlinspect) to transpile Python library functions to SQL for execution within a database system.
+This is an SQL extension to the [mlinspect framework](https://github.com/stefan-grafberger/mlinspect) to transpile Python library functions to SQL for execution within a database system.
 
 ## Run mlinspect locally
 
@@ -28,7 +28,7 @@ Prerequisite: Python 3.8
     
 
 ## How to use the SQL backend
-We prepared two examples, the [first] (notebooks/example_to_sql/to_sql_demo_pure_pipeline.ipynb) is to demonstrate execution of machine learning pipelines only, the [second] (example_to_sql/to_sql_demo_inspection.ipynb) demonstrate a full end-to-end machine learning pipeline that compares the performance of different backends.
+We prepared two examples, the [first](notebooks/example_to_sql/to_sql_demo_pure_pipeline.ipynb) is to demonstrate execution of machine learning pipelines only, the [second](example_to_sql/to_sql_demo_inspection.ipynb) demonstrate a full end-to-end machine learning pipeline that compares the performance of different backends.
 
 In order to run the latter one, you need a PostgreSQL database system running in the background with an user `luca` with password `password`that is allowed to copy from CSV files.
 	`` <br>
