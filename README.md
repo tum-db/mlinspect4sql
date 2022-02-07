@@ -30,8 +30,15 @@ Prerequisite: Python 3.8
 ## How to use the SQL backend
 We prepared two examples, the [first](notebooks/example_to_sql/to_sql_demo_pure_pipeline.ipynb) is to demonstrate execution of machine learning pipelines only, the [second](example_to_sql/to_sql_demo_inspection.ipynb) demonstrate a full end-to-end machine learning pipeline that compares the performance of different backends.
 
-In order to run the latter one, you need a PostgreSQL database system running in the background with an user `luca` with password `password`that is allowed to copy from CSV files.
-	`` <br>
+In order to run the latter one, you need a PostgreSQL database system running (at port 5432) in the background with an user `luca` with password `password` that is allowed to copy from CSV files and has access to the respective database.
+
+	create user luca;
+	alter role luca with password 'password';
+	grant pg_read_server_files to luca;
+	create database healthcare_benchmark;
+	grant all privileges on database healthcare_benchmark to luca;
+
+To also run the benchmarks in Umbra, you need an Umbra server running at port 5433.
 
 For more information on the functions supported w.r.t execution outsourced to DBMS, please see [here](mlinspect/monkeypatchingSQL/README.md).
 
