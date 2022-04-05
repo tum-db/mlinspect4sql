@@ -78,6 +78,7 @@ class UmbraConnector(Connector):
         """
         Returns time in ms.
         """
+        exe_times = []
         print("Executing Query in Umbra...") if verbose else 0
         sql_queries = super()._prepare_query(sql_query)
         assert len(sql_queries) != 0
@@ -88,26 +89,23 @@ class UmbraConnector(Connector):
             sql_query = sql_queries[-1]
 
         new_output = []
-        # Get old output out of the way:
-        for _ in iter(lambda: self.server.stdout.readline(), b''):
-            continue
+        for _ in range(repetitions):
+            # self.cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) (\n" + sql_query[:-1] + "\n);")
+            # result = self.cur.fetchall()
+            # exe_times.append(result[0][0][0]['Execution Time'] + time_for_materialization)
 
-        for _ in range(repetitions):  # Execute the Query multiple times:
-            # print(sql_query)
-            sql_query = self.fix_avg_overflow(sql_query)
+            # This seems more reliable: (but includes time for server to return output)
+            t0 = time.time()
             self.cur.execute(sql_query)
-            new_output.append(self.server.stdout.readline().decode("utf-8"))
-
-        assert (len(new_output) == repetitions)
-        result_exec_times_sum = 0
-        for output in new_output:
+            t1 = time.time()
             try:
-                result_exec_times_sum += float(output.split("execution")[0].split(" ")[-3])
+               exe_times.append((t1-t0) * 1000) # for ms
             except ValueError:
                 continue  # No execution time found here..
-        bench_time = result_exec_times_sum / repetitions
-        print(f"Done in {bench_time * 1000}ms!") if verbose else 0
-        return bench_time * 1000
+
+        t = sum(exe_times) / repetitions
+        print(f"Done in {t}ms!") if verbose else 0
+        return t
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
