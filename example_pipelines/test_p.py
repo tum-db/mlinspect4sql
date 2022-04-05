@@ -94,8 +94,7 @@ def run_for_all(file_location, bias, mode="", materialize=None):
 
 
 umbra_path = r"/home/maximilian/TUM/umbra"
-dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/",
-                                  umbra_dir=umbra_path)
+dbms_connector_u = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/")
 
 dbms_connector_p = PostgresqlConnector(dbname="healthcare_benchmark", user="luca", password="password",
                                        port=5432,
