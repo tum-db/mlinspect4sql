@@ -150,11 +150,6 @@ class SQLHistogramForColumns:
         sc_hist_result_t = sc_hist_result.transpose()
         sc_hist_result_dict = list(zip(list(sc_hist_result_t[0]), list(sc_hist_result_t[1].astype(int))))
         result = dict((float("nan"), y) if str(x) == "None" else (x, y) for (x, y) in sc_hist_result_dict)
-        # mimic mlinspect behaviour:
-
-        if len([x for x in result.keys() if (not isinstance(x, str)) and (not str(x) == "nan")]) != 0:
-            # columns are floats, int, .. => mlinspect sets them to "None" -> could be reconstructed using ct_id tho...
-            return {None: int(sc_hist_result_t[-1].sum())}, new_name
         return result, new_name
 
     @staticmethod
