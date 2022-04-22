@@ -10,7 +10,7 @@ import time
 # Some parameters you might want check:
 DO_CLEANUP = True
 SIZES = [(10 ** i) for i in range(2, 6, 1)]
-BENCH_REP = 1
+BENCH_REP = 3
 MLINSPECT_ROOT_DIR = get_project_root()
 
 # DBMS related:

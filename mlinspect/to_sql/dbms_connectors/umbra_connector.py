@@ -11,6 +11,7 @@ import pandas
 import tempfile
 import csv
 import re
+import numpy as np
 
 
 class UmbraConnector(Connector):
@@ -20,16 +21,22 @@ class UmbraConnector(Connector):
             1) clone the Umbra repo.
             2) build everything: "mkdir build && cd build && cmake .. && make"
             3) Optional: Create User
-            3) create a db file with: "./bin/sql -createdb <dbname>"
-            4) Start server (with data base): "./build/server /path/to/<dbname> -port=5433 -address=localhost"
-                Start server (with new base): "./build/server "" -port=5433 -address=localhost"
-            5) Confirm it is running: "sudo netstat -lntup | grep '5433\\|5432'"
+            3) create a db file with: "./build/sql -createdb <dbname>"
+            4) Start server (with new base): "./build/server "" -port=5433 -address=localhost"
+             OPTIONAL: Start server (with data base): "./build/server /path/to/<dbname> -port=5433 -address=localhost"
+            5) Confirm it is running: "sudo netstat -lntup | grep '5433\|5432'"
             6) Connect with arguments below: - In terminal: "psql -h /tmp -p 5433 -U postgres"
+
                 db_name: "healthcare_benchmark"
                 user: "postgres"
                 password:"password" // not used
-                port:"5432"
+                port:"5433" (Umbra is expected on this port by default)
                 host:"localhost"
+
+        Note:
+            If necessary kill to restart -> "kill -s KILL <PID_of_umbra>" (get the PID trough
+            "sudo netstat -lntup | grep '5433\|5432'")
+
         Not implemented yet:
         DROP, ALTER, DELETE, CREATE MATERIALIZED VIEW
 
@@ -48,15 +55,15 @@ class UmbraConnector(Connector):
 
     def __del__(self):
         if not self.just_code:
-            # print(self.connection)
-            self.connection.close()
+            if hasattr(self, "connection"):
+                self.connection.close()
 
     def run(self, sql_query):
         results = []
         if self.just_code:
             return []
         for q in super()._prepare_query(sql_query):
-            #print(q)  # Very helpful for debugging
+            # print(q)  # Very helpful for debugging
             q = self.fix_avg_overflow(q)
             self.cur.execute(q)
             try:
@@ -99,13 +106,13 @@ class UmbraConnector(Connector):
             self.cur.execute(sql_query)
             t1 = time.time()
             try:
-               exe_times.append((t1-t0) * 1000) # for ms
+                exe_times.append((t1 - t0) * 1000)  # for ms
             except ValueError:
                 continue  # No execution time found here..
 
         t = sum(exe_times) / repetitions
         print(f"Done in {t}ms!") if verbose else 0
-        return t
+        return t, np.var(exe_times), np.std(exe_times)
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):

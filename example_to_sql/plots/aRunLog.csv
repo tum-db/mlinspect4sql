@@ -1,0 +1,611 @@
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 4402.074821002316, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1235.9926960198209, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 4254.579589993227, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1197.3997049790341, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 24.99669199460186, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.4036636352539062, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 20.964650000678375, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.8042068481445312, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 61.422489990945905, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.7260055541992188, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 54.071359016234055, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.8721561431884766, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 21.72874400002911, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.949403762817383, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 20.276010999623395, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 6.329059600830078, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 37.361671999860846, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 26.842832565307617, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 257.01824499992654, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 568.671464920044, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 18.992158999935782, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.256559371948242, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 20.01996600029088, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 2.630949020385742, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 38.97063899967179, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 20.343780517578125, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 245.14494100003503, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 562.981128692627, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 13.718743000026734, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.5343170166015625, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 19.59902199996577, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 5.300998687744141, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 36.14325799935614, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 21.02947235107422, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 238.4518870003376, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 572.5240707397461, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 21.087582999825827, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 2.133607864379883, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 21.288171999913175, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 3.7720203399658203, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 51.97321000014199, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 29.994726181030273, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 230.71462099960627, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 577.1515369415283, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 18.923222000012174, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.4787654876708984, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 23.191807999864977, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 4.347801208496094, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 34.76043800037587, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 20.342588424682617, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 245.87401099961426, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 577.629566192627, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 20.986795999306196, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.2806396484375, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Umbra, 4.259824752807617, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 20.719576999908895, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 2.6085376739501953, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Umbra, 5.418062210083008, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 37.78378900005919, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 20.895004272460938, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Umbra, 7.935523986816406, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 250.4947710003762, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 560.8539581298828, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Umbra, 17.966032028198242, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 45.69319800066296, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3.510713577270508, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Umbra, 3.6466121673583984, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 66.88183299957018, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 2.525806427001953, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Umbra, 4.067182540893555, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 82.91683700008434, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 19.645214080810547, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Umbra, 7.651805877685547, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 277.29597100005776, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 572.0796585083008, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Umbra, 22.30548858642578, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 58.60708699765382,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 51.30621499847621,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1.7135143280029297,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 51.53671200241661,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1.2507438659667969,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 22.535684998729266,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 2.2433598836263022,                 0.6400079857687363, 0.8000049910898909, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Umbra, 2.858320871988932,                 0.10549688845963424, 0.3248028455226866, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Pandas/Original, 24.533677998988423,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, PostgreSQL, 3.6172072092692056,                 2.4867505064523563, 1.5769434062300258, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 1000, CTE, NON-MATERIALIZED, Umbra, 3.241459528605143,                 0.9482973205700143, 0.9738055866393529, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_1000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_1000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Pandas/Original, 38.24200300005032,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, PostgreSQL, 20.945072174072266,                 5.669340566782921, 2.381037707971657, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 10000, CTE, NON-MATERIALIZED, Umbra, 6.3749949137369795,                 0.0011418074387216216, 0.0337906412889963, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_10000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_10000.csv')]
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Pandas/Original, 230.35103200527374,                 0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, PostgreSQL, 570.134162902832,                 145.16708282978166, 12.048530318249677, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100000, CTE, NON-MATERIALIZED, Umbra, 16.593456268310547,                 4.909371038290071, 2.2157100528476352, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100000.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100000.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 65.6972090000636,0.0, 0.0, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 19252.444837666797, 1474702.514756827, 1214.373301236826, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1436.7844346682734, 211.883017375549, 14.556202024413821, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 18908.39016133153, 1328135.257199182, 1152.4475073508477, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1565.6774676657126, 236364.1706495312, 486.1729842859753, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+ADULT_COMPLEX, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 1540.3613320013392, 231418.72467771723, 481.06000112014846, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/adult_complex/adult_test.csv']
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Umbra, 1071.0864016630997, 199633.41693867592, 446.80355519923506, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Umbra, 1100.7283873356453, 189936.63877042072, 435.81720797878177, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Umbra, 1080.1316786673851, 211803.3317645327, 460.2209597188428, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+
+###############################
+LOAD CSV 1, 146.46005630493164, 146.46005630493164, PostgreSQL/Umbra
+LOAD CSV 2, 79.56218719482422, 226.02224349975586, PostgreSQL/Umbra
+PROJECT TRAIN, 117.39468574523926, 343.4169292449951, PostgreSQL/Umbra
+PROJECT TEST, 56.46562576293945, 399.88255500793457, PostgreSQL/Umbra
+SELECT TRAIN 1, 221.2822437286377, 621.1647987365723, PostgreSQL/Umbra
+SELECT TRAIN 2, 144.3955898284912, 765.5603885650635, PostgreSQL/Umbra
+SELECT TRAIN 3, 144.9885368347168, 910.5489253997803, PostgreSQL/Umbra
+SELECT TRAIN 4, 145.44391632080078, 1055.992841720581, PostgreSQL/Umbra
+REPLACE TRAIN, 70.07980346679688, 1126.072645187378, PostgreSQL/Umbra
+REPLACE TEST, 40.5421257019043, 1166.6147708892822, PostgreSQL/Umbra
+BINARIZE TRAIN, 110.81171035766602, 1277.4264812469482, PostgreSQL/Umbra
+BINARIZE TEST, 59.136390686035156, 1336.5628719329834, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 558.8769912719727, 1895.439863204956, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 9.24539566040039, 1904.6852588653564, PostgreSQL/Umbra
+LOAD CSV 1, 146.0554599761963, 2050.7407188415527, PostgreSQL/Umbra
+LOAD CSV 2, 76.64060592651367, 2127.3813247680664, PostgreSQL/Umbra
+PROJECT TRAIN, 113.47723007202148, 2240.858554840088, PostgreSQL/Umbra
+PROJECT TEST, 56.941986083984375, 2297.8005409240723, PostgreSQL/Umbra
+SELECT TRAIN 1, 220.10040283203125, 2517.9009437561035, PostgreSQL/Umbra
+SELECT TRAIN 2, 146.1343765258789, 2664.0353202819824, PostgreSQL/Umbra
+SELECT TRAIN 3, 146.73590660095215, 2810.7712268829346, PostgreSQL/Umbra
+SELECT TRAIN 4, 148.73909950256348, 2959.510326385498, PostgreSQL/Umbra
+REPLACE TRAIN, 71.20585441589355, 3030.7161808013916, PostgreSQL/Umbra
+REPLACE TEST, 40.31872749328613, 3071.0349082946777, PostgreSQL/Umbra
+BINARIZE TRAIN, 110.39257049560547, 3181.427478790283, PostgreSQL/Umbra
+BINARIZE TEST, 59.9818229675293, 3241.4093017578125, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 485.07165908813477, 3726.4809608459473, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 7.251739501953125, 3733.7327003479004, PostgreSQL/Umbra
+LOAD CSV 1, 108.15572738647461, 3841.888427734375, PostgreSQL/Umbra
+LOAD CSV 2, 57.15179443359375, 3899.0402221679688, PostgreSQL/Umbra
+PROJECT TRAIN, 81.37011528015137, 3980.41033744812, PostgreSQL/Umbra
+PROJECT TEST, 39.56437110900879, 4019.974708557129, PostgreSQL/Umbra
+SELECT TRAIN 1, 148.26488494873047, 4168.239593505859, PostgreSQL/Umbra
+SELECT TRAIN 2, 93.89615058898926, 4262.135744094849, PostgreSQL/Umbra
+SELECT TRAIN 3, 94.50364112854004, 4356.639385223389, PostgreSQL/Umbra
+SELECT TRAIN 4, 92.84543991088867, 4449.484825134277, PostgreSQL/Umbra
+REPLACE TRAIN, 43.779611587524414, 4493.264436721802, PostgreSQL/Umbra
+REPLACE TEST, 25.176286697387695, 4518.440723419189, PostgreSQL/Umbra
+BINARIZE TRAIN, 68.12310218811035, 4586.5638256073, PostgreSQL/Umbra
+BINARIZE TEST, 36.91911697387695, 4623.482942581177, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 351.4225482940674, 4974.905490875244, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 7.068395614624023, 4981.973886489868, PostgreSQL/Umbra
+COMPAS_TIMED, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Pandas/Original, 2448.505823000005, 1379187.495081241, 1174.3881364698984, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+LOAD CSV 1, 94.77424621582031, 5076.7481327056885, PostgreSQL/Umbra
+LOAD CSV 2, 61.258554458618164, 5138.006687164307, PostgreSQL/Umbra
+PROJECT TRAIN, 29.112577438354492, 5167.119264602661, PostgreSQL/Umbra
+PROJECT TEST, 31.288862228393555, 5198.408126831055, PostgreSQL/Umbra
+SELECT TRAIN 1, 51.546573638916016, 5249.954700469971, PostgreSQL/Umbra
+SELECT TRAIN 2, 38.96379470825195, 5288.918495178223, PostgreSQL/Umbra
+SELECT TRAIN 3, 39.43181037902832, 5328.350305557251, PostgreSQL/Umbra
+SELECT TRAIN 4, 41.92185401916504, 5370.272159576416, PostgreSQL/Umbra
+REPLACE TRAIN, 47.41168022155762, 5417.683839797974, PostgreSQL/Umbra
+REPLACE TEST, 42.72174835205078, 5460.405588150024, PostgreSQL/Umbra
+BINARIZE TRAIN, 19.12689208984375, 5479.532480239868, PostgreSQL/Umbra
+BINARIZE TEST, 10.823726654052734, 5490.356206893921, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 214.08557891845703, 5704.441785812378, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 39.25204277038574, 5743.693828582764, PostgreSQL/Umbra
+LOAD CSV 1, 82.97324180603027, 5826.667070388794, PostgreSQL/Umbra
+LOAD CSV 2, 72.2804069519043, 5898.947477340698, PostgreSQL/Umbra
+PROJECT TRAIN, 35.5076789855957, 5934.455156326294, PostgreSQL/Umbra
+PROJECT TEST, 31.085968017578125, 5965.541124343872, PostgreSQL/Umbra
+SELECT TRAIN 1, 54.6107292175293, 6020.151853561401, PostgreSQL/Umbra
+SELECT TRAIN 2, 42.85573959350586, 6063.007593154907, PostgreSQL/Umbra
+SELECT TRAIN 3, 42.333126068115234, 6105.3407192230225, PostgreSQL/Umbra
+SELECT TRAIN 4, 44.037580490112305, 6149.378299713135, PostgreSQL/Umbra
+REPLACE TRAIN, 38.5899543762207, 6187.9682540893555, PostgreSQL/Umbra
+REPLACE TEST, 30.97057342529297, 6218.938827514648, PostgreSQL/Umbra
+BINARIZE TRAIN, 12.375593185424805, 6231.314420700073, PostgreSQL/Umbra
+BINARIZE TEST, 10.392427444458008, 6241.706848144531, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 179.96644973754883, 6421.67329788208, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 38.94495964050293, 6460.618257522583, PostgreSQL/Umbra
+LOAD CSV 1, 85.48855781555176, 6546.106815338135, PostgreSQL/Umbra
+LOAD CSV 2, 73.54211807250977, 6619.6489334106445, PostgreSQL/Umbra
+PROJECT TRAIN, 36.116600036621094, 6655.765533447266, PostgreSQL/Umbra
+PROJECT TEST, 31.56137466430664, 6687.326908111572, PostgreSQL/Umbra
+SELECT TRAIN 1, 53.82347106933594, 6741.150379180908, PostgreSQL/Umbra
+SELECT TRAIN 2, 46.204566955566406, 6787.354946136475, PostgreSQL/Umbra
+SELECT TRAIN 3, 48.653364181518555, 6836.008310317993, PostgreSQL/Umbra
+SELECT TRAIN 4, 59.220075607299805, 6895.228385925293, PostgreSQL/Umbra
+REPLACE TRAIN, 38.15484046936035, 6933.383226394653, PostgreSQL/Umbra
+REPLACE TEST, 30.0445556640625, 6963.427782058716, PostgreSQL/Umbra
+BINARIZE TRAIN, 18.61429214477539, 6982.042074203491, PostgreSQL/Umbra
+BINARIZE TEST, 10.735273361206055, 6992.777347564697, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 207.55362510681152, 7200.330972671509, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 38.27953338623047, 7238.610506057739, PostgreSQL/Umbra
+COMPAS_TIMED, FULL, INSPECTION_TRAIN, 100, VIEW, MATERIALIZED, PostgreSQL, 844.559040666733, 767.1475649484983, 27.697428850860838, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+LOAD CSV 1, 86.5945816040039, 7325.205087661743, PostgreSQL/Umbra
+LOAD CSV 2, 70.46318054199219, 7395.668268203735, PostgreSQL/Umbra
+PROJECT TRAIN, 19.771575927734375, 7415.43984413147, PostgreSQL/Umbra
+PROJECT TEST, 18.821001052856445, 7434.260845184326, PostgreSQL/Umbra
+SELECT TRAIN 1, 47.02877998352051, 7481.289625167847, PostgreSQL/Umbra
+SELECT TRAIN 2, 43.84255409240723, 7525.132179260254, PostgreSQL/Umbra
+SELECT TRAIN 3, 40.30323028564453, 7565.435409545898, PostgreSQL/Umbra
+SELECT TRAIN 4, 41.03493690490723, 7606.470346450806, PostgreSQL/Umbra
+REPLACE TRAIN, 30.871152877807617, 7637.341499328613, PostgreSQL/Umbra
+REPLACE TEST, 22.939682006835938, 7660.281181335449, PostgreSQL/Umbra
+BINARIZE TRAIN, 15.900850296020508, 7676.18203163147, PostgreSQL/Umbra
+BINARIZE TEST, 11.492729187011719, 7687.674760818481, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 2342.6806926727295, 10030.355453491211, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 80.04426956176758, 10110.399723052979, PostgreSQL/Umbra
+LOAD CSV 1, 69.8862075805664, 10180.285930633545, PostgreSQL/Umbra
+LOAD CSV 2, 56.2596321105957, 10236.54556274414, PostgreSQL/Umbra
+PROJECT TRAIN, 19.28234100341797, 10255.827903747559, PostgreSQL/Umbra
+PROJECT TEST, 19.015789031982422, 10274.843692779541, PostgreSQL/Umbra
+SELECT TRAIN 1, 37.08195686340332, 10311.925649642944, PostgreSQL/Umbra
+SELECT TRAIN 2, 37.66274452209473, 10349.588394165039, PostgreSQL/Umbra
+SELECT TRAIN 3, 37.677764892578125, 10387.266159057617, PostgreSQL/Umbra
+SELECT TRAIN 4, 39.52336311340332, 10426.78952217102, PostgreSQL/Umbra
+REPLACE TRAIN, 29.327869415283203, 10456.117391586304, PostgreSQL/Umbra
+REPLACE TEST, 23.02408218383789, 10479.141473770142, PostgreSQL/Umbra
+BINARIZE TRAIN, 14.96744155883789, 10494.10891532898, PostgreSQL/Umbra
+BINARIZE TEST, 10.571002960205078, 10504.679918289185, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 2216.8705463409424, 12721.550464630127, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 79.32853698730469, 12800.879001617432, PostgreSQL/Umbra
+LOAD CSV 1, 79.38122749328613, 12880.260229110718, PostgreSQL/Umbra
+LOAD CSV 2, 65.0179386138916, 12945.27816772461, PostgreSQL/Umbra
+PROJECT TRAIN, 20.026206970214844, 12965.304374694824, PostgreSQL/Umbra
+PROJECT TEST, 13.844490051269531, 12979.148864746094, PostgreSQL/Umbra
+SELECT TRAIN 1, 37.92142868041992, 13017.070293426514, PostgreSQL/Umbra
+SELECT TRAIN 2, 30.562400817871094, 13047.632694244385, PostgreSQL/Umbra
+SELECT TRAIN 3, 35.46309471130371, 13083.095788955688, PostgreSQL/Umbra
+SELECT TRAIN 4, 34.29818153381348, 13117.393970489502, PostgreSQL/Umbra
+REPLACE TRAIN, 26.036500930786133, 13143.430471420288, PostgreSQL/Umbra
+REPLACE TEST, 21.96788787841797, 13165.398359298706, PostgreSQL/Umbra
+BINARIZE TRAIN, 11.387348175048828, 13176.785707473755, PostgreSQL/Umbra
+BINARIZE TEST, 11.211395263671875, 13187.997102737427, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 245.18203735351562, 13433.179140090942, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 79.34021949768066, 13512.519359588623, PostgreSQL/Umbra
+COMPAS_TIMED, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, PostgreSQL, 2167.453122666681, 955525.8827900059, 977.5100422962446, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+LOAD CSV 1, 187.78181076049805, 13700.301170349121, PostgreSQL/Umbra
+LOAD CSV 2, 95.9310531616211, 13796.232223510742, PostgreSQL/Umbra
+PROJECT TRAIN, 30.47943115234375, 13826.711654663086, PostgreSQL/Umbra
+PROJECT TEST, 21.571874618530273, 13848.283529281616, PostgreSQL/Umbra
+SELECT TRAIN 1, 51.27120018005371, 13899.55472946167, PostgreSQL/Umbra
+SELECT TRAIN 2, 33.34760665893555, 13932.902336120605, PostgreSQL/Umbra
+SELECT TRAIN 3, 34.58118438720703, 13967.483520507812, PostgreSQL/Umbra
+SELECT TRAIN 4, 43.85638236999512, 14011.339902877808, PostgreSQL/Umbra
+REPLACE TRAIN, 29.961347579956055, 14041.301250457764, PostgreSQL/Umbra
+REPLACE TEST, 19.81520652770996, 14061.116456985474, PostgreSQL/Umbra
+BINARIZE TRAIN, 13.704061508178711, 14074.820518493652, PostgreSQL/Umbra
+BINARIZE TEST, 9.638786315917969, 14084.45930480957, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 219.24948692321777, 14303.708791732788, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 66.58792495727539, 14370.296716690063, PostgreSQL/Umbra
+LOAD CSV 1, 133.37373733520508, 14503.670454025269, PostgreSQL/Umbra
+LOAD CSV 2, 93.44625473022461, 14597.116708755493, PostgreSQL/Umbra
+PROJECT TRAIN, 15.582799911499023, 14612.699508666992, PostgreSQL/Umbra
+PROJECT TEST, 14.723777770996094, 14627.423286437988, PostgreSQL/Umbra
+SELECT TRAIN 1, 62.88003921508789, 14690.303325653076, PostgreSQL/Umbra
+SELECT TRAIN 2, 32.55438804626465, 14722.85771369934, PostgreSQL/Umbra
+SELECT TRAIN 3, 43.62130165100098, 14766.479015350342, PostgreSQL/Umbra
+SELECT TRAIN 4, 32.16361999511719, 14798.642635345459, PostgreSQL/Umbra
+REPLACE TRAIN, 28.789520263671875, 14827.43215560913, PostgreSQL/Umbra
+REPLACE TEST, 18.288612365722656, 14845.720767974854, PostgreSQL/Umbra
+BINARIZE TRAIN, 19.71268653869629, 14865.43345451355, PostgreSQL/Umbra
+BINARIZE TEST, 15.143871307373047, 14880.577325820923, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 207.35859870910645, 15087.93592453003, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 98.02389144897461, 15185.959815979004, PostgreSQL/Umbra
+LOAD CSV 1, 135.56838035583496, 15321.528196334839, PostgreSQL/Umbra
+LOAD CSV 2, 94.03133392333984, 15415.559530258179, PostgreSQL/Umbra
+PROJECT TRAIN, 16.95728302001953, 15432.516813278198, PostgreSQL/Umbra
+PROJECT TEST, 14.57524299621582, 15447.092056274414, PostgreSQL/Umbra
+SELECT TRAIN 1, 52.50096321105957, 15499.593019485474, PostgreSQL/Umbra
+SELECT TRAIN 2, 30.1816463470459, 15529.77466583252, PostgreSQL/Umbra
+SELECT TRAIN 3, 28.01656723022461, 15557.791233062744, PostgreSQL/Umbra
+SELECT TRAIN 4, 31.260251998901367, 15589.051485061646, PostgreSQL/Umbra
+REPLACE TRAIN, 20.052194595336914, 15609.103679656982, PostgreSQL/Umbra
+REPLACE TEST, 23.345232009887695, 15632.44891166687, PostgreSQL/Umbra
+BINARIZE TRAIN, 23.079872131347656, 15655.528783798218, PostgreSQL/Umbra
+BINARIZE TEST, 10.692596435546875, 15666.221380233765, PostgreSQL/Umbra
+PIPELINE+MODEL FIT, 207.91172981262207, 15874.133110046387, PostgreSQL/Umbra
+PIPELINE+MODEL SCORE, 79.85901832580566, 15953.992128372192, PostgreSQL/Umbra
+COMPAS_TIMED, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Umbra, 901.3214559999293, 1138.6953270732836, 33.74455996265596, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Pandas/Original, 1931.0765616664867, 892964.2808480269, 944.9678729184537, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, MATERIALIZED, PostgreSQL, 789.4044430001182, 468.0251950655693, 21.63388996610571, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, PostgreSQL, 799.3848093331811, 453.6509172357519, 21.29908254446073, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Umbra, 829.1680013333765, 74.77360768194814, 8.647173392614961, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Pandas/Original, 2079.33977833333, 1068045.667822017, 1033.462949419096, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, MATERIALIZED, PostgreSQL, 856.3151136669754, 157.60096287579856, 12.55392221083907, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, PostgreSQL, 1577.9211300000497, 866843.3586952589, 931.0442302572197, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+COMPAS, FULL, INSPECTION_TRAIN, 100, VIEW, NON-MATERIALIZED, Umbra, 877.6410953334258, 263.0938726177522, 16.22016869880681, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_train.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/compas/compas_test.csv']
+
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 3955.4008733333226, 594429.7036194177, 770.992674167153, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+
+###############################
+HEALTHCARE, FULL, INSPECTION_TRAIN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 3576.002003000061, 6469.457807026122, 80.4329398134006, ['/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/healthcare/histories.csv'; '/home/luca/Documents/BA_saved/For_Publication/max_repo/mlinspect4sql/test/monkeypatchingSQL/pipelines_for_tests/healthcare/patients.csv']
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, 68.82827766670137, 69.98547236551104, 8.365732028072083, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, Pandas/Original, (67.98557200030093, 75.44103574899403, 8.68567992439245), [PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################
+HEALTHCARE, ONLY_PANDAS, PURE_RUN, 100, CTE, NON-MATERIALIZED, PostgreSQL, 2.9605229695638022, [PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_histories_generated_100.csv'); PosixPath('/home/luca/Documents/BA_saved/For_Publication/my_repo/mlinspect/example_to_sql/data_generation/generated_csv/healthcare_patients_generated_100.csv')]
+
+###############################

@@ -9,7 +9,7 @@ from data_generation.healthcare_data_generation import generate_healthcare_datas
 from mlinspect.to_sql.dbms_connectors.postgresql_connector import PostgresqlConnector
 from mlinspect.to_sql.dbms_connectors.umbra_connector import UmbraConnector
 from pandas_connector import PandasConnector
-from _benchmark_utility import plot_compare, PLOT_DIR, write_to_log, SIZES, DO_CLEANUP, SIZES, BENCH_REP, \
+from _benchmark_utility import plot_compare, PLOT_DIR, SIZES, DO_CLEANUP, SIZES, BENCH_REP, \
     MLINSPECT_ROOT_DIR, UMBRA_USER, UMBRA_PW, UMBRA_DB, UMBRA_PORT, UMBRA_HOST, POSTGRES_USER, POSTGRES_PW, \
     POSTGRES_DB, POSTGRES_PORT, POSTGRES_HOST
 from _code_as_string import Join, GroupBy, Selection, Projection

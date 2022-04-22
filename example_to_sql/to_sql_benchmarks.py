@@ -15,7 +15,7 @@ import time
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-
+import numpy as np
 import timeit
 from inspect import cleandoc
 from mlinspect.utils import get_project_root
@@ -92,7 +92,7 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
 
     if not inspection:
         if not to_sql:
-            return PANDAS_CONNECTOR.benchmark_run(pandas_code=test_code, setup_code=setup_code, repetitions=BENCH_REP)
+            return PANDAS_CONNECTOR.benchmark_run(pandas_code=test_code, setup_code=setup_code)
         elif dbms_connector == 'dbms_connector_p':
             dbms_connector_engine = POSTGRES_CONNECTOR
         elif dbms_connector == 'dbms_connector_u':
@@ -108,15 +108,29 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
 
     setup_code, test_code = get_inspection_code(pipeline_code, to_sql, dbms_connector, no_bias,
                                                 mode, materialize)
+    """
+    As desired for the paper review the variance and std of the executed code is collected, even though not suggested 
+    by the documentation (https://docs.python.org/3/library/timeit.html): 
+    "Note: It’s tempting to calculate mean and standard deviation from the result vector and report these. 
+    However, this is not very useful. In a typical case, the lowest value gives a lower bound for how fast your 
+    machine can run the given code snippet; higher values in the result vector are typically not caused by variability 
+    in Python’s speed, but by other processes interfering with your timing accuracy. So the min() of the result is 
+    probably the only number you should be interested in. After that, you should look at the entire vector and apply 
+    common sense rather than statistics."
+    """
+    result = []
     if to_sql:
-        result = []
         for i in range(BENCH_REP):
             print(f"SQL run {i + 1} of {BENCH_REP} ...")
-            # This special case is necessary to deduct the time for dropping the existing tables and views!
+            # This special case is necessary to deduct the time for dropping the existing tables and views and to
+            # get var and std!
             result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in ms
-        return sum(result) / BENCH_REP
+        return sum(result) / BENCH_REP, np.var(result), np.std(result)
 
-    return (timeit.timeit(test_code, setup=setup_code, number=BENCH_REP) / BENCH_REP) * 1000  # in ms
+    for i in range(BENCH_REP):
+        print(f"Default run {i + 1} of {BENCH_REP} ...")
+        result.append(timeit.timeit(test_code, setup=setup_code, number=1) * 1000)  # in ms
+    return sum(result) / BENCH_REP, np.var(result), np.std(result)
 
 
 def pipeline_benchmark(data_paths, mode, no_bias=None, only_pandas=False, with_train=False, inspection=True):
@@ -305,21 +319,6 @@ if __name__ == "__main__":
         )
     ]
 
-    #pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
-    ##pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
-    ##pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
-    
-    ##pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
-    ##pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
-    #pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    
-    #pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    #pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    ##pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
-    #
-    #pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    ##pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    ##pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
 
     ####################################################################################################################
 

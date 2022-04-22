@@ -5,6 +5,7 @@ import psycopg2
 import pandas
 from mlinspect.utils import store_timestamp
 import time
+import numpy as np
 
 
 class PostgresqlConnector(Connector):
@@ -13,6 +14,12 @@ class PostgresqlConnector(Connector):
         Note: For Postgresql:
             1) install Postgresql and start the server
             2) assert it is running: "sudo netstat -lntup | grep '5433\\|5432'"
+
+            db_name: "healthcare_benchmark"
+            user: "postgres"
+            password:"password" // not used (if necessary run 'ALTER USER postgres PASSWORD 'password';')
+            port:"5433" (Umbra is expected on this port by default)
+            host:"localhost"
 
         ATTENTION: The added table CAN be forced to contain a index column, called: "index_mlinspect" +
             create an index on it: "CREATE UNIQUE INDEX id_mlinspect ON <table_name> (index_mlinspect);"
@@ -93,7 +100,7 @@ class PostgresqlConnector(Connector):
 
         t = sum(exe_times) / repetitions
         print(f"Done in {t}ms!") if verbose else 0
-        return t
+        return t, np.var(exe_times), np.std(exe_times)
 
     def add_csv(self, path_to_csv: str, table_name: str, null_symbols: list, delimiter: str, header: bool, *args,
                 **kwargs):
