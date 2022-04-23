@@ -3,10 +3,14 @@ Performance showcase of novel "to_sql" functionality in mlinspect
 
 Here the performance of the proposed inspection using sql will be compared to the original one in pandas. Part of
 the "healthcare" and "compas" pipeline will be used.
+
+parameters are defined in _benchmark_utility.py
+for examples, writes log to example_to_sql/plots/aRunLog.csv
 """
 
 import os
 import sys
+import time
 
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
@@ -95,7 +99,10 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
             dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/")
         else:
             raise NotImplementedError
+        t0 = time.time()
         setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode=mode, materialize=materialize)
+        t1 = time.time()
+        print("Transpilation time (w/o inspection) " + str(t1 - t0))
         dbms_connector_engine.run(setup_code)
         return dbms_connector_engine.benchmark_run(test_code, repetitions=BENCH_REP)
 
@@ -217,51 +224,61 @@ if __name__ == "__main__":
     # In our case only postgres supports this option.
 
     # BENCHMARK OF THE PURE PIPELINE: - ONLY PANDAS PART: ##############################################################
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    print("#### healthcare")
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
     # Only selected parts: -> manually changed in the code providing function: "get_compas_pipe_code" what was changed
     # is described in the paper.
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    print("#### compas")
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
     # No relevant pandas share: -> so not covered. Still is available and functioning, if of interest.
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    print("#### adult simple")
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
+    print("#### adult complex")
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=True, inspection=False)
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=True, inspection=False)
 
     ####################################################################################################################
 
     # BENCHMARK OF THE PURE PIPELINE: - FULL: ##########################################################################
+    print("#### adult simple + sk")
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
 
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
-    #
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+    print("#### adult complex + sk")
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+
+    print("#### healthcare + sk") 
+    #pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
+
+    print("#### compas + sk")
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="CTE", only_pandas=False, inspection=False)
+    pipeline_benchmark(COMPAS_DATA_PATHS, mode="VIEW", only_pandas=False, inspection=False)
     ####################################################################################################################
 
     # INSPECTION OF THE PURE PIPELINE: - FULL: #########################################################################
+    print("#### healthcare inspection")
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True)
+    pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True)
 
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="CTE", inspection=True)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True)
-    #
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
+    print("#### adult simple inspection")
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
+    pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
 
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
-    #
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
+    print("#### compas inspection")
+    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="CTE", inspection=True)
+    pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True)
+
+    print("#### adult complex inspection")
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="CTE", inspection=True)
+    pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True)
 
     ####################################################################################################################
 
@@ -288,21 +305,21 @@ if __name__ == "__main__":
         )
     ]
 
-    # pipeline_benchmark(original_health, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
-    # pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="CTE", inspection=True, with_train=True)
+    ##pipeline_benchmark(orig_health, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
+    ##pipeline_benchmark(HEALTHCARE_DATA_PATHS, no_bias=healthcare_no_bias, mode="VIEW", inspection=True, with_train=True)
+    
+    ##pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
+    ##pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    
+    #pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    #pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    ##pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
     #
-    # pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(orig_compas, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
-    # pipeline_benchmark(ADULT_SIMPLE_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    #
-    # pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(("as", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    # pipeline_benchmark(COMPAS_DATA_PATHS, no_bias=compas_no_bias, mode="VIEW", inspection=True, with_train=True)
-    #
-    pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
-    # pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
-    # pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    #pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="CTE", inspection=True, with_train=True)
+    ##pipeline_benchmark(("ac", orig_adult_paths), no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
+    ##pipeline_benchmark(ADULT_COMPLEX_DATA_PATHS, no_bias=adult_no_bias, mode="VIEW", inspection=True, with_train=True)
 
     ####################################################################################################################
 
