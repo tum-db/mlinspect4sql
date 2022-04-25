@@ -10,7 +10,7 @@ import time
 # Some parameters you might want check:
 DO_CLEANUP = True
 SIZES = [(10 ** i) for i in range(2, 6, 1)]
-BENCH_REP = 3
+BENCH_REP = 1
 MLINSPECT_ROOT_DIR = get_project_root()
 
 # DBMS related:
@@ -172,10 +172,12 @@ def write_to_log(pipeline_name, only_pandas, inspection, size, mode, materialize
     else:
         materialize = "NON-MATERIALIZED"
 
+    time_pure, std, var = time
+
     with LOG.open("a") as file:
         file.write(
-            f"{pipeline_name}, {only_pandas}, {inspection}, {size}, {mode}, {materialize}, {engine}, {time}, {str(csv_file_paths).replace(',', ';')}\n")
-
+           f"{pipeline_name}, {only_pandas}, {inspection}, {size}, {mode}, {materialize}, {engine}, {time_pure}, "
+           f"{std}, {var}, {str(csv_file_paths).replace(',', ';')}\n")
 
 def write_brake_to_log():
     with LOG.open("a") as file:
