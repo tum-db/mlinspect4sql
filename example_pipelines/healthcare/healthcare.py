@@ -25,14 +25,6 @@ histories = pd.read_csv(os.path.join(str(get_project_root()), "example_pipelines
                                      "histories.csv"), na_values='')
 store_timestamp("patients = pd.read_csv .. & histories = pd.read_csv ..", time.time()-t0)
 
-# t0 = time.time()
-# patients = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_patients_generated_100000.csv",
-#     na_values='?')
-# histories = pd.read_csv(r"/home/luca/Documents/Bachelorarbeit/BA_code/data_generation/generated_csv/healthcare_histories_generated_100000.csv",
-#     na_values='?')
-# store_timestamp("patients = pd.read_csv .. & histories = pd.read_csv ..", time.time()-t0)
-
-
 t0 = time.time()
 data = patients.merge(histories, on=['ssn'])
 store_timestamp("data = patients.merge .. ", time.time()-t0)
