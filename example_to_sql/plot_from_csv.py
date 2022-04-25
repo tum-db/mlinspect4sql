@@ -272,9 +272,9 @@ if __name__ == "__main__":
     # bar_plot_compare("PRECISE_COMPARE_COMPAS_1000000_INFO", data=data_info_1.append(data_info_2), save=True,
     #                  shape=(4., 4.), y_axis_ticks=range(0, 2000, 200))
 
-    plot_simple_bar(r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/presi_endtoend_h.csv",
+    plot_simple_bar(r"example_to_sql/plots/end_to_end/presi_endtoend_h.csv",
                     "end-to-end_h")
-    plot_simple_bar(r"/home/luca/Documents/Bachelorarbeit/mlinspect/example_to_sql/plots/end_to_end/presi_endtoend_c.csv",
+    plot_simple_bar(r"example_to_sql/plots/end_to_end/presi_endtoend_c.csv",
                     "end-to-end_c")
 
 
