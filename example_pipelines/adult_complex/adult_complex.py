@@ -33,10 +33,10 @@ nested_feature_transformation = ColumnTransformer(transformers=[
     ])
 nested_feature_transformation.fit_transform(train_data, train_labels)  # Attention here!
 
-# nested_income_pipeline = Pipeline([
-#     ('features', nested_feature_transformation),
-#     ('classifier', DecisionTreeClassifier())])
-#
-# nested_income_pipeline.fit(train_data, train_labels)
-#
-# print(nested_income_pipeline.score(test_data, test_labels))
+nested_income_pipeline = Pipeline([
+    ('features', nested_feature_transformation),
+    ('classifier', DecisionTreeClassifier())])
+
+nested_income_pipeline.fit(train_data, train_labels)
+
+print(nested_income_pipeline.score(test_data, test_labels))

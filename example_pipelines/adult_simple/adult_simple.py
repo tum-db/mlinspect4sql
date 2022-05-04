@@ -27,5 +27,6 @@ income_pipeline = pipeline.Pipeline([
 
 income_pipeline.fit(data, labels)
 
+print(income_pipeline.score(data, labels))
 
 print('pipeline finished')
