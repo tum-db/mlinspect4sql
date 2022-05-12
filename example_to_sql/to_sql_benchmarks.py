@@ -96,15 +96,17 @@ def run(setup_code, test_code, to_sql=False, dbms_connector=None, no_bias=None, 
         elif dbms_connector == 'dbms_connector_p':
             dbms_connector_engine = POSTGRES_CONNECTOR
         elif dbms_connector == 'dbms_connector_u':
-            dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=5433, host="/tmp/")
+            dbms_connector_engine = UmbraConnector(dbname="", user="postgres", password=" ", port=UMBRA_PORT, host="/tmp/")
         else:
             raise NotImplementedError
         t0 = time.time()
         setup_code, test_code = get_sql_query_for_pipeline(pipeline_code, mode=mode, materialize=materialize)
         t1 = time.time()
+        transpilationtime = (t1 - t0)*1000
         print("Transpilation time (w/o inspection) " + str(t1 - t0))
         dbms_connector_engine.run(setup_code)
-        return dbms_connector_engine.benchmark_run(test_code, repetitions=BENCH_REP)
+        (avg, var, std) = dbms_connector_engine.benchmark_run(test_code, repetitions=BENCH_REP)
+        return avg+transpilationtime, var+transpilationtime, std+transpilationtime
 
     setup_code, test_code = get_inspection_code(pipeline_code, to_sql, dbms_connector, no_bias,
                                                 mode, materialize)
